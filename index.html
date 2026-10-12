@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#10131d">
+  <meta name="description" content="Buttons-party: prototipo provvisorio di minigiochi audio per 2–4 giocatori.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./src/style.css">
+  <title>Buttons-party · prototipo</title>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div><p class="eyebrow">PROTOTIPO · FASE PROVVISORIA</p><h1>Buttons<span>-</span>party</h1></div>
+      <button id="sound-toggle" class="quiet-button" aria-pressed="true">🔊 Audio attivo</button>
+    </header>
+
+    <section id="setup-panel" class="panel setup-panel">
+      <div class="section-heading"><div><p class="eyebrow">SIAMO PRONTI?</p><h2>Prepara la partita</h2></div><span class="pill">2–4 giocatori</span></div>
+      <div class="setup-row">
+        <label for="player-count">Giocatori</label>
+        <select id="player-count"><option value="2">2 giocatori</option><option value="3">3 giocatori</option><option value="4" selected>4 giocatori</option></select>
+        <label for="game-select">Minigioco</label>
+        <select id="game-select">
+          <option value="pig">🐷 Cattura il maiale</option>
+          <option value="duel">🤠 Duello</option>
+          <option value="parachute">🪂 Paracadutisti</option>
+          <option value="disturber">📣 Disturbatore</option>
+          <option value="pot">🪙 Piglia tutto</option>
+          <option value="simon">🎵 Simon a 5 tasti</option>
+        </select>
+      </div>
+      <p id="game-description" class="muted">Ascolta i versi: premi quando senti il maiale, non gli altri animali.</p>
+      <div class="setup-actions"><button id="start-button" class="primary-button">▶ Inizia partita</button><button id="random-button" class="secondary-button">🎲 Gioco casuale</button></div>
+      <p class="hint">Primo tocco: abilita l'audio. Puoi usare i pulsanti sullo schermo o i tasti <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> e <kbd>Spazio</kbd>.</p>
+    </section>
+
+    <section id="game-panel" class="panel game-panel" hidden>
+      <div class="game-top"><div><p id="game-status" class="eyebrow">PRONTI</p><h2 id="game-title">Minigioco</h2></div><div class="game-actions"><button id="pause-button" class="secondary-button">Ⅱ Pausa</button><button id="exit-button" class="quiet-button">✕ Esci</button></div></div>
+      <div id="arena" class="arena"><div id="arena-message" class="arena-message">Premi Inizia</div><div id="live-info" class="live-info"></div></div>
+      <div id="scores" class="scores"></div>
+      <div id="simon-feedback" class="simon-feedback" aria-live="polite"></div>
+    </section>
+
+    <section class="controller-wrap" aria-label="Controller virtuale a cinque pulsanti">
+      <div class="controller-label"><span class="live-dot"></span> CONTROLLER VIRTUALE <span id="input-source">TOCCO / TASTIERA</span></div>
+      <div class="cross-controller">
+        <span class="cross-spacer"></span><button class="pad pad-p1" data-button="P1" aria-label="Giocatore 1, rosso"><span class="pad-number">1</span><small>ROSSO</small></button><span class="cross-spacer"></span>
+        <button class="pad pad-p4" data-button="P4" aria-label="Giocatore 4, verde"><span class="pad-number">4</span><small>VERDE</small></button>
+        <button class="pad pad-c" data-button="C" aria-label="Tasto centrale, conferma o pausa"><span class="pad-number">●</span><small>CENTRO</small></button>
+        <button class="pad pad-p2" data-button="P2" aria-label="Giocatore 2, blu"><span class="pad-number">2</span><small>BLU</small></button>
+        <span class="cross-spacer"></span><button class="pad pad-p3" data-button="P3" aria-label="Giocatore 3, giallo"><span class="pad-number">3</span><small>GIALLO</small></button><span class="cross-spacer"></span>
+      </div>
+      <p class="hint controller-hint">Il tasto centrale conferma nei menu, mette in pausa durante i giochi in tempo reale ed è un quinto input in Simon.</p>
+    </section>
+    <footer><span>Buttons-party · v0.1</span><span>Offline-first · nessun account</span></footer>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./src/app.js"></script>
+</body>
+</html>
