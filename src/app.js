@@ -25,6 +25,8 @@
     let audio = null, soundEnabled = true, game = null, timer = null, paused = false;
     let natureSource = null, natureGain = null;
     let held = new Set(), players = 4, scores = {}, toastTimer = null;
+    let fallSource = null, fallGain = null;
+    let ground = 0, start = 0;
 
     function ensureAudio() {
         if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
@@ -86,6 +88,61 @@
         fallback();
     }
 
+    function stopFallSound() {
+        if (fallSource) {
+            try {
+                fallSource.stop();
+            } catch (e) {
+                // La sorgente poteva essere già fermata
+            }
+            fallSource.disconnect();
+            fallSource = null;
+        }
+
+        if (fallGain) {
+            fallGain.disconnect();
+            fallGain = null;
+        }
+    }
+
+
+    async function startFallSound(path = "assets/sounds/arrivo.mp3") {
+        stopFallSound();
+
+        const buffer = await loadSample(path);
+
+        if (!buffer) {
+            console.warn("Suono di caduta non disponibile:", path);
+            return null;
+        }
+
+        const ctx = ensureAudio();
+
+        // Durata della caduta: da 10 a 18 secondi
+        const durationMs = 10000 + Math.random() * 8000;
+        const durationSeconds = durationMs / 1000;
+
+        fallSource = ctx.createBufferSource();
+        fallGain = ctx.createGain();
+
+        fallSource.buffer = buffer;
+
+        // Rallenta la traccia in base alla sua durata originale.
+        // Esempio: audio di 1 secondo e caduta di 10 secondi = rate 0.1.
+        fallSource.playbackRate.value = buffer.duration / durationSeconds;
+
+        // Mantiene il suono per tutta la caduta.
+        fallSource.loop = true;
+        fallGain.gain.value = soundEnabled ? 0.16 : 0;
+
+        fallSource.connect(fallGain);
+        fallGain.connect(ctx.destination);
+
+        fallSource.start();
+
+        // Restituisce la durata al gioco: non crea un secondo timer.
+        return durationMs;
+    }
 
     function tone(freq = 440, duration = .12, wave = "sine", volume = .12, delay = 0) {
         if (!soundEnabled) return;
@@ -342,6 +399,8 @@
 
     function endGame() {
         stopTimer();
+        stopFallSound();
+
         if (game?.dispose) game.dispose();
         game = null;
         paused = false;
@@ -356,6 +415,8 @@
         if (!game || game.finished) return;
         game.finished = true;
         stopTimer();
+        stopFallSound(); // Ferma il suono della caduta
+
         setArena(message, "Premi ✕ Esci per tornare al menu", "signal");
         $("#game-status").textContent = "FINE PARTITA";
         if (ranking) {
@@ -439,7 +500,8 @@
         }
 
         function animalSound(a) {
-            playSample(`assets/sounds/${a}.mp3`, () => {});
+            playSample(`assets/sounds/${a}.mp3`, () => {
+            });
         }
 
         function winner() {
@@ -506,6 +568,7 @@
             ready.clear();
             eligible = new Set(playerIds());
             started = false;
+            g.duelWinner = undefined;
             setArena("Round " + round + " / " + total, "Premi il tuo tasto per prepararti");
             $("#game-status").textContent = "DUELLO";
             renderScores(wins);
@@ -516,23 +579,50 @@
             if (g.finished) return;
             started = true;
             goAt = performance.now();
+
             setArena("🔥 VIA!", "Premi il tuo tasto!", "signal");
-            tone(880, .28, "square", .18);
-            later(() => {
-            }, 5000);
+
+            playSample("assets/sounds/inizio-duello.mp3", () => {
+                tone(880, .28, "square", .18);
+            });
+
+            later(() => {}, 5000);
         }
+
 
         function resolve(id) {
             if (g.finished) return;
+
+            // Il vincitore ha già sparato: gli altri sentono
+            // il proiettile che passa.
+            if (g.duelWinner !== undefined) {
+                playSample("assets/sounds/proiettile-schiavato.mp3", () => {});
+                return;
+            }
+
+            g.duelWinner = id;
+
+            // Suono dello sparo del primo giocatore
+            playSample("assets/sounds/pistola-sparo.mp3", () => {
+                tone(180, .18, "sawtooth", .15);
+            });
+
             wins[id]++;
             renderScores(wins);
             setArena("🏆 " + COLORS[id] + " vince il round!", "Punteggio round: " + wins[id]);
+
             round++;
-            if (round <= total) later(beginRound, 1400); else later(() => {
-                const order = playerIds().sort((a, b) => wins[b] - wins[a]);
-                finish("Partita terminata — " + COLORS[order[0]] + " vince!", order);
-            }, 1500);
+
+            if (round <= total) {
+                later(beginRound, 1400);
+            } else {
+                later(() => {
+                    const order = playerIds().sort((a, b) => wins[b] - wins[a]);
+                    finish("Partita terminata — " + COLORS[order[0]] + " vince!", order);
+                }, 1500);
+            }
         }
+
 
         g.onInput = e => {
             if (e.type !== "down") return;
@@ -554,7 +644,12 @@
                 }
                 return;
             }
-            if (!eligible.has(id)) return;
+            if (!eligible.has(id)) {
+                if (g.duelWinner !== undefined && id !== g.duelWinner) {
+                    playSample("assets/sounds/proiettile-schiavato.mp3", () => {});
+                }
+                return;
+            }
             eligible.delete(id);
             if (performance.now() < goAt + 15) {
                 tone(100, .3, "square");
@@ -575,50 +670,96 @@
     function makeParachute() {
         const g = baseGame("parachute");
         let start = 0, ground = 0, safe = 0, opened = {}, results = {};
-        g.start = () => {
-            start = performance.now();
-            ground = 25000 + Math.random() * 15000;
-            safe = ground * (.35 + Math.random() * .25);
+
+
+        g.start = async () => {
             opened = {};
             results = {};
+
             $("#game-status").textContent = "CADUTA LIBERA";
             setArena("🪂 In caduta…", "Apri il paracadute prima dell'impatto");
-            say("Caduta libera. Senti l'altimetro e scegli quando aprire.");
+            say("Caduta libera. Senti il suono e scegli quando aprire.");
+
+            const duration = await startFallSound("assets/sounds/caduta.mp3");
+
+            // Se manca l'audio, usa comunque una caduta di 25-40 secondi.
+            ground = duration ?? (25000 + Math.random() * 15000);
+
+            // IMPORTANTE: inizializza il tempo dopo il caricamento dell'audio.
+            start = performance.now();
+
+            safe = ground * (0.35 + Math.random() * 0.25);
+
             tick();
         };
 
+
         function tick() {
             if (g.finished) return;
-            const elapsed = performance.now() - start, remain = Math.max(0, ground - elapsed);
-            tone(300 + Math.max(0, 10000 - remain) / 50, 0.04, "sine", .015);
-            setArena("🪂 " + (remain / 1000).toFixed(1) + " s", "Bip sempre più ravvicinati");
+
+            const elapsed = performance.now() - start;
+            const remain = Math.max(0, ground - elapsed);
+
+            setArena(
+                "🪂 " + (remain / 1000).toFixed(1) + " s",
+                "Il suono si avvicina… apri al momento giusto"
+            );
+
             if (elapsed >= ground) {
+                const missed = playerIds().some(p => !opened[p]);
+
                 playerIds().forEach(p => {
-                    if (!opened[p]) results[p] = {valid: false, time: ground + 1};
+                    if (!opened[p]) {
+                        results[p] = {valid: false, time: ground + 1};
+                    }
                 });
+
+                if (missed) {
+                    playSample("assets/sounds/splash.mp3", () => {});
+                }
+
                 const order = playerIds().sort((a, b) => rank(results, a, b));
                 finish("💥 Impatto! " + COLORS[order[0]] + " in testa", order);
                 return;
             }
-            later(tick, Math.max(250, 900 - elapsed / 60));
+
+            later(tick, 200);
         }
 
         function rank(r, a, b) {
-            const x = r[a] || {valid: false, time: ground + 1}, y = r[b] || {valid: false, time: ground + 1};
+            const x = r[a] || {valid: false, time: ground + 1};
+            const y = r[b] || {valid: false, time: ground + 1};
+
             if (x.valid !== y.valid) return x.valid ? -1 : 1;
             if (x.valid) return y.time - x.time;
+
             return y.time - x.time;
         }
 
         g.onInput = e => {
             if (e.type !== "down" || !playerIds().includes(e.button) || opened[e.button] || g.finished) return;
+
             const t = performance.now() - start;
+
             opened[e.button] = true;
             results[e.button] = {valid: t >= safe && t < ground, time: t};
-            tone(450, .16, "triangle", .09);
+
+            playSample("assets/sounds/paracadute.mp3", () => {
+                tone(450, .16, "triangle", .09);
+            });
+
             toast(COLORS[e.button] + " ha aperto il paracadute");
-            renderScores(Object.fromEntries(playerIds().map(p => [p, opened[p] ? (results[p].valid ? "APERT." : "PRESTO") : "—"])));
+
+            renderScores(Object.fromEntries(
+                playerIds().map(p => [p, opened[p] ? (results[p].valid ? "APERT." : "PRESTO") : "—"])
+            ));
         };
+
+        g.dispose = () => {
+            stopTimer();
+            stopFallSound();
+        };
+
         return g;
     }
 
