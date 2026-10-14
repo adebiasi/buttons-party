@@ -30,9 +30,34 @@
           <option value="disturber">📣 Disturbatore</option>
           <option value="pot">🪙 Piglia tutto</option>
           <option value="simon">🎵 Simon a 5 tasti</option>
+          <option value="mosquito">Prendi la zanzara</option>
+          <option value="mine">In miniera</option>
+          <option value="freeze">Uno, due, tre, stai là!</option>
+          <option value="restaurant">Ristorante</option>
         </select>
       </div>
       <p id="game-description" class="muted">Ascolta i versi: premi quando senti il maiale, non gli altri animali.</p>
+      <div class="controller-settings">
+        <h3>Controller di gioco</h3>
+
+        <label class="controller-option" for="ble-enabled">
+          <input type="checkbox" id="ble-enabled">
+          Usa il controller Bluetooth a 2 tasti
+        </label>
+
+        <div class="controller-actions">
+          <button type="button" id="ble-connect" disabled>
+            🔵 Collega controller
+          </button>
+          <button type="button" id="ble-disconnect" disabled>
+            Scollega
+          </button>
+        </div>
+
+        <p id="ble-status" class="muted" role="status">
+          Controller disabilitato
+        </p>
+      </div>
       <div class="setup-actions"><button id="start-button" class="primary-button">▶ Inizia partita</button><button id="random-button" class="secondary-button">🎲 Gioco casuale</button></div>
       <p class="hint">Primo tocco: abilita l'audio. Puoi usare i pulsanti sullo schermo o i tasti <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> e <kbd>Spazio</kbd>.</p>
     </section>
@@ -58,6 +83,7 @@
     <footer><span>Buttons-party · v0.1</span><span>Offline-first · nessun account</span></footer>
   </main>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./src/controller-ble.js"></script>
   <script src="./src/app.js"></script>
 </body>
 </html>
