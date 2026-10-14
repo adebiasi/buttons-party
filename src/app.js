@@ -16,7 +16,8 @@
         mine: "Ascolta il canarino: se smette di cantare per più di 10 secondi è morto. Allora premi entro 2 secondi. Se premi prima scappi, se premi dopo è troppo tardi. Vince l'ultimo a uscire in tempo.",
         freeze: "Premi il più possibile mentre senti uno, due, tre. Appena senti «stai là!» fermati: chi preme è squalificato. Vince chi arriva per primo al numero di passi stabilito.",
    restaurant: "Il ristoratore annuncia i piatti: prenota premendo per primo quelli buoni. Se prenoti un piatto immangiabile, paghi la penitenza e perdi un punto.",
-    };
+    grinder: "Tieni premuto per spingere il legno contro la mola. Quando il suono finisce, lascia subito il tasto o perdi la mano! Vince chi tiene premuto più a lungo in totale.",
+};
     const GAME_NAMES = {
         pig: "Cattura il maiale",
         duel: "Duello",
@@ -27,7 +28,9 @@
 mosquito: "Prendi la zanzara",
 mine: "In miniera",
 freeze: "Uno, due, tre, stai là!",
-  restaurant: "Ristorante",  };
+  restaurant: "Ristorante",
+   grinder: "Mola a disco",
+   };
     const ANIMALS = ["cane", "gatto", "mucca", "pecora", "gallina", "cavallo", "papera", "gallo"];
     let audio = null, soundEnabled = true, game = null, timer = null, paused = false;
     let natureSource = null, natureGain = null;
@@ -552,7 +555,9 @@ function finish(message, ranking = null, announce = true) {
                     mosquito: makeMosquito,
 mine: makeMine,
 freeze: makeFreeze,
-restaurant: makeRestaurant
+restaurant: makeRestaurant,
+grinder: makeGrinder
+
         })[id]();
     }
 
@@ -911,6 +916,7 @@ function makeParachute() {
 
     return g;
 }
+
 function makeDisturber() {
     const g = baseGame("disturber");
 
@@ -1027,6 +1033,7 @@ function makeDisturber() {
 
     return g;
 }
+
     function makePot() {
         const g = baseGame("pot");
         let pot = 0, limit = 0, cashed = {}, start = 0, rate = 700;
@@ -1580,6 +1587,7 @@ function makeMine() {
 
     return g;
 }
+
 function makeFreeze() {
     const g = baseGame("freeze");
 
@@ -1784,6 +1792,7 @@ function makeFreeze() {
 
     return g;
 }
+
 function makeRestaurant() {
     const g = baseGame("restaurant");
 
@@ -1994,6 +2003,521 @@ function makeRestaurant() {
 
     return g;
 }
+
+function makeGrinder() {
+    const g = baseGame("grinder");
+
+    // === File audio ===
+    const DIR = "assets/sounds/mola/";
+    const GRINDER = DIR + "mola.mp3";
+    const WOOD_END = DIR + "legno-finito.mp3";
+    const SCREAM = DIR + "grido.mp3";
+
+    // === Parametri ===
+    const WOODS = 5;
+    const WOOD_LENGTH = [4000, 8000];
+    const REACTION = 700;
+    const GRINDER_VOLUME = 0.5;
+
+    // Velocità di taglio per giocatore aggiuntivo
+    const CUT_SPEED_PER_PLAYER = 0.65;
+
+    // Incremento del tono audio per giocatore aggiuntivo
+    const GRINDER_RATE_PER_PLAYER = 0.16;
+
+    // Limite massimo della velocità audio
+    const GRINDER_MAX_RATE = 1.8;
+
+    // Transizione graduale del tono (secondi)
+    const GRINDER_RAMP = 0.08;
+
+    let phase = "intro";
+    let woodNo = 1;
+    let progress = 0;
+    let woodLength = 0;
+    let endClock = 0;
+
+    let lastTick = 0;
+    let lastRender = 0;
+    let interval = null;
+
+    let pressing = new Set();
+    let mustRelease = new Set();
+
+    let total = {};
+    let out = new Set();
+    let outOrder = [];
+
+    let grinderSrc = null;
+    let grinderGain = null;
+    let grinderPlayers = 0;
+
+    const buffers = new Map();
+
+    const rand = ([min, max]) =>
+        min + Math.random() * (max - min);
+
+    const activePressing = () =>
+        [...pressing].filter(p => !out.has(p));
+
+    // === Interrompe il timer ===
+    function stopInterval() {
+        if (interval !== null) {
+            clearInterval(interval);
+            interval = null;
+        }
+    }
+
+    // === Calcola la velocità della mola ===
+    function grinderRate(playerCount) {
+        return Math.min(
+            GRINDER_MAX_RATE,
+            1 + Math.max(0, playerCount - 1) *
+                GRINDER_RATE_PER_PLAYER
+        );
+    }
+
+    // === Suono della mola ===
+    function startGrinder(playerCount) {
+        if (playerCount <= 0) return;
+
+        const ctx = ensureAudio();
+
+        // Se la mola è già attiva, aggiorna gradualmente
+        // il tono in base al numero di giocatori.
+        if (grinderSrc) {
+            if (playerCount !== grinderPlayers) {
+                grinderPlayers = playerCount;
+
+                const rate = grinderRate(playerCount);
+
+                grinderSrc.playbackRate.setTargetAtTime(
+                    rate,
+                    ctx.currentTime,
+                    GRINDER_RAMP
+                );
+            }
+
+            // Aggiorna il volume se l'audio è stato abilitato
+            // o disabilitato durante la partita.
+            if (grinderGain) {
+                grinderGain.gain.setTargetAtTime(
+                    soundEnabled ? GRINDER_VOLUME : 0,
+                    ctx.currentTime,
+                    0.02
+                );
+            }
+
+            return;
+        }
+
+        grinderPlayers = playerCount;
+
+        grinderGain = ctx.createGain();
+        grinderGain.gain.value =
+            soundEnabled ? GRINDER_VOLUME : 0;
+
+        const buffer = buffers.get(GRINDER);
+
+        grinderSrc = ctx.createBufferSource();
+
+        grinderSrc.playbackRate.value =
+            grinderRate(playerCount);
+
+        let outputNode = grinderSrc;
+
+        if (buffer) {
+            // Audio reale della mola
+            grinderSrc.buffer = buffer;
+            grinderSrc.loop = true;
+
+            // Parte da un punto casuale del campione
+            const offset = Math.random() * buffer.duration;
+
+            grinderSrc.connect(grinderGain);
+            grinderGain.connect(ctx.destination);
+
+            grinderSrc.start(0, offset);
+        } else {
+            // Fallback sintetico: rumore filtrato
+            const noiseBuffer = ctx.createBuffer(
+                1,
+                ctx.sampleRate,
+                ctx.sampleRate
+            );
+
+            const data = noiseBuffer.getChannelData(0);
+
+            for (let i = 0; i < data.length; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+
+            grinderSrc.buffer = noiseBuffer;
+            grinderSrc.loop = true;
+
+            const filter = ctx.createBiquadFilter();
+            filter.type = "bandpass";
+            filter.frequency.value = 2500;
+            filter.Q.value = 0.8;
+
+            grinderSrc.connect(filter);
+            outputNode = filter;
+
+            outputNode.connect(grinderGain);
+            grinderGain.connect(ctx.destination);
+
+            grinderSrc.start();
+        }
+    }
+
+    // === Ferma la mola ===
+    function stopGrinder() {
+        if (!grinderSrc) return;
+
+        const src = grinderSrc;
+        const gain = grinderGain;
+
+        grinderSrc = null;
+        grinderGain = null;
+        grinderPlayers = 0;
+
+        try {
+            const ctx = ensureAudio();
+
+            gain.gain.setTargetAtTime(
+                0,
+                ctx.currentTime,
+                0.02
+            );
+
+            src.stop(ctx.currentTime + 0.1);
+        } catch (e) {}
+
+        setTimeout(() => {
+            try {
+                src.disconnect();
+                gain.disconnect();
+            } catch (e) {}
+        }, 250);
+    }
+
+    // === Classifica in tempo reale ===
+    function render() {
+        renderScores(
+            Object.fromEntries(
+                playerIds().map(p => [
+                    p,
+                    out.has(p)
+                        ? "OUT"
+                        : (total[p] / 1000).toFixed(1) + "s"
+                ])
+            )
+        );
+    }
+
+    // === Prepara un nuovo legno ===
+    function newWood() {
+        progress = 0;
+        woodLength = rand(WOOD_LENGTH);
+        phase = "wood";
+
+        $("#game-status").textContent =
+            "LEGNO " + woodNo + " / " + WOODS;
+
+        setArena(
+            "🪵 Legno pronto",
+            "Tieni premuto per spingerlo contro la mola"
+        );
+    }
+
+    // === Avvio della partita ===
+    g.start = async () => {
+        stopInterval();
+        stopGrinder();
+
+        phase = "intro";
+        woodNo = 1;
+        progress = 0;
+        woodLength = 0;
+        endClock = 0;
+
+        pressing = new Set();
+        mustRelease = new Set();
+        out = new Set();
+        outOrder = [];
+
+        total = Object.fromEntries(
+            playerIds().map(p => [p, 0])
+        );
+
+        $("#game-status").textContent = "PREPARATI";
+
+        setArena(
+            "🪚 Preparati…",
+            "Ascolta le istruzioni"
+        );
+
+        render();
+
+        // Precarica i suoni mentre parla la voce
+        const preload = Promise.all(
+            [GRINDER, WOOD_END, SCREAM].map(async p => {
+                buffers.set(p, await loadSample(p));
+            })
+        );
+
+        await sayAsync(
+            "Mola a disco. Tieni premuto per spingere il legno. " +
+            "Quando il suono finisce, lascia subito il tasto, " +
+            "o perdi la mano!"
+        );
+
+        await preload;
+
+        if (game !== g || g.finished) return;
+
+        lastTick = performance.now();
+
+        newWood();
+
+        interval = setInterval(tick, 50);
+    };
+
+    // === Ciclo di gioco ===
+    function tick() {
+        const now = performance.now();
+
+        const dt = Math.min(now - lastTick, 200);
+        lastTick = now;
+
+        if (g.finished) return;
+
+        if (paused) {
+            stopGrinder();
+            return;
+        }
+
+        if (phase === "wood") {
+            const active = activePressing();
+
+            if (active.length > 0) {
+                // Più giocatori premono, più il taglio accelera.
+                const cutSpeed =
+                    1 + (active.length - 1) *
+                    CUT_SPEED_PER_PLAYER;
+
+                progress += dt * cutSpeed;
+
+                // Ogni giocatore accumula il tempo reale
+                // per cui mantiene premuto il proprio tasto.
+                active.forEach(p => {
+                    total[p] += dt;
+                });
+
+                // La mola si adatta al numero di giocatori.
+                startGrinder(active.length);
+
+                if (progress >= woodLength) {
+                    endWood(active);
+                }
+            } else {
+                stopGrinder();
+            }
+        } else if (phase === "ending") {
+            endClock += dt;
+
+            if (endClock >= REACTION) {
+                judge();
+            }
+        }
+
+        if (now - lastRender > 100) {
+            lastRender = now;
+            render();
+        }
+    }
+
+    // === Il legno è stato tagliato ===
+    function endWood(active) {
+        stopGrinder();
+
+        phase = "ending";
+        endClock = 0;
+
+        // Chi preme in questo momento deve rilasciare.
+        mustRelease = new Set(active);
+
+        playSample(WOOD_END, () => {
+            noise(0.2, 0.1);
+            tone(120, 0.2, "triangle", 0.1);
+        });
+
+        setArena(
+            "🪵 Legno finito!",
+            "Lascia il tasto!",
+            "signal"
+        );
+    }
+
+    // === Verifica chi ha lasciato il tasto in tempo ===
+    async function judge() {
+        phase = "judging";
+
+        const caught = [...mustRelease].filter(
+            p => pressing.has(p)
+        );
+
+        mustRelease.clear();
+
+        if (caught.length > 0) {
+            caught.forEach(p => {
+                out.add(p);
+                outOrder.push(p);
+                pressing.delete(p);
+            });
+
+            render();
+
+            setArena(
+                "🩸 AAAAH!",
+                caught.map(p => COLORS[p]).join(", ") +
+                    (
+                        caught.length > 1
+                            ? " hanno perso la mano!"
+                            : " ha perso la mano!"
+                    ),
+                "signal"
+            );
+
+            await playSampleWait(SCREAM, () => {
+                tone(900, 0.5, "sawtooth", 0.12);
+                tone(1300, 0.4, "sawtooth", 0.12, 0.15);
+            });
+
+            if (game !== g || g.finished) return;
+        }
+
+        woodNo++;
+
+        const alive = playerIds().filter(
+            p => !out.has(p)
+        );
+
+        if (
+            woodNo > WOODS ||
+            (playerIds().length > 1 && alive.length <= 1)
+        ) {
+            conclude(alive);
+            return;
+        }
+
+        newWood();
+    }
+
+    // === Fine partita e classifica ===
+    function conclude(alive) {
+        stopInterval();
+        stopGrinder();
+        render();
+
+        const survivors = [...alive].sort(
+            (a, b) => total[b] - total[a]
+        );
+
+        const order = [
+            ...survivors,
+            ...[...outOrder].reverse()
+        ];
+
+        if (!alive.length) {
+            finish(
+                "🩸 Nessuno ha più la mano! Nessun vincitore",
+                null
+            );
+        } else if (
+            playerIds().length > 1 &&
+            alive.length === 1
+        ) {
+            finish(
+                "🪚 " + COLORS[alive[0]] +
+                " è l'ultimo con tutte le dita: vince!",
+                order
+            );
+        } else if (
+            survivors.length > 1 &&
+            Math.abs(
+                total[survivors[0]] -
+                total[survivors[1]]
+            ) < 50
+        ) {
+            finish("🪚 Legni finiti! Pareggio", null);
+        } else {
+            finish(
+                "🪚 " + COLORS[survivors[0]] +
+                " vince con " +
+                (total[survivors[0]] / 1000).toFixed(1) +
+                " s!",
+                order
+            );
+        }
+    }
+
+    // === Input dei giocatori ===
+    g.onInput = e => {
+        if (!playerIds().includes(e.button) || g.finished) {
+            return;
+        }
+
+        const id = e.button;
+
+        if (out.has(id)) return;
+
+        if (e.type === "down") {
+            pressing.add(id);
+        } else if (e.type === "up") {
+            pressing.delete(id);
+            mustRelease.delete(id);
+        }
+    };
+
+    // === Ripresa dopo la pausa ===
+    g.resume = () => {
+        // Ricostruisce lo stato dei tasti realmente premuti.
+        pressing = new Set(
+            [...held].filter(
+                id => playerIds().includes(id) && !out.has(id)
+            )
+        );
+
+        mustRelease = new Set(
+            [...mustRelease].filter(
+                id => pressing.has(id)
+            )
+        );
+
+        lastTick = performance.now();
+
+        setArena(
+            "🪚 Si riparte!",
+            phase === "ending"
+                ? "Lascia il tasto!"
+                : "Tieni premuto per spingere il legno"
+        );
+    };
+
+    // === Pulizia ===
+    g.dispose = () => {
+        stopTimer();
+        stopInterval();
+        stopGrinder();
+
+        speechSynthesis?.cancel();
+    };
+
+    return g;
+}
+
+
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
         window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {
         }));
