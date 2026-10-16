@@ -21,7 +21,10 @@
         rope: "Senti la corda battere: salta premendo il tuo tasto a tempo. Chi non salta o salta fuori tempo è eliminato. Il ritmo accelera sempre di più. Vince l'ultimo rimasto.",
         tennis: "Senti il rimbalzo della palla: quando rimbalza verso di te, premi per rispondere. Poi tocca al giocatore successivo in senso orario. Se premi prima del tuo rimbalzo resti fermo 2 secondi. Se manchi la palla perdi una vita.",
         pizza: "A turno, ascolta il percorso e ripetilo con i tasti. Le direzioni sono relative a te: indietro è il tuo tasto, avanti quello di fronte, destra e sinistra quelli ai tuoi lati. Un chilometro è una pressione. Se sbagli sei licenziato.",
-    };
+        rally: "Il navigatore dà comandi come «4 destra» o «2 accelera». Premi il tasto corretto il numero di volte indicato. Le direzioni sono relative a te. Man mano i comandi arrivano più veloci. Un errore e fai incidente!",
+        beeper: "Ogni giocatore ha un parlatore diverso, assegnato a voce. Tieni premuto per bippare le sue parolacce: +1 per ogni parolaccia coperta, -1 per ogni parola normale coperta. Se bippi un parlatore che non è il tuo perdi un punto. Ogni parlatore dice lo stesso numero di parolacce.",
+        beat: "Ogni giocatore ha una percussione: cassa, rullante, charleston o battimani. Premi il tuo tasto a tempo quando senti la tua. Se premi nel momento sbagliato perdi un punto. Dopo tre loop la partita finisce.",
+    }
     const GAME_NAMES = {
         pig: "Cattura il maiale",
         duel: "Duello",
@@ -38,6 +41,9 @@
         rope: "Saltare la corda",
         tennis: "Tennis",
         pizza: "Consegna pizza",
+        rally: "Rally",
+        beeper: "Il bippatore",
+        beat: "Tieni il tempo",
     };
     const ANIMALS = ["cane", "gatto", "mucca", "pecora", "gallina", "cavallo", "papera", "gallo"];
     let audio = null, soundEnabled = true, game = null, timer = null, paused = false;
@@ -569,7 +575,10 @@
             bomb: makeBomb,
             rope: makeRope,
             tennis: makeTennis,
-            pizza: makePizza
+            pizza: makePizza,
+            rally: makeRally,
+            beeper: makeBeeper,
+            beat: makeBeat
         })[id]();
     }
 
@@ -3885,6 +3894,1297 @@
         return g;
     }
 
+    function makeRally() {
+        const g = baseGame("rally", "turns");
+
+        // === File audio (con fallback sintetici) ===
+        const DIR = "assets/sounds/rally/";
+        const CRASH = DIR + "incidente.mp3";
+        const SUCCESS = DIR + "ok.mp3";
+
+        // Direzioni relative (come in Pizza) + accelera = proprio tasto
+        const ACTIONS = {
+            destra:   { text: "destra",   arrow: "→" },
+            sinistra: { text: "sinistra", arrow: "←" },
+            avanti:   { text: "avanti",   arrow: "↑" },
+            indietro: { text: "indietro", arrow: "↓" },
+            accelera: { text: "accelera", arrow: "⚡" }
+        };
+
+        // Tasti in senso orario
+        const ORDER = ["P1", "P2", "P3", "P4"];
+
+        // Offset rispetto al giocatore corrente
+        const OFFSET = {
+            indietro: 0,   // proprio tasto
+            sinistra: 1,
+            avanti:   2,
+            destra:   3,
+            accelera: 0    // accelera = proprio tasto
+        };
+
+        const buttonFor = (player, action) =>
+            ORDER[(ORDER.indexOf(player) + OFFSET[action]) % ORDER.length];
+
+        const legendFor = player =>
+            Object.entries(ACTIONS)
+                .map(([key, a]) => a.arrow + " " + COLORS[buttonFor(player, key)])
+                .join(" · ");
+
+        // === Parametri ===
+        const CMDS_START = 2;          // comandi iniziali per turno
+        const CMDS_MAX = 8;            // massimo comandi per turno
+        const TIMES_MAX = 4;           // max ripetizioni (1-4)
+        const GAP_START = 900;         // silenzio iniziale tra comandi (ms)
+        const GAP_END = 220;           // silenzio minimo tra comandi (ms)
+        const RAMP_ROUNDS = 10;        // round per arrivare alla velocità massima
+        const TURN_PAUSE = 1000;
+        const MAX_ROUNDS = 20;
+
+        let phase = "intro";
+        let alive = [];
+        let outOrder = [];
+        let expected = [];             // array di button id da premere
+        let index = 0;
+        let current = null;
+        let turnResolve = null;
+        let round = 0;
+
+        const buffers = new Map();
+
+        const gone = () => game !== g || g.finished;
+        const wait = ms => new Promise(r => setTimeout(r, ms));
+
+        async function pausable(ms) {
+            await wait(ms);
+            while (paused && !gone()) await wait(150);
+        }
+
+        const lerp = (a, b, t) => a + (b - a) * Math.min(1, Math.max(0, t));
+        const gap = () => lerp(GAP_START, GAP_END, (round - 1) / RAMP_ROUNDS);
+
+        // Precarica
+        async function preload() {
+            const files = [CRASH, SUCCESS];
+            await Promise.all(files.map(async p => buffers.set(p, await loadSample(p))));
+        }
+
+        function playBuffer(buffer, volume = 1, rate = 1) {
+            if (!buffer) return;
+            const ctx = ensureAudio();
+            const source = ctx.createBufferSource();
+            const gain = ctx.createGain();
+            source.buffer = buffer;
+            source.playbackRate.value = rate;
+            gain.gain.value = soundEnabled ? volume : 0;
+            source.connect(gain);
+            gain.connect(ctx.destination);
+            source.start();
+        }
+
+        function playCrash() {
+            const buffer = buffers.get(CRASH);
+            if (buffer) {
+                return new Promise(resolve => {
+                    const ctx = ensureAudio();
+                    const source = ctx.createBufferSource();
+                    const gain = ctx.createGain();
+                    source.buffer = buffer;
+                    gain.gain.value = soundEnabled ? 0.9 : 0;
+                    source.connect(gain);
+                    gain.connect(ctx.destination);
+                    source.onended = resolve;
+                    source.start();
+                });
+            }
+            // Fallback sintetico incidente
+            noise(0.4, 0.2);
+            tone(80, 0.5, "sawtooth", 0.18);
+            tone(40, 0.6, "sawtooth", 0.12, 0.15);
+            return wait(700);
+        }
+
+        function playSuccess() {
+            const buffer = buffers.get(SUCCESS);
+            if (buffer) playBuffer(buffer, 0.7);
+            else {
+                tone(660, 0.1, "sine", 0.1);
+                tone(880, 0.15, "sine", 0.1, 0.1);
+            }
+        }
+
+        function render() {
+            renderScores(
+                Object.fromEntries(
+                    playerIds().map(p => [
+                        p,
+                        alive.includes(p) ? (scores[p] || 0) : "OUT"
+                    ])
+                )
+            );
+        }
+
+        // Genera una lista di comandi per il turno
+        function makeCommands(count) {
+            const keys = Object.keys(ACTIONS);
+            const cmds = [];
+            let prev = null;
+            for (let i = 0; i < count; i++) {
+                let action;
+                do {
+                    action = keys[Math.floor(Math.random() * keys.length)];
+                } while (action === prev && keys.length > 1);
+                prev = action;
+                const times = 1 + Math.floor(Math.random() * TIMES_MAX);
+                cmds.push({ action, times });
+            }
+            return cmds;
+        }
+
+        // Annuncia un singolo comando a voce
+        async function sayCommand(cmd) {
+            const text = cmd.times + " " + ACTIONS[cmd.action].text;
+            await sayAsync(text, 2500);
+        }
+
+        function showInput() {
+            const remaining = expected.length - index;
+            setArena(
+                "🏎️ Tocca a " + COLORS[current],
+                legendFor(current) + " — " + index + " / " + expected.length + " (restano " + remaining + ")",
+                "signal"
+            );
+        }
+
+        // Un turno completo per un giocatore
+        async function turn(p) {
+            const cmdCount = Math.min(CMDS_MAX, CMDS_START + Math.floor((round - 1) / 2));
+            const cmds = makeCommands(cmdCount);
+
+            // Espandi in sequenza di tasti da premere
+            expected = cmds.flatMap(cmd =>
+                Array(cmd.times).fill(buttonFor(p, cmd.action))
+            );
+            index = 0;
+            current = p;
+
+            phase = "announce";
+            $("#game-status").textContent = "ASCOLTA I COMANDI";
+            setArena(
+                "🏎️ Navigatore → " + COLORS[p],
+                legendFor(p)
+            );
+
+            if (playerIds().length > 1) {
+                await sayAsync("Tocca a " + COLORS[p]);
+                if (gone()) return false;
+            }
+
+            // Annuncia i comandi con gap che si riduce
+            for (let i = 0; i < cmds.length; i++) {
+                if (gone()) return false;
+                await pausable(i === 0 ? 400 : gap());
+                if (gone()) return false;
+                await sayCommand(cmds[i]);
+            }
+
+            if (gone()) return false;
+            await pausable(350);
+
+            phase = "input";
+            $("#game-status").textContent = "GUIDA · " + COLORS[p].toUpperCase();
+            showInput();
+
+            return new Promise(resolve => {
+                turnResolve = resolve;
+            });
+        }
+
+        function endTurn(ok) {
+            phase = "between";
+            const resolve = turnResolve;
+            turnResolve = null;
+            if (resolve) resolve(ok);
+        }
+
+        async function play() {
+            for (round = 1; round <= MAX_ROUNDS; round++) {
+                for (const p of [...alive]) {
+                    const ok = await turn(p);
+                    if (gone()) return;
+
+                    if (ok) {
+                        scores[p] = (scores[p] || 0) + 1;
+                        render();
+                        playSuccess();
+                        toast("🏎️ " + COLORS[p] + " ha completato il tratto!");
+                    } else {
+                        alive = alive.filter(a => a !== p);
+                        outOrder.push(p);
+                        render();
+
+                        setArena(
+                            "💥 INCIDENTE!",
+                            COLORS[p] + " ha sbagliato comando",
+                            "signal"
+                        );
+
+                        await playCrash();
+                        if (gone()) return;
+                        say("Incidente di " + COLORS[p]);
+                    }
+
+                    await pausable(TURN_PAUSE);
+                    if (gone()) return;
+                }
+
+                const solo = playerIds().length === 1;
+                if (solo ? alive.length === 0 : alive.length <= 1) {
+                    conclude();
+                    return;
+                }
+            }
+            conclude();
+        }
+
+        function conclude() {
+            phase = "over";
+            const order = [...alive, ...[...outOrder].reverse()];
+            const solo = playerIds().length === 1;
+
+            if (solo) {
+                const p = playerIds()[0];
+                finish(
+                    "🏎️ Fine gara dopo " + (scores[p] || 0) +
+                    ((scores[p] || 0) === 1 ? " tratto" : " tratti"),
+                    null
+                );
+            } else if (alive.length === 1) {
+                finish(
+                    "🏎️ " + COLORS[alive[0]] + " è l'ultimo in gara: vince!",
+                    order
+                );
+            } else if (alive.length === 0) {
+                finish("🏎️ Tutti fuori strada! Pareggio", null);
+            } else {
+                finish(
+                    "🏎️ Troppi giri! Pareggio tra " +
+                    alive.map(p => COLORS[p]).join(", "),
+                    null
+                );
+            }
+        }
+
+        g.start = async () => {
+            phase = "intro";
+            alive = [...playerIds()];
+            outOrder = [];
+            scores = Object.fromEntries(playerIds().map(p => [p, 0]));
+            round = 0;
+
+            $("#game-status").textContent = "PREPARATI";
+            setArena(
+                "🏎️ Preparati…",
+                "Le direzioni sono relative a dove sei seduto"
+            );
+            render();
+
+            await preload();
+            if (gone()) return;
+
+            await sayAsync(
+                "Rally! Il navigatore dà comandi come 3 destra o 2 accelera. " +
+                "Premi il tasto corretto il numero di volte. " +
+                "Le direzioni sono relative a te. Man mano i comandi arrivano più veloci. " +
+                "Un errore e fai incidente!"
+            );
+            if (gone()) return;
+
+            play();
+        };
+
+        g.onInput = e => {
+            if (e.type !== "down" || g.finished || phase !== "input") return;
+            if (!ORDER.includes(e.button)) return; // solo tasti giocatore
+
+            if (e.button === expected[index]) {
+                index++;
+                tone(400 + index * 30, 0.05, "sine", 0.05);
+
+                if (index >= expected.length) {
+                    endTurn(true);
+                } else {
+                    showInput();
+                }
+            } else {
+                toast("Comando sbagliato!");
+                endTurn(false);
+            }
+        };
+
+        g.resume = () => {
+            if (phase === "input") {
+                showInput();
+            } else {
+                setArena("🏎️ Si riparte!", "Ascolta i comandi");
+            }
+        };
+
+        g.dispose = () => {
+            stopTimer();
+            speechSynthesis?.cancel();
+            if (turnResolve) {
+                const resolve = turnResolve;
+                turnResolve = null;
+                resolve(false);
+            }
+        };
+
+        return g;
+    }
+
+    function makeBeeper() {
+        const g = baseGame("beeper");
+
+        // === Parametri ===
+        const BAD_PER_SPEAKER = 6;        // parolacce che ogni parlatore dice in tutta la partita (intercalari compresi)
+        const DECOYS = [2, 4];            // frasi senza parolacce per parlatore (min, max)
+        const SENTENCE_GAP = [500, 1400]; // pausa casuale tra una frase e l'altra (ms)
+        const BAD_GRACE = 180;            // tolleranza dopo la fine della parolaccia (tempo di rilascio) (ms)
+        const BAD_COVER = .3;             // quota minima della parolaccia da coprire
+        const BAD_MIN = 100;              // ...ma almeno questi ms
+        const NORMAL_COVER = .6;          // quota di una parte normale coperta che fa perdere un punto
+        const NORMAL_MAX = 350;           // ...o al massimo questi ms
+        const EST_MARGIN = 150;           // margine (ms) quando i tempi sono stimati e non misurati
+        const BEEP_VOLUME = .22;
+        const BEEP_FREQ = {P1: 1000, P2: 1250, P3: 800, P4: 1500};
+        const WRONG_MIN = 150;            // ms di bip sopra un altro parlatore per prendere la penitenza
+
+        // === Parlatori ===
+        // lang: voce straniera che legge testo italiano (usata solo se il dispositivo la ha)
+        // vi: indice della voce italiana da preferire
+        const PERSONAS = [
+            {key: "uomo",     name: "l'uomo",                 pitch: .7,  rate: .98,  lang: null,    vi: 1},
+            {key: "spagnolo", name: "il parlatore spagnolo", pitch: 1,   rate: .95,  lang: "es",    vi: 0},
+            {key: "tedesco",  name: "il parlatore tedesco",   pitch: .9,  rate: .95,  lang: "de",    vi: 0},
+            {key: "francese", name: "il parlatore francese",  pitch: 1.1, rate: 1,    lang: "fr",    vi: 0},
+        ];
+
+        // === Vocabolario ===
+        const BAD = [
+            {s: "stronzo", p: "stronzi", a: "uno"},
+            {s: "cretino", p: "cretini", a: "un"},
+            {s: "idiota", p: "idioti", a: "un"},
+            {s: "imbecille", p: "imbecilli", a: "un"},
+            {s: "deficiente", p: "deficienti", a: "un"},
+            {s: "fesso", p: "fessi", a: "un"},
+            {s: "scemo", p: "scemi", a: "uno"},
+            {s: "cafone", p: "cafoni", a: "un"}
+        ];
+        const LISTS = {
+            name: ["Marco", "Giulia", "Luca", "Anna", "Paolo", "Sara", "Franco", "Elena"],
+            food: ["una pizza", "un gelato", "del pane", "dei biscotti", "una torta", "un panino", "della pasta"],
+            where: ["al mercato", "al parco", "in piazza", "al cinema", "in biblioteca", "in giardino", "al mare"],
+            nice: ["gentile", "simpatico", "bravissimo", "generoso", "tranquillo", "puntuale", "pazientissimo"],
+            weather: ["bello", "nuvoloso", "perfetto", "fresco", "soleggiato"],
+            day: ["domani", "stasera", "dopodomani"],
+            // intercalari normali: possono stare all'inizio o alla fine della frase
+            pre: ["allora", "senti", "ecco", "boh", "cioè", "beh", "dai", "mah", "insomma",
+                "ascolta bene", "dico solo che", "sinceramente", "ripeto", "ma scusa"],
+            post: ["eh", "ecco", "vero", "capito", "dai", "davvero", "credimi", "te lo giuro",
+                "lo dico sul serio", "e non scherzo"]
+        };
+
+        // intercalari-parolaccia (il "~" unisce due parole in un solo pezzo)
+        const INTER_BAD = ["cazzo", "merda", "porca~miseria"];
+
+        // frasi con cui il parlatore assegna la propria voce al giocatore
+        const ASSIGN = [
+            "{c}, ti occupi della mia voce?",
+            "{c}, la mia voce è tua!",
+            "{c}, bippami bene!",
+            "{c}, tocca a te coprire me!",
+            "{c}, sono io il tuo parlatore."
+        ];
+
+        // {b} insulto singolare, {ub} con articolo, {B} insulto plurale
+        const ZERO = [
+            "oggi {name} ha mangiato {food} {where}",
+            "{day} andiamo tutti {where}",
+            "secondo me {name} è davvero {nice}",
+            "il tempo oggi è {weather}",
+            "ci tengo a precisare che {name} è {nice}",
+            "{name} mi ha portato {food} ed è stato {nice}",
+            "ho appena visto {name} {where} con {name}"
+        ];
+        const ONE = [
+            "sei {b}",
+            "{b}",
+            "ci tengo a precisare che sei {ub}",
+            "{name} è proprio {ub}",
+            "non comportarti da {b}",
+            "che {b} che sei",
+            "ieri {name} è stato {ub} {where}",
+            "{name} mi ha portato {food} ma è comunque {ub}",
+            "{day} dirò a {name} che è {ub}"
+        ];
+        const TWO = [
+            "sei {b} e pure {b}",
+            "{name} è {b} ma anche tu sei {b}",
+            "{day} dirò che siete {B} e soprattutto {B}",
+            "siete {B} e soprattutto {B}",
+            "sei {ub} e anche {ub}",
+            "non sei solo {b}, sei anche {b}"
+        ];
+        const THREE = [
+            "{B}, {B} e ancora {B}",
+            "sei {b}, {b} e pure {b}"
+        ];
+        const TEMPLATES = [
+            ...ONE.map(tpl => ({tpl, w: 5})),
+            ...TWO.map(tpl => ({tpl, w: 3})),
+            ...THREE.map(tpl => ({tpl, w: 1}))
+        ].map(t => ({...t, bad: (t.tpl.match(/\{(b|ub|B)\}/g) || []).length}));
+
+        let phase = "intro";             // intro | assign | live | over
+        let voices = [], itVoices = [];
+        let speakers = [];               // [{id, persona}]
+        let script = [];
+        let waiter = null;
+        let open = {}, done = {};        // tasti premuti: inizio aperto e intervalli chiusi
+        const beeps = {};
+        const kept = [];                 // evita che il browser elimini le frasi prima della fine
+
+        const gone = () => game !== g || g.finished;
+        const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const rand = ([min, max]) => min + Math.random() * (max - min);
+        const randInt = ([min, max]) => min + Math.floor(Math.random() * (max - min + 1));
+        const pick = list => list[Math.floor(Math.random() * list.length)];
+        const norm = lang => (lang || "").replace("_", "-").toLowerCase();
+
+        function shuffle(list) {
+            const a = [...list];
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        }
+
+        // Attesa che si ferma se il gioco è in pausa (e rilascia i bip)
+        async function pausable(ms) {
+            await wait(ms);
+            if (paused) closeAll();
+            while (paused && !gone()) await wait(150);
+        }
+
+        // === Bip dei giocatori ===
+        function beepOn(id) {
+            if (beeps[id]) return;
+            const ctx = ensureAudio();
+            const osc = ctx.createOscillator(), gain = ctx.createGain();
+            osc.type = "sine";
+            osc.frequency.value = BEEP_FREQ[id] || 1000;
+            gain.gain.value = soundEnabled ? BEEP_VOLUME : 0;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            beeps[id] = {osc, gain};
+        }
+
+        function beepOff(id) {
+            const b = beeps[id];
+            if (!b) return;
+            beeps[id] = null;
+            try { b.osc.stop(); } catch (e) {}
+            b.osc.disconnect();
+            b.gain.disconnect();
+        }
+
+        function pressStart(id) {
+            if (open[id] != null) return;
+            open[id] = performance.now();
+            beepOn(id);
+        }
+
+        function pressEnd(id) {
+            if (open[id] == null) return;
+            (done[id] = done[id] || []).push([open[id], performance.now()]);
+            open[id] = null;
+            beepOff(id);
+        }
+
+        function closeAll() {
+            playerIds().forEach(pressEnd);
+        }
+
+        function openHeld() {
+            [...held].filter(id => playerIds().includes(id)).forEach(pressStart);
+        }
+
+        // Millisecondi di bip del giocatore dentro l'intervallo [a, b]
+        function overlap(id, a, b) {
+            const now = performance.now();
+            const list = (done[id] || []).filter(([, e]) => e > now - 20000);
+            done[id] = list;
+            let total = 0;
+            for (const [s, e] of list) total += Math.max(0, Math.min(e, b) - Math.max(s, a));
+            if (open[id] != null) total += Math.max(0, Math.min(now, b) - Math.max(open[id], a));
+            return total;
+        }
+
+        // === Voci ===
+        function loadVoices() {
+            return new Promise(resolve => {
+                if (!("speechSynthesis" in window)) return resolve([]);
+                const v = speechSynthesis.getVoices();
+                if (v.length) return resolve(v);
+                const t = setTimeout(() => resolve(speechSynthesis.getVoices()), 1500);
+                speechSynthesis.addEventListener("voiceschanged", () => {
+                    clearTimeout(t);
+                    resolve(speechSynthesis.getVoices());
+                }, {once: true});
+            });
+        }
+
+        const findVoice = prefix => voices.find(v => norm(v.lang).startsWith(prefix));
+
+        function pickPersonas(n) {
+            const available = PERSONAS.filter(p => !p.lang || findVoice(p.lang));
+            return shuffle(available).slice(0, n).map(p => ({
+                ...p,
+                voice: p.lang
+                    ? findVoice(p.lang)
+                    : (itVoices.length ? itVoices[p.vi % itVoices.length] : null)
+            }));
+        }
+
+        function makeUtterance(text, persona) {
+            const u = new SpeechSynthesisUtterance(text);
+            if (persona && persona.voice) {
+                u.voice = persona.voice;
+                u.lang = persona.voice.lang;
+            } else {
+                u.lang = "it-IT";
+            }
+            u.pitch = persona ? persona.pitch : 1;
+            u.rate = persona ? persona.rate : 1.05;
+            u.volume = soundEnabled ? 1 : 0;
+            return u;
+        }
+
+        // Pronuncia un testo con la voce del parlatore (usata nell'assegnazione)
+        function speak(text, persona) {
+            return new Promise(resolve => {
+                const t0 = performance.now();
+                const u = makeUtterance(text, persona);
+
+                let start = null, finished = false, safety = null;
+                const end = () => {
+                    if (finished) return;
+                    finished = true;
+                    clearTimeout(safety);
+                    const i = kept.indexOf(u);
+                    if (i >= 0) kept.splice(i, 1);
+                    resolve({start: start ?? t0, end: performance.now()});
+                };
+                safety = setTimeout(end, 20000);
+                u.onstart = () => {
+                    start = performance.now();
+                    clearTimeout(safety);
+                    safety = setTimeout(end, 20000);
+                };
+                u.onend = end;
+                u.onerror = end;
+                kept.push(u);
+                speechSynthesis.speak(u);
+            });
+        }
+
+        // Legge la frase intera e raccoglie gli istanti di inizio di ogni parola, se la voce li fornisce
+        function speakTimed(text, persona) {
+            return new Promise(resolve => {
+                const t0 = performance.now();
+                const u = makeUtterance(text, persona);
+
+                const bounds = new Map();   // charIndex -> istante
+                let start = null, finished = false, safety = null;
+                const end = () => {
+                    if (finished) return;
+                    finished = true;
+                    clearTimeout(safety);
+                    const i = kept.indexOf(u);
+                    if (i >= 0) kept.splice(i, 1);
+                    resolve({start: start ?? t0, end: performance.now(), bounds});
+                };
+                safety = setTimeout(end, 20000);
+                u.onstart = () => {
+                    start = performance.now();
+                    clearTimeout(safety);
+                    safety = setTimeout(end, 20000);
+                };
+                u.onboundary = ev => {
+                    if (ev.name === undefined || ev.name === "word") bounds.set(ev.charIndex, performance.now());
+                };
+                u.onend = end;
+                u.onerror = end;
+                kept.push(u);
+                speechSynthesis.speak(u);
+            });
+        }
+
+        // === Generazione delle frasi ===
+        function fill(tpl) {
+            const bad = shuffle(BAD);
+            let i = 0;
+            return tpl.replace(/\{(\w+)\}/g, (m, key) => {
+                if (key === "b") return "*" + bad[i++ % bad.length].s;
+                if (key === "ub") {
+                    const w = bad[i++ % bad.length];
+                    return w.a + " *" + w.s;
+                }
+                if (key === "B") return "*" + bad[i++ % bad.length].p;
+                return pick(LISTS[key]);
+            });
+        }
+
+        // Frase sempre diversa dalle precedenti, con intercalari opzionali all'inizio e alla fine.
+        // badBudget = quante parolacce-intercalare si possono ancora aggiungere.
+        // Restituisce {text, extra}, dove extra è il numero di parolacce-intercalare usate.
+        function uniqueSentence(tpl, used, badBudget = 0) {
+            let s = "", extra = 0;
+            for (let k = 0; k < 25; k++) {
+                s = fill(tpl);
+                extra = 0;
+
+                // inizio
+                if (tpl !== "{b}" && Math.random() < .4) {
+                    if (extra < badBudget && Math.random() < .4) {
+                        s = "*" + pick(INTER_BAD) + ", " + s;
+                        extra++;
+                    } else {
+                        s = pick(LISTS.pre) + " " + s;
+                    }
+                }
+                // fine
+                if (Math.random() < .35) {
+                    if (extra < badBudget && Math.random() < .4) {
+                        s = s + ", *" + pick(INTER_BAD);
+                        extra++;
+                    } else {
+                        s = s + ", " + pick(LISTS.post);
+                    }
+                }
+                if (!used.has(s)) break;
+            }
+            used.add(s);
+            return {text: s, extra};
+        }
+
+        function weightedPick(options) {
+            let r = Math.random() * options.reduce((sum, o) => sum + o.w, 0);
+            for (const o of options) {
+                r -= o.w;
+                if (r <= 0) return o;
+            }
+            return options[0];
+        }
+
+        // Ogni parlatore dice esattamente BAD_PER_SPEAKER parolacce (intercalari compresi)
+        function buildScript(n) {
+            const used = new Set();
+            const all = [];
+            for (let sp = 0; sp < n; sp++) {
+                let remaining = BAD_PER_SPEAKER;
+                while (remaining > 0) {
+                    const t = weightedPick(TEMPLATES.filter(x => x.bad <= remaining));
+                    const {text, extra} = uniqueSentence(t.tpl, used, remaining - t.bad);
+                    all.push({speaker: sp, text});
+                    remaining -= t.bad + extra;
+                }
+                const decoys = randInt(DECOYS);
+                for (let d = 0; d < decoys; d++) {
+                    // trabocchetti: solo intercalari normali (budget 0)
+                    all.push({speaker: sp, text: uniqueSentence(pick(ZERO), used, 0).text});
+                }
+            }
+            return shuffle(all);
+        }
+
+        // Prepara la frase intera e le posizioni (in caratteri) di parolacce e parti normali
+        function prepare(sentence) {
+            let full = "";
+            const segs = [];
+            let cur = null;
+            for (const tok of sentence.split(" ")) {
+                const bad = tok.startsWith("*");
+                const raw = bad ? tok.slice(1).replace(/~/g, " ") : tok;
+                const word = raw.replace(/[.,!?;]+$/, "");
+                if (full) full += " ";
+                const from = full.length;
+                full += raw;
+                const to = from + word.length;
+                if (bad) {
+                    cur = null;
+                    segs.push({text: word, bad: true, from, to});
+                } else if (cur) {
+                    cur.to = to;
+                } else {
+                    cur = {text: raw, bad: false, from, to};
+                    segs.push(cur);
+                }
+            }
+            return {text: full, segs};
+        }
+
+        // === Punteggio ===
+        // Calcola inizio e fine di un pezzo: misurati se la voce dà i confini, altrimenti stimati
+        function timesFor(seg, res, full) {
+            const total = Math.max(1, full.length);
+            const dur = Math.max(1, res.end - res.start);
+            const prop = c => res.start + dur * c / total;
+
+            if (res.bounds.has(seg.from)) {
+                // tempi misurati: la fine è l'inizio della parola successiva
+                let next = null;
+                for (const k of res.bounds.keys()) {
+                    if (k >= seg.to && (next === null || k < next)) next = k;
+                }
+                return {
+                    start: res.bounds.get(seg.from),
+                    end: next !== null ? res.bounds.get(next) : res.end,
+                    margin: 40
+                };
+            }
+            // tempi stimati in proporzione ai caratteri
+            return {start: prop(seg.from), end: prop(seg.to), margin: EST_MARGIN};
+        }
+
+        // Restituisce true se ha assegnato o tolto un punto
+        function judge(seg, id, t) {
+            const freq = BEEP_FREQ[id] || 1000;
+            let changed = false;
+
+            if (seg.bad) {
+                const a = t.start - t.margin, b = t.end + t.margin;
+                const dur = Math.max(1, b - a);
+                const need = Math.min(Math.max(BAD_MIN, dur * BAD_COVER), dur * .8);
+                if (overlap(id, a, b + BAD_GRACE) >= need) {
+                    scores[id]++;
+                    tone(freq * 1.5, .08, "triangle", .1);
+                    tone(freq * 2, .1, "triangle", .1, .09);
+                    changed = true;
+                }
+            } else {
+                // parti normali: si restringe l'intervallo per non punire gli errori di stima
+                const a = t.start + t.margin, b = t.end - t.margin;
+                const dur = b - a;
+                if (dur > 80) {
+                    const need = Math.min(NORMAL_MAX, dur * NORMAL_COVER);
+                    if (overlap(id, a, b) >= need) {
+                        scores[id]--;
+                        tone(110, .25, "square", .1);
+                        changed = true;
+                    }
+                }
+            }
+            renderScores();
+            return changed;
+        }
+
+        function waitPress(id, ms) {
+            return new Promise(resolve => {
+                const t = setTimeout(() => { waiter = null; resolve(); }, ms);
+                waiter = {id, done: () => { clearTimeout(t); waiter = null; resolve(); }};
+            });
+        }
+
+        // Penitenza: chi bippa la frase di un parlatore non suo perde un punto per frase.
+// Restituisce true se almeno un giocatore è stato penalizzato.
+        function judgeWrong(ownerId, res) {
+            let changed = false;
+            for (const id of playerIds()) {
+                if (id === ownerId) continue;
+                if (overlap(id, res.start, res.end) >= WRONG_MIN) {
+                    scores[id]--;
+                    tone(110, .3, "square", .1);
+                    toast("Parlatore sbagliato! " + COLORS[id] + " perde un punto");
+                    changed = true;
+                }
+            }
+            renderScores();
+            return changed;
+        }
+
+        // === Svolgimento ===
+        async function play() {
+            for (const s of script) {
+                const sp = speakers[s.speaker];
+                const {text, segs} = prepare(s.text);
+
+                // una sola lettura continua: nessun silenzio tra le parole
+                const res = await speakTimed(text, sp.persona);
+                if (gone()) return;
+
+                await wait(BAD_GRACE);   // tempo per rilasciare l'ultimo tasto
+                if (gone()) return;
+
+                // giudizio dei pezzi in ordine, con una pausa per sentire ogni segnale
+                for (const seg of segs) {
+                    if (judge(seg, sp.id, timesFor(seg, res, text))) await wait(220);
+                    if (gone()) return;
+                }
+
+                // giudizio dei pezzi in ordine, con una pausa per sentire ogni segnale
+                for (const seg of segs) {
+                    if (judge(seg, sp.id, timesFor(seg, res, text))) await wait(220);
+                    if (gone()) return;
+                }
+
+                // penitenza per chi ha bippato un parlatore non suo
+                if (judgeWrong(sp.id, res)) await wait(250);
+                if (gone()) return;
+
+                await pausable(rand(SENTENCE_GAP));
+                if (gone()) return;
+
+            }
+            conclude();
+        }
+
+        function conclude() {
+            phase = "over";
+            closeAll();
+            const order = playerIds().sort((a, b) => scores[b] - scores[a]);
+            const tie = order.length > 1 && scores[order[0]] === scores[order[1]];
+            renderScores();
+            finish(
+                tie
+                    ? "🔇 Pareggio!"
+                    : "🔇 " + COLORS[order[0]] + " vince con " + scores[order[0]] + " punti!",
+                tie ? null : order
+            );
+        }
+
+        g.start = async () => {
+            phase = "intro";
+            open = {};
+            done = {};
+            waiter = null;
+            scores = Object.fromEntries(playerIds().map(p => [p, 0]));
+
+            $("#game-status").textContent = "ASSEGNAZIONE";
+            setArena("🎙 Assegno le voci…", "Premi il tuo tasto per provare il bip");
+            renderScores();
+
+            if (!("speechSynthesis" in window)) {
+                finish("Questo browser non ha la sintesi vocale: gioco non disponibile", null, false);
+                return;
+            }
+
+            voices = await loadVoices();
+            console.log("Bippatore, voci disponibili:", voices.map(v => v.name));
+            itVoices = voices.filter(v => norm(v.lang).startsWith("it"));
+            const personas = pickPersonas(playerIds().length);
+            speakers = playerIds().map((id, i) => ({id, persona: personas[i]}));
+            console.log("Bippatore, voci assegnate:",
+                speakers.map(s => s.id + " = " + s.persona.key + (s.persona.voice ? " (" + s.persona.voice.name + ")" : " (voce predefinita)")));
+
+            // Intro brevissima
+            await sayAsync("Il bippatore. Ora assegno le voci, e tu provi il bip.");
+            if (gone()) return;
+
+            // Assegnazione: è il parlatore stesso a chiamare il giocatore
+            phase = "assign";
+            const phrases = shuffle(ASSIGN);
+            for (let i = 0; i < speakers.length; i++) {
+                const sp = speakers[i];
+                const text = phrases[i % phrases.length].replace("{c}", COLORS[sp.id]);
+                await speak(text, sp.persona);
+                if (gone()) return;
+                await waitPress(sp.id, 5000);
+                if (gone()) return;
+                await wait(300);
+            }
+
+            await sayAsync("Si comincia!");
+            if (gone()) return;
+
+            // Azzera le pressioni fatte durante la prova
+            closeAll();
+            done = {};
+            openHeld();
+
+            script = buildScript(speakers.length);
+            phase = "live";
+            $("#game-status").textContent = "IN ASCOLTO";
+            setArena("🎙 Ascolta e bippa!", "Premi il tuo tasto quando il tuo parlatore dice una parolaccia");
+            play();
+        };
+
+        g.onInput = e => {
+            const id = e.button;
+            if (!playerIds().includes(id) || g.finished) return;
+
+            if (e.type === "down") {
+                if (waiter && waiter.id === id) waiter.done();
+                pressStart(id);
+            } else if (e.type === "up") {
+                pressEnd(id);
+            }
+        };
+
+        g.resume = () => {
+            openHeld();   // durante la pausa gli eventi "up" non arrivano: riparto dai tasti realmente premuti
+            setArena("🎙 Si riparte!", "Ascolta e bippa");
+        };
+
+        g.dispose = () => {
+            stopTimer();
+            closeAll();
+            speechSynthesis?.cancel();
+        };
+
+        return g;
+    }
+
+    function makeBeat() {
+        const g = baseGame("beat");
+
+        // === File audio (facoltativi: se mancano si usano percussioni sintetiche) ===
+        const DIR = "assets/sounds/batteria/";
+        const KITS = {
+            P1: {name: "la cassa",         type: "kick",  file: DIR + "kick.mp3"},
+            P2: {name: "il rullante",      type: "snare", file: DIR + "snare.mp3"},
+            P3: {name: "il charleston",    type: "hat",   file: DIR + "hat.mp3"},
+            P4: {name: "il battimani",     type: "clap",  file: DIR + "clap.mp3"}
+        };
+        const CLICK = DIR + "click.mp3";
+
+        // === Parametri ===
+        const BPM = 60;                 // battiti al minuto
+        const LOOPS = 5;                // loop con punteggio
+        const COUNT_STEPS = 8;         // conteggio iniziale (16 sedicesimi = 4 tempi)
+        const HITS = 2;                 // colpi per giocatore in ogni loop (uguale per tutti)
+        const TOL = 180;                // tolleranza (±ms) attorno al suono
+        const LOOKAHEAD = .15;          // quanto in anticipo si programma l'audio (s)
+        const MASTER = .9;
+
+        const STEP_SEC = 60 / BPM / 4;  // durata di un sedicesimo
+        const STEPS = 8;
+
+        let phase = "intro";            // intro | live | over
+        let pattern = {};               // {P1: [0, 8, 3, 10], ...}
+        let events = {};                // {P1: [{t, claimed}], ...}
+        let plan = [], pos = 0, nextTime = 0, endPerf = 0, scoringStart = null;
+        let currentLoop = 0, snapshot = {};
+        let interval = null, noiseBuf = null;
+        const buffers = new Map();
+
+        const gone = () => game !== g || g.finished;
+        const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
+        const legend = () => playerIds().map(p => COLORS[p] + " " + KITS[p].name.replace(/^(il|la) /, "")).join(" · ");
+
+        function shuffle(list) {
+            const a = [...list];
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        }
+
+        function stopInterval() {
+            if (interval !== null) {
+                clearInterval(interval);
+                interval = null;
+            }
+        }
+
+        // === Pattern: stessi colpi per tutti, mai due colpi vicini dello stesso strumento ===
+        function pickSteps(candidates, count, fixed = []) {
+            const chosen = [...fixed];
+            for (const c of shuffle(candidates.filter(c => !fixed.includes(c)))) {
+                if (chosen.length >= fixed.length + count) break;
+                if (chosen.every(x => Math.abs(x - c) > 1)) chosen.push(c);
+            }
+            return chosen.sort((a, b) => a - b);
+        }
+
+        function buildPattern() {
+            const rules = {
+                kick:  () => pickSteps([3, 6, 10, 11, 14], HITS - 2, [0, 8]),
+                snare: () => pickSteps([2, 7, 9, 15], HITS - 2, [4, 12]),
+                hat:   () => pickSteps([0, 2, 4, 6, 8, 10, 12, 14], HITS),
+                clap:  () => pickSteps([2, 3, 6, 7, 10, 11, 14, 15], HITS)
+            };
+            pattern = {};
+            playerIds().forEach(p => { pattern[p] = rules[KITS[p].type](); });
+        }
+
+        // === Suoni ===
+        function getNoise(ctx) {
+            if (!noiseBuf) {
+                noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+                const data = noiseBuf.getChannelData(0);
+                for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+            }
+            return noiseBuf;
+        }
+
+        function noiseHit(ctx, when, type, freq, q, vol, dur, out) {
+            const src = ctx.createBufferSource();
+            const filter = ctx.createBiquadFilter();
+            const gain = ctx.createGain();
+            src.buffer = getNoise(ctx);
+            filter.type = type;
+            filter.frequency.value = freq;
+            filter.Q.value = q;
+            gain.gain.setValueAtTime(vol, when);
+            gain.gain.exponentialRampToValueAtTime(.001, when + dur);
+            src.connect(filter);
+            filter.connect(gain);
+            gain.connect(out);
+            src.start(when, Math.random() * .5, dur + .02);
+        }
+
+        function synth(ctx, type, when, out) {
+            if (type === "kick") {
+                const osc = ctx.createOscillator(), gain = ctx.createGain();
+                osc.frequency.setValueAtTime(160, when);
+                osc.frequency.exponentialRampToValueAtTime(45, when + .12);
+                gain.gain.setValueAtTime(1, when);
+                gain.gain.exponentialRampToValueAtTime(.001, when + .3);
+                osc.connect(gain);
+                gain.connect(out);
+                osc.start(when);
+                osc.stop(when + .32);
+            } else if (type === "snare") {
+                noiseHit(ctx, when, "bandpass", 1800, .8, .55, .18, out);
+                const osc = ctx.createOscillator(), gain = ctx.createGain();
+                osc.type = "triangle";
+                osc.frequency.value = 190;
+                gain.gain.setValueAtTime(.35, when);
+                gain.gain.exponentialRampToValueAtTime(.001, when + .1);
+                osc.connect(gain);
+                gain.connect(out);
+                osc.start(when);
+                osc.stop(when + .12);
+            } else if (type === "hat") {
+                noiseHit(ctx, when, "highpass", 7000, .7, .3, .06, out);
+            } else if (type === "clap") {
+                [0, .012, .024].forEach(k => noiseHit(ctx, when + k, "bandpass", 1400, 1, .4, .05, out));
+                noiseHit(ctx, when + .036, "bandpass", 1400, 1, .35, .12, out);
+            } else {   // click di conteggio
+                const osc = ctx.createOscillator(), gain = ctx.createGain();
+                osc.type = "square";
+                osc.frequency.value = 1500;
+                gain.gain.setValueAtTime(.2, when);
+                gain.gain.exponentialRampToValueAtTime(.001, when + .04);
+                osc.connect(gain);
+                gain.connect(out);
+                osc.start(when);
+                osc.stop(when + .06);
+            }
+        }
+
+        // Suona una percussione all'istante audio "when"
+        function playDrum(type, file, when) {
+            const ctx = ensureAudio();
+            const out = ctx.createGain();
+            out.gain.value = soundEnabled ? MASTER : 0;
+            out.connect(ctx.destination);
+
+            const buffer = buffers.get(file);
+            if (buffer) {
+                const src = ctx.createBufferSource();
+                src.buffer = buffer;
+                src.connect(out);
+                src.start(when);
+            } else {
+                synth(ctx, type, when, out);
+            }
+        }
+
+        function render() {
+            renderScores();
+        }
+
+        // === Programmazione ===
+        function buildPlan(fromLoop) {
+            const items = [];
+            for (let i = 0; i < COUNT_STEPS; i++) items.push({click: i % 4 === 0, s: -1, loop: fromLoop});
+            for (let l = fromLoop; l < LOOPS; l++) {
+                for (let s = 0; s < STEPS; s++) items.push({click: false, s, loop: l});
+            }
+            return items;
+        }
+
+        function startPlan(fromLoop) {
+            const ctx = ensureAudio();
+            plan = buildPlan(fromLoop);
+            pos = 0;
+            nextTime = ctx.currentTime + .25;
+            scoringStart = null;
+            events = Object.fromEntries(playerIds().map(p => [p, []]));
+            $("#game-status").textContent = "CONTEGGIO";
+            setArena("🥁 Quattro tempi…", legend());
+        }
+
+        function scheduleItem(item, when, ctx) {
+            // Latenza di uscita: il giocatore sente il suono un po' dopo l'istante programmato
+            const lat = (ctx.outputLatency || 0) + (ctx.baseLatency || 0);
+            const perf = performance.now() + (when - ctx.currentTime + lat) * 1000;
+
+            if (item.s < 0) {
+                if (item.click) playDrum("click", CLICK, when);
+                return;
+            }
+
+            if (item.s === 0) {
+                currentLoop = item.loop;
+                snapshot = {...scores};
+                $("#game-status").textContent = "LOOP " + (item.loop + 1) + " / " + LOOPS;
+                setArena("🥁 Loop " + (item.loop + 1) + " / " + LOOPS, legend(), "signal");
+            }
+            if (scoringStart === null) scoringStart = perf;
+
+            playerIds().forEach(p => {
+                if (pattern[p].includes(item.s)) {
+                    playDrum(KITS[p].type, KITS[p].file, when);
+                    events[p].push({t: perf, claimed: false});
+                }
+            });
+        }
+
+        function tick() {
+            if (paused || g.finished || phase !== "live") return;
+            const ctx = ensureAudio();
+
+            while (pos < plan.length && nextTime < ctx.currentTime + LOOKAHEAD) {
+                scheduleItem(plan[pos], nextTime, ctx);
+                if (pos === plan.length - 1) {
+                    endPerf = performance.now() + (nextTime - ctx.currentTime) * 1000 + STEP_SEC * 1000 + TOL + 500;
+                }
+                pos++;
+                nextTime += STEP_SEC;
+            }
+
+            // Pulizia dei colpi vecchi
+            const now = performance.now();
+            playerIds().forEach(p => {
+                events[p] = events[p].filter(ev => ev.t > now - 1000);
+            });
+
+            if (pos >= plan.length && now > endPerf) conclude();
+        }
+
+        function conclude() {
+            phase = "over";
+            stopInterval();
+            const order = playerIds().sort((a, b) => scores[b] - scores[a]);
+            const tie = order.length > 1 && scores[order[0]] === scores[order[1]];
+            render();
+            finish(
+                tie
+                    ? "🥁 Pareggio!"
+                    : "🥁 " + COLORS[order[0]] + " vince con " + scores[order[0]] + " punti!",
+                tie ? null : order
+            );
+        }
+
+        // === Avvio ===
+        g.start = async () => {
+            phase = "intro";
+            scores = Object.fromEntries(playerIds().map(p => [p, 0]));
+            snapshot = {...scores};
+            currentLoop = 0;
+
+            $("#game-status").textContent = "PREPARATI";
+            setArena("🥁 Preparati…", legend());
+            render();
+            buildPattern();
+
+            // Precarica i campioni mentre la voce spiega
+            const files = [CLICK, ...Object.values(KITS).map(k => k.file)];
+            const preload = Promise.all(files.map(async f => buffers.set(f, await loadSample(f))));
+
+            await sayAsync("Tieni il tempo. Premi il tuo tasto quando senti la tua percussione. Se sbagli, perdi un punto.");
+            await preload;
+            if (gone()) return;
+
+            // Presentazione: ogni giocatore sente il proprio suono
+            for (const p of playerIds()) {
+                await sayAsync(COLORS[p] + ", " + KITS[p].name + ".");
+                if (gone()) return;
+                const ctx = ensureAudio();
+                playDrum(KITS[p].type, KITS[p].file, ctx.currentTime + .05);
+                playDrum(KITS[p].type, KITS[p].file, ctx.currentTime + .05 + .45);
+                await wait(900);
+                if (gone()) return;
+            }
+
+            await sayAsync("Quattro tempi, e si parte!");
+            if (gone()) return;
+
+            phase = "live";
+            startPlan(0);
+            interval = setInterval(tick, 25);
+        };
+
+        g.onInput = e => {
+            if (e.type !== "down" || !playerIds().includes(e.button) || g.finished) return;
+            const id = e.button;
+
+            // Durante la presentazione: prova libera del proprio suono
+            if (phase === "intro") {
+                playDrum(KITS[id].type, KITS[id].file, ensureAudio().currentTime);
+                return;
+            }
+            if (phase !== "live") return;
+
+            const t = performance.now();
+            // Conteggio iniziale e coda finale: nessun punteggio
+            if (scoringStart === null || t < scoringStart - TOL) return;
+            if (pos >= plan.length && t > endPerf - 400) return;
+
+            // Cerca il colpo non ancora preso più vicino
+            let best = null;
+            for (const ev of events[id]) {
+                if (ev.claimed) continue;
+                const d = Math.abs(t - ev.t);
+                if (d <= TOL && (best === null || d < Math.abs(t - best.t))) best = ev;
+            }
+
+            if (best) {
+                best.claimed = true;
+                scores[id]++;
+                tone(1300, .04, "sine", .05);
+            } else {
+                scores[id]--;
+                tone(100, .2, "square", .1);
+                toast("Fuori tempo! " + COLORS[id] + " perde un punto");
+            }
+            render();
+        };
+
+        g.resume = () => {
+            if (phase !== "live") return;
+            // Si riprende dall'inizio del loop interrotto, con un nuovo conteggio
+            scores = {...snapshot};
+            render();
+            startPlan(currentLoop);
+        };
+
+        g.dispose = () => {
+            stopTimer();
+            stopInterval();
+            speechSynthesis?.cancel();
+        };
+
+        return g;
+    }
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
         window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {
         }));
