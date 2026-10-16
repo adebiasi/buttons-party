@@ -4851,40 +4851,42 @@
     function makeBeat() {
         const g = baseGame("beat");
 
-        // === File audio (facoltativi: se mancano si usano percussioni sintetiche) ===
         const DIR = "assets/sounds/batteria/";
         const KITS = {
-            P1: {name: "la cassa",         type: "kick",  file: DIR + "kick.mp3"},
-            P2: {name: "il rullante",      type: "snare", file: DIR + "snare.mp3"},
-            P3: {name: "il charleston",    type: "hat",   file: DIR + "hat.mp3"},
-            P4: {name: "il battimani",     type: "clap",  file: DIR + "clap.mp3"}
+            P1: {name: "la cassa", type: "kick", file: DIR + "kick.mp3"},
+            P2: {name: "il rullante", type: "snare", file: DIR + "snare.mp3"},
+            P3: {name: "il charleston", type: "hat", file: DIR + "hat.mp3"},
+            P4: {name: "il battimani", type: "clap", file: DIR + "clap.mp3"}
         };
         const CLICK = DIR + "click.mp3";
 
-        // === Parametri ===
-        const BPM = 60;                 // battiti al minuto
-        const LOOPS = 5;                // loop con punteggio
-        const COUNT_STEPS = 8;         // conteggio iniziale (16 sedicesimi = 4 tempi)
-        const HITS = 2;                 // colpi per giocatore in ogni loop (uguale per tutti)
-        const TOL = 180;                // tolleranza (±ms) attorno al suono
-        const LOOKAHEAD = .15;          // quanto in anticipo si programma l'audio (s)
+        // === PARAMETRI ===
+        const BPM = 60;          // Ritmo lento
+        const LOOPS = 5;         // Cinque giri con punteggio
+        const COUNT_STEPS = 16;  // Conteggio iniziale: quattro battiti
+        const HITS = 2;          // Pochi colpi per strumento
+        const TOL = 180;         // Tolleranza: +/- 180 ms
+        const LOOKAHEAD = .15;
         const MASTER = .9;
 
-        const STEP_SEC = 60 / BPM / 4;  // durata di un sedicesimo
-        const STEPS = 8;
+        const STEP_SEC = 60 / BPM / 4;
+        const STEPS = 8;         // Pattern corto
 
-        let phase = "intro";            // intro | live | over
-        let pattern = {};               // {P1: [0, 8, 3, 10], ...}
-        let events = {};                // {P1: [{t, claimed}], ...}
-        let plan = [], pos = 0, nextTime = 0, endPerf = 0, scoringStart = null;
+        let phase = "intro";
+        let pattern = {};
+        let events = {};
+        let plan = [], pos = 0, nextTime = 0;
+        let endPerf = 0, scoringStart = null;
         let currentLoop = 0, snapshot = {};
         let interval = null, noiseBuf = null;
         const buffers = new Map();
 
         const gone = () => game !== g || g.finished;
         const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-        const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
-        const legend = () => playerIds().map(p => COLORS[p] + " " + KITS[p].name.replace(/^(il|la) /, "")).join(" · ");
+        const legend = () =>
+            playerIds().map(p =>
+                COLORS[p] + " " + KITS[p].name.replace(/^(il|la) /, "")
+            ).join(" · ");
 
         function shuffle(list) {
             const a = [...list];
@@ -4902,33 +4904,47 @@
             }
         }
 
-        // === Pattern: stessi colpi per tutti, mai due colpi vicini dello stesso strumento ===
+        // === CREA UN PATTERN CORTO ===
         function pickSteps(candidates, count, fixed = []) {
             const chosen = [...fixed];
-            for (const c of shuffle(candidates.filter(c => !fixed.includes(c)))) {
+
+            for (const c of shuffle(
+                candidates.filter(c => !fixed.includes(c))
+            )) {
                 if (chosen.length >= fixed.length + count) break;
-                if (chosen.every(x => Math.abs(x - c) > 1)) chosen.push(c);
+                if (chosen.every(x => Math.abs(x - c) > 1)) {
+                    chosen.push(c);
+                }
             }
+
             return chosen.sort((a, b) => a - b);
         }
 
         function buildPattern() {
             const rules = {
-                kick:  () => pickSteps([3, 6, 10, 11, 14], HITS - 2, [0, 8]),
-                snare: () => pickSteps([2, 7, 9, 15], HITS - 2, [4, 12]),
-                hat:   () => pickSteps([0, 2, 4, 6, 8, 10, 12, 14], HITS),
-                clap:  () => pickSteps([2, 3, 6, 7, 10, 11, 14, 15], HITS)
+                kick:  () => [0, 4],
+                snare: () => [2, 6],
+                hat:   () => pickSteps([0, 2, 4, 6], HITS),
+                clap:  () => pickSteps([1, 3, 5, 7], HITS)
             };
+
             pattern = {};
-            playerIds().forEach(p => { pattern[p] = rules[KITS[p].type](); });
+            playerIds().forEach(p => {
+                pattern[p] = rules[KITS[p].type]();
+            });
         }
 
-        // === Suoni ===
+        // === SUONI ===
         function getNoise(ctx) {
             if (!noiseBuf) {
-                noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+                noiseBuf = ctx.createBuffer(
+                    1, ctx.sampleRate, ctx.sampleRate
+                );
                 const data = noiseBuf.getChannelData(0);
-                for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+
+                for (let i = 0; i < data.length; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
             }
             return noiseBuf;
         }
@@ -4937,12 +4953,15 @@
             const src = ctx.createBufferSource();
             const filter = ctx.createBiquadFilter();
             const gain = ctx.createGain();
+
             src.buffer = getNoise(ctx);
             filter.type = type;
             filter.frequency.value = freq;
             filter.Q.value = q;
+
             gain.gain.setValueAtTime(vol, when);
             gain.gain.exponentialRampToValueAtTime(.001, when + dur);
+
             src.connect(filter);
             filter.connect(gain);
             gain.connect(out);
@@ -4951,37 +4970,53 @@
 
         function synth(ctx, type, when, out) {
             if (type === "kick") {
-                const osc = ctx.createOscillator(), gain = ctx.createGain();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
                 osc.frequency.setValueAtTime(160, when);
                 osc.frequency.exponentialRampToValueAtTime(45, when + .12);
                 gain.gain.setValueAtTime(1, when);
                 gain.gain.exponentialRampToValueAtTime(.001, when + .3);
+
                 osc.connect(gain);
                 gain.connect(out);
                 osc.start(when);
                 osc.stop(when + .32);
+
             } else if (type === "snare") {
                 noiseHit(ctx, when, "bandpass", 1800, .8, .55, .18, out);
-                const osc = ctx.createOscillator(), gain = ctx.createGain();
+
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
                 osc.type = "triangle";
                 osc.frequency.value = 190;
                 gain.gain.setValueAtTime(.35, when);
                 gain.gain.exponentialRampToValueAtTime(.001, when + .1);
+
                 osc.connect(gain);
                 gain.connect(out);
                 osc.start(when);
                 osc.stop(when + .12);
+
             } else if (type === "hat") {
                 noiseHit(ctx, when, "highpass", 7000, .7, .3, .06, out);
+
             } else if (type === "clap") {
-                [0, .012, .024].forEach(k => noiseHit(ctx, when + k, "bandpass", 1400, 1, .4, .05, out));
+                [0, .012, .024].forEach(k =>
+                    noiseHit(ctx, when + k, "bandpass", 1400, 1, .4, .05, out)
+                );
                 noiseHit(ctx, when + .036, "bandpass", 1400, 1, .35, .12, out);
-            } else {   // click di conteggio
-                const osc = ctx.createOscillator(), gain = ctx.createGain();
+
+            } else {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
                 osc.type = "square";
                 osc.frequency.value = 1500;
                 gain.gain.setValueAtTime(.2, when);
                 gain.gain.exponentialRampToValueAtTime(.001, when + .04);
+
                 osc.connect(gain);
                 gain.connect(out);
                 osc.start(when);
@@ -4989,14 +5024,15 @@
             }
         }
 
-        // Suona una percussione all'istante audio "when"
         function playDrum(type, file, when) {
             const ctx = ensureAudio();
             const out = ctx.createGain();
+
             out.gain.value = soundEnabled ? MASTER : 0;
             out.connect(ctx.destination);
 
             const buffer = buffers.get(file);
+
             if (buffer) {
                 const src = ctx.createBufferSource();
                 src.buffer = buffer;
@@ -5011,31 +5047,84 @@
             renderScores();
         }
 
-        // === Programmazione ===
+        // === PREPARA CONTEGGIO, PROVA E PARTITA ===
         function buildPlan(fromLoop) {
             const items = [];
-            for (let i = 0; i < COUNT_STEPS; i++) items.push({click: i % 4 === 0, s: -1, loop: fromLoop});
-            for (let l = fromLoop; l < LOOPS; l++) {
-                for (let s = 0; s < STEPS; s++) items.push({click: false, s, loop: l});
+
+            // Conteggio iniziale senza punteggio
+            for (let i = 0; i < COUNT_STEPS; i++) {
+                items.push({
+                    click: i % 4 === 0,
+                    s: -1,
+                    loop: fromLoop
+                });
             }
+
+            // Un giro di prova, solo all'inizio
+            if (fromLoop === 0) {
+                for (let s = 0; s < STEPS; s++) {
+                    items.push({
+                        click: false,
+                        s,
+                        loop: -1,
+                        practice: true
+                    });
+                }
+            }
+
+            // Giri ufficiali con punteggio
+            for (let l = fromLoop; l < LOOPS; l++) {
+                for (let s = 0; s < STEPS; s++) {
+                    items.push({
+                        click: false,
+                        s,
+                        loop: l
+                    });
+                }
+            }
+
             return items;
         }
 
         function startPlan(fromLoop) {
             const ctx = ensureAudio();
+
             plan = buildPlan(fromLoop);
             pos = 0;
             nextTime = ctx.currentTime + .25;
             scoringStart = null;
-            events = Object.fromEntries(playerIds().map(p => [p, []]));
+
+            events = Object.fromEntries(
+                playerIds().map(p => [p, []])
+            );
+
             $("#game-status").textContent = "CONTEGGIO";
             setArena("🥁 Quattro tempi…", legend());
         }
 
+        // === RIPRODUZIONE DEI COLPI ===
         function scheduleItem(item, when, ctx) {
-            // Latenza di uscita: il giocatore sente il suono un po' dopo l'istante programmato
+
+            // Giro di prova: suona senza registrare eventi o punti
+            if (item.practice) {
+                if (item.s === 0) {
+                    phase = "practice";
+                    $("#game-status").textContent = "PROVA SENZA PUNTEGGIO";
+                    setArena("🥁 Giro di prova", legend(), "signal");
+                }
+
+                playerIds().forEach(p => {
+                    if (pattern[p].includes(item.s)) {
+                        playDrum(KITS[p].type, KITS[p].file, when);
+                    }
+                });
+
+                return;
+            }
+
             const lat = (ctx.outputLatency || 0) + (ctx.baseLatency || 0);
-            const perf = performance.now() + (when - ctx.currentTime + lat) * 1000;
+            const perf = performance.now() +
+                (when - ctx.currentTime + lat) * 1000;
 
             if (item.s < 0) {
                 if (item.click) playDrum("click", CLICK, when);
@@ -5043,11 +5132,20 @@
             }
 
             if (item.s === 0) {
+                phase = "live";
                 currentLoop = item.loop;
                 snapshot = {...scores};
-                $("#game-status").textContent = "LOOP " + (item.loop + 1) + " / " + LOOPS;
-                setArena("🥁 Loop " + (item.loop + 1) + " / " + LOOPS, legend(), "signal");
+
+                $("#game-status").textContent =
+                    "LOOP " + (item.loop + 1) + " / " + LOOPS;
+
+                setArena(
+                    "🥁 Loop " + (item.loop + 1) + " / " + LOOPS,
+                    legend(),
+                    "signal"
+                );
             }
+
             if (scoringStart === null) scoringStart = perf;
 
             playerIds().forEach(p => {
@@ -5058,46 +5156,73 @@
             });
         }
 
+        // === CICLO PRINCIPALE ===
         function tick() {
-            if (paused || g.finished || phase !== "live") return;
+            if (
+                paused ||
+                g.finished ||
+                (phase !== "live" && phase !== "practice")
+            ) {
+                return;
+            }
+
             const ctx = ensureAudio();
 
-            while (pos < plan.length && nextTime < ctx.currentTime + LOOKAHEAD) {
+            while (
+                pos < plan.length &&
+                nextTime < ctx.currentTime + LOOKAHEAD
+                ) {
                 scheduleItem(plan[pos], nextTime, ctx);
+
                 if (pos === plan.length - 1) {
-                    endPerf = performance.now() + (nextTime - ctx.currentTime) * 1000 + STEP_SEC * 1000 + TOL + 500;
+                    endPerf = performance.now() +
+                        (nextTime - ctx.currentTime) * 1000 +
+                        STEP_SEC * 1000 + TOL + 500;
                 }
+
                 pos++;
                 nextTime += STEP_SEC;
             }
 
-            // Pulizia dei colpi vecchi
             const now = performance.now();
+
             playerIds().forEach(p => {
                 events[p] = events[p].filter(ev => ev.t > now - 1000);
             });
 
-            if (pos >= plan.length && now > endPerf) conclude();
+            if (pos >= plan.length && now > endPerf) {
+                conclude();
+            }
         }
 
         function conclude() {
             phase = "over";
             stopInterval();
-            const order = playerIds().sort((a, b) => scores[b] - scores[a]);
-            const tie = order.length > 1 && scores[order[0]] === scores[order[1]];
+
+            const order = playerIds().sort(
+                (a, b) => scores[b] - scores[a]
+            );
+
+            const tie = order.length > 1 &&
+                scores[order[0]] === scores[order[1]];
+
             render();
+
             finish(
                 tie
                     ? "🥁 Pareggio!"
-                    : "🥁 " + COLORS[order[0]] + " vince con " + scores[order[0]] + " punti!",
+                    : "🥁 " + COLORS[order[0]] +
+                    " vince con " + scores[order[0]] + " punti!",
                 tie ? null : order
             );
         }
 
-        // === Avvio ===
+        // === AVVIO ===
         g.start = async () => {
             phase = "intro";
-            scores = Object.fromEntries(playerIds().map(p => [p, 0]));
+            scores = Object.fromEntries(
+                playerIds().map(p => [p, 0])
+            );
             snapshot = {...scores};
             currentLoop = 0;
 
@@ -5106,55 +5231,97 @@
             render();
             buildPattern();
 
-            // Precarica i campioni mentre la voce spiega
-            const files = [CLICK, ...Object.values(KITS).map(k => k.file)];
-            const preload = Promise.all(files.map(async f => buffers.set(f, await loadSample(f))));
+            const files = [
+                CLICK,
+                ...Object.values(KITS).map(k => k.file)
+            ];
 
-            await sayAsync("Tieni il tempo. Premi il tuo tasto quando senti la tua percussione. Se sbagli, perdi un punto.");
+            const preload = Promise.all(
+                files.map(async f => buffers.set(f, await loadSample(f)))
+            );
+
+            await sayAsync(
+                "Tieni il tempo. Prima faremo un giro di prova senza punteggio. " +
+                "Poi inizierà la partita. Premi il tuo tasto quando senti " +
+                "la tua percussione."
+            );
+
             await preload;
             if (gone()) return;
 
-            // Presentazione: ogni giocatore sente il proprio suono
+            // Presentazione dei suoni
             for (const p of playerIds()) {
                 await sayAsync(COLORS[p] + ", " + KITS[p].name + ".");
                 if (gone()) return;
+
                 const ctx = ensureAudio();
+
                 playDrum(KITS[p].type, KITS[p].file, ctx.currentTime + .05);
-                playDrum(KITS[p].type, KITS[p].file, ctx.currentTime + .05 + .45);
+                playDrum(
+                    KITS[p].type,
+                    KITS[p].file,
+                    ctx.currentTime + .5
+                );
+
                 await wait(900);
                 if (gone()) return;
             }
 
-            await sayAsync("Quattro tempi, e si parte!");
+            await sayAsync(
+                "Quattro tempi, poi un giro di prova senza punti. " +
+                "Ascolta il ritmo e preparati!"
+            );
+
             if (gone()) return;
 
-            phase = "live";
             startPlan(0);
+            phase = "live";
             interval = setInterval(tick, 25);
         };
 
+        // === PRESSIONE DEI TASTI ===
         g.onInput = e => {
-            if (e.type !== "down" || !playerIds().includes(e.button) || g.finished) return;
-            const id = e.button;
-
-            // Durante la presentazione: prova libera del proprio suono
-            if (phase === "intro") {
-                playDrum(KITS[id].type, KITS[id].file, ensureAudio().currentTime);
+            if (
+                e.type !== "down" ||
+                !playerIds().includes(e.button) ||
+                g.finished
+            ) {
                 return;
             }
+
+            const id = e.button;
+
+            // Durante la presentazione puoi provare il tuo suono
+            if (phase === "intro") {
+                playDrum(
+                    KITS[id].type,
+                    KITS[id].file,
+                    ensureAudio().currentTime
+                );
+                return;
+            }
+
+            // Nessun punto durante la prova
             if (phase !== "live") return;
 
             const t = performance.now();
-            // Conteggio iniziale e coda finale: nessun punteggio
+
             if (scoringStart === null || t < scoringStart - TOL) return;
             if (pos >= plan.length && t > endPerf - 400) return;
 
-            // Cerca il colpo non ancora preso più vicino
             let best = null;
+
             for (const ev of events[id]) {
                 if (ev.claimed) continue;
+
                 const d = Math.abs(t - ev.t);
-                if (d <= TOL && (best === null || d < Math.abs(t - best.t))) best = ev;
+
+                if (
+                    d <= TOL &&
+                    (best === null || d < Math.abs(t - best.t))
+                ) {
+                    best = ev;
+                }
             }
 
             if (best) {
@@ -5166,15 +5333,18 @@
                 tone(100, .2, "square", .1);
                 toast("Fuori tempo! " + COLORS[id] + " perde un punto");
             }
+
             render();
         };
 
+        // === RIPRESA ===
         g.resume = () => {
             if (phase !== "live") return;
-            // Si riprende dall'inizio del loop interrotto, con un nuovo conteggio
+
             scores = {...snapshot};
             render();
             startPlan(currentLoop);
+            phase = "live";
         };
 
         g.dispose = () => {
