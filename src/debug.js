@@ -543,6 +543,23 @@
         run.lastActivity = now();
         if (on) run.pauses++;
         log("partita", "info", on ? "⏸ pausa" : "▶ ripresa");
+        if (!on) {
+            // Dopo la ripresa il gioco deve fare qualcosa (timer, suono, voce o cambio arena) entro pochi secondi
+            const n = run.n, t = now();
+            _st(() => {
+                const cur = S.run;
+                if (!cur || cur.n !== n || cur.paused || cur.finished) return;
+                if (cur.lastActivity > t + 100) return;
+                let pending = 0;
+                for (const r of S.timeouts.values()) if (r.run === n) pending++;
+                for (const r of S.intervals.values()) if (r.run === n) pending++;
+                const st = getState() || {};
+                if (st.timerActive) pending++;
+                if (!pending && ![...S.audio].some((r) => r.run === n) && !("speechSynthesis" in window && speechSynthesis.speaking)) {
+                    log("partita", "warn", "dopo la ripresa il gioco è rimasto fermo per 6 secondi: nessun timer, suono o cambio arena (se sta aspettando un input è normale)");
+                }
+            }, 6000);
+        }
     }
 
     function gameFinish(message, ranking, announce) {
@@ -1390,7 +1407,7 @@
     /* ======================================================================
      * UI: costruzione e eventi
      * ==================================================================== */
-    const LOG_CATS = ["partita", "input", "arena", "punteggio", "audio", "voce", "timer", "sistema", "console", "errore"];
+    const LOG_CATS = ["partita", "input", "arena", "punteggio", "bippatore", "assetato", "audio", "voce", "timer", "sistema", "console", "errore"];
 
     function buildLogView() {
         const log = $("#debug-view-log");

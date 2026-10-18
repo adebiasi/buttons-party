@@ -6,12 +6,13 @@
     const PLAYER_BUTTONS = ["P1", "P2", "P3", "P4"];
     const KEY_MAP = {"1": "P1", "2": "P2", "3": "P3", "4": "P4", " ": "C", "Enter": "C"};
     const DESCRIPTIONS = {
+        thirsty: "Quante birre riesci a bere? A turno, ogni giocatore ha 30 secondi. Per ogni birra: premi per stappare, tieni premuto per bere, premi per buttare il bicchiere, tieni premuto per il rutto. Se lasci il tasto il suono riparte da dove eri. Conta solo la sequenza completa.",
         pig: "Ascolta i versi: premi quando senti il maiale, non gli altri animali.",
         duel: "Conferma con il tuo tasto, poi premi appena senti il segnale. Anticipare significa falsa partenza.",
         parachute: "Apri il paracadute il più tardi possibile, ma prima dell'impatto. L'esito è rivelato alla fine.",
-        disturber: "Premi quando senti il parlante bersaglio. I suoni sono sintetici in questa versione provvisoria.",
+        disturber: "Premi il più possibile mentre parla Marta: ogni pressione è un punto. Fuori da Marta, ogni pressione toglie un punto. Ogni giocatore ha un suono diverso.",
         pot: "Il piatto cresce: incassa quando vuoi, ma se aspetti troppo rischi di perdere tutto.",
-        simon: "Ascolta la sequenza e ripetila usando tutti e cinque i tasti. A turno, un errore elimina.",
+        simon: "Ascolta la sequenza e ripetila con i quattro tasti colorati. A turno, un errore elimina. Il tasto centrale mette in pausa.",
         mosquito: "Una zanzara vola intorno a te: premi quando il ronzio è fortissimo, cioè quando è vicina. Se premi troppo presto perdi un punto.",
         mine: "Ascolta il canarino: se smette di cantare per più di 10 secondi è morto. Allora premi entro 2 secondi. Se premi prima scappi, se premi dopo è troppo tardi. Vince l'ultimo a uscire in tempo.",
         freeze: "Premi il più possibile mentre senti uno, due, tre. Appena senti «stai là!» fermati: chi preme è squalificato. Vince chi arriva per primo al numero di passi stabilito.",
@@ -22,7 +23,7 @@
         tennis: "Senti il rimbalzo della palla: quando rimbalza verso di te, premi per rispondere. Poi tocca al giocatore successivo in senso orario. Se premi prima del tuo rimbalzo resti fermo 2 secondi. Se manchi la palla perdi una vita.",
         pizza: "A turno, ascolta il percorso e ripetilo con i tasti. Le direzioni sono relative a te: indietro è il tuo tasto, avanti quello di fronte, destra e sinistra quelli ai tuoi lati. Un chilometro è una pressione. Se sbagli sei licenziato.",
         rally: "Il navigatore dà comandi come «4 destra» o «2 accelera». Premi il tasto corretto il numero di volte indicato. Le direzioni sono relative a te. Man mano i comandi arrivano più veloci. Un errore e fai incidente!",
-        beeper: "Ogni giocatore ha un parlatore diverso, assegnato a voce. Tieni premuto per bippare le sue parolacce: +1 per ogni parolaccia coperta, -1 per ogni parola normale coperta. Se bippi un parlatore che non è il tuo perdi un punto. Ogni parlatore dice lo stesso numero di parolacce.",
+        beeper: "Ogni giocatore ha un parlatore diverso, assegnato a voce. Tieni premuto per bippare tutta la parolaccia: più la copri, più punti prendi (fino a 3). Più tieni premuto su parole normali, più punti perdi (1,5 al secondo). Se bippi un parlatore che non è il tuo perdi punti allo stesso modo. Ogni parlatore dice lo stesso numero di parolacce.",
         beat: "Ogni giocatore ha una percussione: cassa, rullante, charleston o battimani. Premi il tuo tasto a tempo quando senti la tua. Se premi nel momento sbagliato perdi un punto. Dopo tre loop la partita finisce.",
     }
     const GAME_NAMES = {
@@ -31,7 +32,7 @@
         parachute: "Paracadutisti",
         disturber: "Disturbatore",
         pot: "Piglia tutto",
-        simon: "Simon a 5 tasti",
+        simon: "Simon",
         mosquito: "Prendi la zanzara",
         mine: "In miniera",
         freeze: "Uno, due, tre, stai là!",
@@ -44,10 +45,11 @@
         rally: "Rally",
         beeper: "Il bippatore",
         beat: "Tieni il tempo",
+        thirsty: "Assetato",
     };
     const ANIMALS = ["cane", "gatto", "mucca", "pecora", "gallina", "cavallo", "papera", "gallo"];
     let audio = null, soundEnabled = true, game = null, timer = null, paused = false;
-    let natureSource = null, natureGain = null;
+    let natureSource = null, natureGain = null, natureVolume = 0.08;
     let held = new Set(), players = 4, scores = {}, toastTimer = null;
     let fallSource = null, fallGain = null;
     let ground = 0, start = 0;
@@ -200,10 +202,20 @@
         osc.stop(a.currentTime + delay + duration + .02);
     }
 
-    async function startNatureAmbience(path = "assets/sounds/background-cattura-maiale.mp3", volume = 0.08) {
+    // makeFallback(ctx) -> AudioBuffer: sottofondo sintetico se il file manca
+    async function startNatureAmbience(path = "assets/sounds/background-cattura-maiale.mp3", volume = 0.08, makeFallback = null) {
         stopNatureAmbience();
+        natureVolume = volume;
 
-        const buffer = await loadSample(path);
+        let buffer = await loadSample(path);
+
+        if (!buffer && makeFallback) {
+            try {
+                buffer = makeFallback(ensureAudio());
+            } catch (e) {
+                console.warn("Sottofondo sintetico non riuscito:", e);
+            }
+        }
 
         if (!buffer) {
             console.warn("Sottofondo natura non disponibile:", path);
@@ -216,7 +228,7 @@
 
         natureSource.buffer = buffer;
         natureSource.loop = true;
-        natureGain.gain.value = soundEnabled ? volume : 0;
+        natureGain.gain.value = soundEnabled && !paused ? volume : 0;
 
         natureSource.connect(natureGain);
         natureGain.connect(ctx.destination);
@@ -241,9 +253,34 @@
     }
 
     function setNatureVolume(volume) {
+        natureVolume = volume;
         if (natureGain) {
-            natureGain.gain.value = soundEnabled ? volume : 0;
+            natureGain.gain.value = soundEnabled && !paused ? volume : 0;
         }
+    }
+
+    // Brusio di sala sintetico: mormorio (rumore filtrato che ondeggia) + tintinnii di posate.
+    // Ogni onda ha un numero intero di cicli nel buffer, così il loop non ha scatti.
+    function makeCrowdBuffer(ctx) {
+        const sr = ctx.sampleRate, len = Math.floor(sr * 8);
+        const buffer = ctx.createBuffer(1, len, sr), d = buffer.getChannelData(0);
+        const TAU = Math.PI * 2;
+        let lp = 0, lp2 = 0;
+        for (let i = 0; i < len; i++) {
+            lp += ((Math.random() * 2 - 1) - lp) * .12;
+            lp2 += (lp - lp2) * .25;
+            const t = i / len;
+            const env = .55 + .2 * Math.sin(TAU * 3 * t) + .15 * Math.sin(TAU * 5 * t + 1) + .1 * Math.sin(TAU * 7 * t + 2);
+            d[i] = (lp - lp2) * 3.6 * env;
+        }
+        for (let k = 0; k < 16; k++) {
+            const at = Math.floor(Math.random() * len), f = 2400 + Math.random() * 1900, amp = .12 + Math.random() * .16;
+            for (let j = 0; j < sr * .14; j++) {
+                d[(at + j) % len] += Math.sin(TAU * f * j / sr) * Math.exp(-j / (sr * .03)) * amp;
+            }
+        }
+        for (let i = 0; i < len; i++) d[i] = Math.max(-1, Math.min(1, d[i]));
+        return buffer;
     }
 
     function noise(duration = .2, volume = .08) {
@@ -275,7 +312,11 @@
     }
 
 // Come say(), ma restituisce una Promise che si risolve a fine frase
-    function sayAsync(text, maxMs = 8000) {
+    const spokenKeep = new Set();   // evita che il browser elimini la frase prima della fine
+
+    function sayAsync(text, maxMs) {
+        // Il limite di sicurezza dipende dalla lunghezza: con 8 s fissi le spiegazioni lunghe venivano tagliate
+        const limit = maxMs ?? Math.max(8000, 4000 + String(text).length * 130);
         return new Promise(resolve => {
             if (!("speechSynthesis" in window)) return resolve();
             speechSynthesis.cancel();
@@ -288,14 +329,47 @@
                 if (done) return;
                 done = true;
                 clearTimeout(safety);
+                spokenKeep.delete(u);
                 resolve();
             };
             // Sicurezza: su alcuni browser onend non scatta sempre
-            const safety = setTimeout(end, maxMs);
+            const safety = setTimeout(end, limit);
             u.onend = end;
             u.onerror = end;
+            spokenKeep.add(u);
             speechSynthesis.speak(u);
         });
+    }
+
+    // Descrizione iniziale di un gioco. Premendo Pausa (o il tasto centrale) mentre parla,
+    // la descrizione viene interrotta e si passa direttamente al gioco.
+    let introSkip = null;
+
+    function sayIntro(text) {
+        return new Promise(resolve => {
+            let finished = false;
+            const done = () => {
+                if (finished) return;
+                finished = true;
+                if (introSkip === skip) introSkip = null;
+                resolve();
+            };
+            const skip = () => {
+                window.BPDebug?.log("partita", "info", "descrizione saltata con il tasto pausa");
+                speechSynthesis?.cancel();
+                done();
+            };
+            introSkip = skip;
+            sayAsync(text).then(done);
+        });
+    }
+
+    // Narra un testo di introduzione e aspetta che finisca (e che finisca anche l'eventuale pausa).
+    // Restituisce false se nel frattempo si è usciti dal gioco.
+    async function narrate(g, text) {
+        await sayIntro(text);
+        while (paused && game === g) await new Promise(r => setTimeout(r, 150));
+        return game === g && !g.finished;
     }
 
 // Come playSample(), ma si risolve quando il suono è finito
@@ -333,18 +407,35 @@
         $("#arena").className = "arena" + (style ? " " + style : "");
     }
 
+    // Timer principale dei giochi. Resiste alla pausa: il tempo che restava viene
+    // memorizzato e il callback riparte alla ripresa (prima la catena si spezzava).
+    let laterInfo = null, pendingLater = null;
+
     function stopTimer() {
         if (timer !== null) {
             clearTimeout(timer);
             timer = null;
         }
+        laterInfo = null;
+        pendingLater = null;
     }
 
     function later(fn, ms) {
         stopTimer();
+        if (paused) {              // armato mentre il gioco è in pausa: parte alla ripresa
+            pendingLater = {fn, ms};
+            return;
+        }
+        laterInfo = {fn, due: performance.now() + ms};
         timer = setTimeout(() => {
             timer = null;
-            if (!paused && game) fn();
+            laterInfo = null;
+            if (!game) return;
+            if (paused) {
+                pendingLater = {fn, ms: 0};
+                return;
+            }
+            fn();
         }, ms);
     }
 
@@ -381,6 +472,11 @@
             if (paused) {
                 window.BPDebug?.input(event, id === "C" ? "→ riprendi" : "ignorato (in pausa)");
                 if (id === "C") resumeGame();
+                return;
+            }
+            if (id === "C" && introSkip) {
+                window.BPDebug?.input(event, "→ salta la descrizione");
+                introSkip();
                 return;
             }
             if (id === "C" && game.mode === "realtime") {
@@ -512,9 +608,19 @@
 
     function pauseGame() {
         if (!game || paused || game.finished) return;
+        if (introSkip) {          // durante la descrizione Pausa = salta la descrizione
+            introSkip();
+            return;
+        }
         paused = true;
         window.BPDebug?.pause(true);
+        const remaining = laterInfo
+            ? {fn: laterInfo.fn, ms: Math.max(0, laterInfo.due - performance.now())}
+            : null;
         stopTimer();
+        pendingLater = remaining;
+        game.pause?.();
+        if (natureGain) natureGain.gain.value = 0;   // sottofondo muto in pausa
         setArena("⏸ Partita in pausa", "Premi Riprendi per continuare");
         $("#pause-button").textContent = "▶ Riprendi";
         buttons.forEach(b => b.classList.remove("pressed"));
@@ -525,6 +631,10 @@
         paused = false;
         window.BPDebug?.pause(false);
         $("#pause-button").textContent = "Ⅱ Pausa";
+        if (natureGain) natureGain.gain.value = soundEnabled ? natureVolume : 0;
+        const resumed = pendingLater;
+        pendingLater = null;
+        if (resumed) later(resumed.fn, resumed.ms);   // riprende da dove era
         game.resume?.();
         if (!game.resume) setArena("Si riparte!");
     }
@@ -560,6 +670,7 @@
         $("#setup-panel").hidden = false;
         $("#pause-button").textContent = "Ⅱ Pausa";
         setArena("Premi Inizia");
+        introSkip = null;
         window.BPDebug?.gameEnd("uscita");
     }
 
@@ -617,19 +728,25 @@
             pizza: makePizza,
             rally: makeRally,
             beeper: makeBeeper,
-            beat: makeBeat
+            beat: makeBeat,
+            thirsty: makeThirsty
         })[id]();
     }
 
     function makePig() {
         const g = baseGame("pig");
         let count = 0, max = 0, current = "", active = false, blocked = {}, duration = 90000, started = 0,
-            claimed = false, previous = "";
-        g.start = () => {
-            started = performance.now();
+            claimed = false, previous = "", ready = false;
+        g.start = async () => {
+            ready = false;
             $("#game-status").textContent = "ASCOLTA BENE";
             setArena("🐾 In ascolto…", "Premi solo quando senti il maiale");
 
+            if (!await narrate(g, "Cattura il maiale. Ascolta i versi degli animali e premi solo quando senti il maiale. " +
+                "Se premi per un altro animale perdi un punto. Vince chi arriva a dieci punti.")) return;
+
+            ready = true;
+            started = performance.now();
             startNatureAmbience("assets/sounds/background-cattura-maiale.mp3", 0.08);
 
             next();
@@ -677,7 +794,7 @@
         }
 
         g.onInput = e => {
-            if (e.type !== "down" || !playerIds().includes(e.button) || g.finished) return;
+            if (e.type !== "down" || !playerIds().includes(e.button) || g.finished || !ready) return;
 
             const id = e.button;
 
@@ -726,11 +843,20 @@
         const FALSE_START_SOUND = "assets/sounds/falsa-partenza.mp3";
         let ready = new Set(), eligible = new Set(), round = 1, started = false, waiting = false, goAt = 0, wins = {};
         const total = 5;
+        let introDone = false;
 
-        g.start = () => {
+        g.start = async () => {
+            introDone = false;
             wins = Object.fromEntries(playerIds().map(p => [p, 0]));
             round = 1;
             loadSample(FALSE_START_SOUND); // precarica
+            $("#game-status").textContent = "DUELLO";
+            setArena("🤠 Duello", "Ascolta le istruzioni");
+            renderScores(wins);
+            if (!await narrate(g, "Duello. In ogni round premi il tuo tasto per prepararti. " +
+                "Quando senti il segnale, premi il più in fretta possibile. Se premi prima, è falsa partenza e perdi un punto. " +
+                "Si giocano cinque round.")) return;
+            introDone = true;
             beginRound();
         };
 
@@ -814,7 +940,7 @@
             if (e.type !== "down") return;
             if (e.button === "C") return;
             const id = e.button;
-            if (!playerIds().includes(id) || g.finished) return;
+            if (!playerIds().includes(id) || g.finished || !introDone) return;
 
             // Fase di preparazione: ognuno conferma il proprio tasto
             if (!started && !waiting) {
@@ -882,7 +1008,7 @@
             loadSample("assets/sounds/paracadute.mp3");
 
             // 1. La voce spiega il gioco e il gioco aspetta che finisca
-            await sayAsync("Caduta libera. Senti il suono e scegli quando aprire.");
+            await sayIntro("Caduta libera. Senti il suono e scegli quando aprire.");
             if (game !== g) return; // uscito durante la spiegazione
 
             // 2. Ora parte la caduta
@@ -1003,8 +1129,33 @@
         const HIT_SOUND = "assets/sounds/disturbatore/centrato.mp3";
         const MISS_SOUND = "assets/sounds/disturbatore/sbagliato.mp3";
 
-        let target = "MARTA", active = false, start = 0, points = {};
+        const TARGET_GRACE = 350;   // tolleranza dopo la fine della voce di Marta (ms)
+        // Ogni giocatore ha un suono diverso: stesso file con altezza diversa, oppure un tono diverso se manca
+        const PLAYER_PITCH = {P1: 1, P2: .8, P3: 1.25, P4: 1.55};
+        const PLAYER_HIT_TONE = {P1: 660, P2: 520, P3: 830, P4: 1040};
+        const PLAYER_MISS_TONE = {P1: 110, P2: 90, P3: 135, P4: 160};
+        let target = "MARTA", active = false, start = 0, points = {}, ready = false;
         let lastTarget = null, lastOther = null;
+
+        async function playerSound(path, id, fallbackFreq, wave) {
+            const buffer = await loadSample(path);
+            if (buffer) {
+                try {
+                    const ctx = ensureAudio();
+                    const source = ctx.createBufferSource(), gain = ctx.createGain();
+                    source.buffer = buffer;
+                    source.playbackRate.value = PLAYER_PITCH[id] || 1;
+                    gain.gain.value = soundEnabled ? 1 : 0;
+                    source.connect(gain);
+                    gain.connect(ctx.destination);
+                    source.start();
+                    return;
+                } catch (error) {
+                    console.warn("Impossibile riprodurre il sample:", path);
+                }
+            }
+            tone(fallbackFreq, .09, wave, .07);
+        }
 
         // Sceglie un file a caso evitando di ripetere subito l'ultimo
         function pickRandom(list, last) {
@@ -1016,16 +1167,21 @@
             return choice;
         }
 
-        g.start = () => {
-            start = performance.now();
+        g.start = async () => {
+            ready = false;
             points = Object.fromEntries(playerIds().map(p => [p, 0]));
 
             // Precarica tutto, così la prima riproduzione non ritarda
             [...TARGET_VOICES, ...OTHER_VOICES, HIT_SOUND, MISS_SOUND].forEach(loadSample);
 
             $("#game-status").textContent = "ASCOLTA IL BERSAGLIO";
-            say("Premi quando senti Marta");
             setArena("🗣 Brusio…", "Premi quando senti MARTA");
+
+            if (!await narrate(g, "Disturbatore. In sottofondo ci sono tante voci. Quando parla Marta, premi il più possibile: ogni pressione è un punto. " +
+                "Se premi per un'altra voce, o a vuoto, perdi un punto. Vince chi disturba di più.")) return;
+
+            ready = true;
+            start = performance.now();
 
             // Sottofondo di voci sempre attivo per tutta la partita
             startNatureAmbience(BACKGROUND, 0.12);
@@ -1062,11 +1218,19 @@
 
                 if (isTarget) {
                     lastTarget = pickRandom(TARGET_VOICES, lastTarget);
-                    playSample(lastTarget, () => tone(660, .22, "triangle", .07));
-                    later(() => {
-                        active = false;
-                        schedule();
-                    }, 750);
+                    // La finestra resta aperta finché Marta sta parlando (più una piccola tolleranza):
+                    // prima si chiudeva dopo 750 ms anche se la voce durava di più e premere dava la penitenza.
+                    const voice = Promise.race([
+                        playSampleWait(lastTarget, () => tone(660, .22, "triangle", .07)),
+                        new Promise(r => setTimeout(r, 8000))    // sicurezza se l'audio non parte
+                    ]);
+                    voice.then(() => {
+                        if (game !== g || g.finished) return;
+                        later(() => {
+                            active = false;
+                            schedule();
+                        }, TARGET_GRACE);
+                    });
                 } else {
                     lastOther = pickRandom(OTHER_VOICES, lastOther);
                     playSample(lastOther, () => tone(300, .22, "triangle", .07));
@@ -1076,18 +1240,18 @@
         }
 
         g.onInput = e => {
-            if (e.type !== "down" || !playerIds().includes(e.button) || g.finished) return;
+            if (e.type !== "down" || !playerIds().includes(e.button) || g.finished || !ready) return;
 
+            // Mentre parla Marta ogni pressione vale un punto; fuori da Marta ne toglie uno
             points[e.button] += active ? 1 : -1;
             scores[e.button] = points[e.button];
             renderScores();
 
             if (active) {
-                playSample(HIT_SOUND, () => tone(850, .08, "triangle", .07));
-                toast("+1 punto");
+                playerSound(HIT_SOUND, e.button, PLAYER_HIT_TONE[e.button] || 850, "triangle");
             } else {
-                playSample(MISS_SOUND, () => tone(100, .2, "square", .07));
-                toast("Fuori bersaglio: -1");
+                playerSound(MISS_SOUND, e.button, PLAYER_MISS_TONE[e.button] || 100, "square");
+                toast("Fuori bersaglio: " + COLORS[e.button] + " −1");
             }
         };
 
@@ -1101,23 +1265,43 @@
 
     function makePot() {
         const g = baseGame("pot");
-        let pot = 0, limit = 0, cashed = {}, start = 0, rate = 700;
-        g.start = () => {
+        let pot = 0, limit = 0, cashed = {}, start = 0, rate = 700, ready = false;
+
+        // Suoni (file facoltativi: se mancano si usano suoni sintetici)
+        const COIN_SOUND = "assets/sounds/pot/gettone.mp3";   // arriva un gettone nel piatto
+        const CASH_SOUND = "assets/sounds/pot/incasso.mp3";   // un giocatore incassa
+        const coinSound = () => playSample(COIN_SOUND, () => {
+            tone(1568, .05, "triangle", .06);
+            tone(2093, .1, "triangle", .05, .05);
+        });
+        const cashSound = () => playSample(CASH_SOUND, () => {
+            tone(988, .08, "triangle", .1);
+            tone(1319, .08, "triangle", .1, .08);
+            tone(1976, .3, "triangle", .12, .16);
+        });
+
+        g.start = async () => {
+            ready = false;
             pot = 0;
             limit = 15 + Math.floor(Math.random() * 16);
             cashed = {};
-            start = performance.now();
+            rate = 700;
             scores = Object.fromEntries(playerIds().map(p => [p, 0]));
+            [COIN_SOUND, CASH_SOUND].forEach(loadSample);
             $("#game-status").textContent = "QUANTO RISCHIERAI?";
             setArena("🪙 0 gettoni", "Incassa quando vuoi… ma non aspettare troppo");
             renderScores();
+            if (!await narrate(g, "Piglia tutto. Il piatto si riempie di gettoni, uno dopo l'altro. " +
+                "Premi per incassare quelli che ci sono. Ma se aspetti troppo il piatto esplode, e chi non ha incassato perde tutto.")) return;
+            ready = true;
+            start = performance.now();
             tick();
         };
 
         function tick() {
             if (g.finished) return;
             pot++;
-            tone(500, .035, "sine", .025);
+            coinSound();
             if (pot > limit) {
                 const order = playerIds().sort((a, b) => scores[b] - scores[a]);
                 finish("💥 Limite superato! Vince " + COLORS[order[0]], order);
@@ -1129,11 +1313,11 @@
         }
 
         g.onInput = e => {
-            if (e.type !== "down" || !playerIds().includes(e.button) || cashed[e.button] || g.finished) return;
+            if (e.type !== "down" || !playerIds().includes(e.button) || cashed[e.button] || g.finished || !ready) return;
             cashed[e.button] = true;
             scores[e.button] = pot;
             renderScores();
-            tone(720, .12, "sine", .1);
+            cashSound();
             toast(COLORS[e.button] + " incassa " + pot + " gettoni!");
             if (playerIds().every(p => cashed[p])) {
                 const order = playerIds().sort((a, b) => scores[b] - scores[a]);
@@ -1144,15 +1328,20 @@
     }
 
     function makeSimon() {
-        const g = baseGame("simon", "turns");
-        let sequence = [], turn = 0, round = 0, index = 0, showing = false, alive = [], maxRounds = 12;
-        const tones = {P1: 330, P2: 392, P3: 494, P4: 262, C: 587};
-        g.start = () => {
+        // Modalità "realtime": il tasto centrale mette in pausa e non fa mai parte della sequenza
+        const g = baseGame("simon");
+        let sequence = [], turn = 0, round = 0, index = 0, showing = true, alive = [], maxRounds = 12;
+        const tones = {P1: 330, P2: 392, P3: 494, P4: 262};
+        g.start = async () => {
             sequence = [];
             turn = 0;
             round = 0;
+            showing = true;      // finché parla il narratore nessun input
             alive = playerIds();
             $("#game-status").textContent = "A TURNI";
+            setArena("🎵 Simon", "Ascolta le istruzioni");
+            if (!await narrate(g, "Simon. Ascolta la sequenza di suoni e ripetila con i quattro tasti colorati, a turno. " +
+                "Ogni giro la sequenza si allunga. Chi sbaglia è eliminato. Il tasto centrale mette in pausa.")) return;
             nextRound();
         };
 
@@ -1164,7 +1353,7 @@
                 return;
             }
             round++;
-            sequence.push(Object.keys(tones)[Math.floor(Math.random() * 5)]);
+            sequence.push(Object.keys(tones)[Math.floor(Math.random() * 4)]);
             turn = turn % alive.length;
             index = 0;
             showing = true;
@@ -1193,6 +1382,7 @@
         g.onInput = e => {
             if (e.type !== "down" || !alive.includes(alive[turn]) || showing || g.finished) return;
             const id = e.button;
+            if (id === "C") return;
             if (sequence[index] === id) {
                 index++;
                 if (index === sequence.length) {
@@ -1346,7 +1536,8 @@
 
             $("#game-status").textContent = "ASCOLTA IL RONZIO";
             setArena("🦟 Ascolta…", "Premi quando il ronzio è fortissimo");
-            say("Prendi la zanzara");
+            if (!await narrate(g, "Prendi la zanzara. Una zanzara vola intorno a te: premi quando il ronzio è fortissimo, " +
+                "perché vuol dire che è vicina. Se premi troppo presto, perdi un punto. Vince chi ne prende tre.")) return;
 
             const ok = await startBuzz();
             if (!ok) return;
@@ -1361,7 +1552,7 @@
             const id = e.button;
             const now = performance.now();
 
-            if (blocked[id] > now) return;
+            if (!started || blocked[id] > now) return;   // started = 0 finché parla il narratore
 
             // Poco dopo una cattura: chi arriva tardi non viene punito
             if (now < graceUntil) return;
@@ -1496,7 +1687,7 @@
                 loadSample(PAIN_SOUND)
             ]);
 
-            await sayAsync("In miniera. Se il canarino smette di cantare, esci entro due secondi. Ma non scappare troppo presto!");
+            await sayIntro("In miniera. Se il canarino smette di cantare, esci entro due secondi. Ma non scappare troppo presto!");
             await preload;
             if (game !== g) return;
 
@@ -1661,15 +1852,18 @@
 
         // === File audio ===
         const DIR = "assets/sounds/unoduetre/";
-        const WORDS = [DIR + "uno.mp3", DIR + "due.mp3", DIR + "tre.mp3", DIR + "stai-la.mp3"];
-        const LABELS = ["UNO…", "DUE…", "TRE…", "STAI LÀ!"];
+        const PHRASE = DIR + "uno-due-tre-stai-la.mp3";   // tutta la frase in un solo file
+        const PHRASE_TEXT = "Uno, due, tre, stai là!";    // letta dalla voce se il file manca
         const STEP_SOUND = DIR + "passi.mp3";          // un breve suono di passi
         const DQ_SOUND = DIR + "squalificato.mp3";     // squalifica
-        const FALLBACK_FREQ = [330, 392, 494, 150];    // toni sintetici se manca un file
 
         // === Parametri ===
         const TARGET = 30;              // passi necessari per vincere
-        const WORD_GAP = [250, 1600];   // pausa casuale tra una parola e l'altra (ms)
+        const STAI_LA_FROM = 0.72;      // a che punto della frase (0–1) inizia "stai là": da lì chi preme è fuori
+        const RATE_START = [0.8, 1.05]; // velocità a inizio frase (casuale in questo intervallo)
+        const RATE_END = [1.6, 2.4];    // velocità a fine frase: la frase accelera mentre viene riprodotta
+        const VOICE_RATE = [1.0, 1.9];  // con la voce sintetica non si può accelerare a metà frase: velocità casuale per frase
+        const VOICE_GRACE = 450;        // tolleranza extra: la voce sintetica parte con un po' di ritardo
         const BLOCK_GAP = [1500, 4000]; // pausa casuale dopo "stai là!", prima di ricominciare (ms)
         const GRACE = 250;              // dopo l'inizio di "stai là!" il tempo di reazione è tollerato (ms)
         const MIN_VOL = 0.08;           // volume dei passi al primo passo
@@ -1677,11 +1871,12 @@
         const PITCH = {P1: 1.0, P2: 0.88, P3: 1.12, P4: 0.78}; // passi diversi per giocatore
 
         let phase = "intro";            // intro | run
-        let step = 0, frozen = false, freezeStart = 0;
+        let frozen = false, freezeStart = 0, voicePhrase = false, phraseId = 0, current = null;
         let counts = {}, dq = new Set();
         const buffers = new Map();
 
         const rand = ([min, max]) => min + Math.random() * (max - min);
+        const dbg = (msg) => window.BPDebug?.log("partita", "info", msg);
 
         // Riproduce un buffer con volume e velocità, rispettando il pulsante audio
         function playBuffer(buffer, volume = 1, rate = 1) {
@@ -1696,15 +1891,24 @@
             source.start();
         }
 
-        // Riproduce una parola e restituisce la sua durata in ms
-        function playWord(i) {
-            const buffer = buffers.get(WORDS[i]);
-            if (buffer) {
-                playBuffer(buffer, 1);
-                return buffer.duration * 1000;
+        // Interrompe la frase in corso (pausa, uscita, nuova frase)
+        function stopPhrase() {
+            phraseId++;
+            if (current) {
+                try {
+                    current.stop();
+                } catch (e) { /* già finita */ }
+                current = null;
             }
-            tone(FALLBACK_FREQ[i], i === 3 ? .5 : .3, i === 3 ? "sawtooth" : "triangle", .12);
-            return i === 3 ? 600 : 400;
+            speechSynthesis?.cancel();
+        }
+
+        function startFreeze() {
+            if (game !== g || g.finished) return;
+            frozen = true;
+            freezeStart = performance.now();
+            $("#game-status").textContent = "FERMI!";
+            setArena("🛑 STAI LÀ!", "Fermi! Chi preme è squalificato", "signal");
         }
 
         // Un passo del giocatore: il volume cresce con i passi fatti
@@ -1754,7 +1958,6 @@
 
         g.start = async () => {
             phase = "intro";
-            step = 0;
             frozen = false;
             counts = Object.fromEntries(playerIds().map(p => [p, 0]));
             dq = new Set();
@@ -1765,10 +1968,10 @@
 
             // Precarica tutto mentre la voce spiega
             const preload = Promise.all(
-                [...WORDS, STEP_SOUND, DQ_SOUND].map(async p => buffers.set(p, await loadSample(p)))
+                [PHRASE, STEP_SOUND, DQ_SOUND].map(async p => buffers.set(p, await loadSample(p)))
             );
 
-            await sayAsync("Uno, due, tre, stai là! Premi il più possibile, ma quando senti stai là, fermati!");
+            await sayIntro("Uno, due, tre, stai là! Premi il più possibile, ma quando senti stai là, fermati!");
             await preload;
             if (game !== g) return;
 
@@ -1778,26 +1981,82 @@
             if (!paused) later(playStep, 800);
         };
 
+        // Una frase intera "uno, due, tre, stai là!": la velocità cresce mentre viene riprodotta,
+        // così è difficile prevedere quando finisce. "Stai là" inizia a STAI_LA_FROM della frase.
         function playStep() {
             if (g.finished) return;
+            stopPhrase();
+            frozen = false;                   // riparte la corsa
+            const id = phraseId;
+            $("#game-status").textContent = "CORRI!";
+            setArena("🏃 Corri!", "Premi il tuo tasto! Obiettivo: " + TARGET + " passi");
 
-            if (step === 0) frozen = false;   // riparte la corsa
-
-            const duration = playWord(step);
-
-            if (step === 3) {
-                // STAI LÀ! Da qui chi preme (dopo la tolleranza) è fuori
-                frozen = true;
-                freezeStart = performance.now();
-                $("#game-status").textContent = "FERMI!";
-                setArena("🛑 STAI LÀ!", "Fermi! Chi preme è squalificato", "signal");
-                step = 0;
-                later(playStep, duration + rand(BLOCK_GAP));
+            const buffer = buffers.get(PHRASE);
+            if (buffer) {
+                voicePhrase = false;
+                const r0 = rand(RATE_START), r1 = rand(RATE_END);
+                const total = buffer.duration / ((r0 + r1) / 2) * 1000;   // durata reale in ms
+                const ctx = ensureAudio(), source = ctx.createBufferSource(), gain = ctx.createGain();
+                const t = ctx.currentTime;
+                source.buffer = buffer;
+                source.playbackRate.setValueAtTime(r0, t);
+                source.playbackRate.linearRampToValueAtTime(r1, t + total / 1000);
+                gain.gain.value = soundEnabled ? 1 : 0;
+                source.connect(gain);
+                gain.connect(ctx.destination);
+                source.start(t);
+                current = source;
+                // istante reale in cui la riproduzione arriva a "stai là" (la velocità sale in modo lineare)
+                const pos = buffer.duration * STAI_LA_FROM, k = (r1 - r0) / (total / 1000);
+                const at = (k > 1e-6 ? (-r0 + Math.sqrt(r0 * r0 + 2 * k * pos)) / k : pos / r0) * 1000;
+                dbg(`frase di ${(total / 1000).toFixed(2)}s (velocità da ${r0.toFixed(2)}× a ${r1.toFixed(2)}×), "stai là" dopo ${Math.round(at)} ms`);
+                later(() => {
+                    if (id !== phraseId) return;
+                    startFreeze();
+                    later(playStep, Math.max(0, total - at) + rand(BLOCK_GAP));
+                }, at);
+            } else if ("speechSynthesis" in window && soundEnabled) {
+                // File mancante: la voce dice tutta la frase, a velocità casuale
+                voicePhrase = true;
+                const u = new SpeechSynthesisUtterance(PHRASE_TEXT);
+                u.lang = "it-IT";
+                u.rate = rand(VOICE_RATE);
+                u.volume = 1;
+                const staiAt = PHRASE_TEXT.toLowerCase().indexOf("stai");
+                let froze = false, ended = false, safety = null;
+                const freezeNow = () => {
+                    if (froze || id !== phraseId) return;
+                    froze = true;
+                    startFreeze();
+                };
+                const finishPhrase = () => {
+                    if (ended || id !== phraseId || game !== g) return;
+                    ended = true;
+                    clearTimeout(safety);
+                    spokenKeep.delete(u);
+                    freezeNow();                 // se la voce non dà i confini delle parole: si congela alla fine
+                    later(playStep, rand(BLOCK_GAP));
+                };
+                u.onboundary = ev => {
+                    if (ev.charIndex >= staiAt) freezeNow();
+                };
+                u.onend = finishPhrase;
+                u.onerror = finishPhrase;
+                safety = setTimeout(finishPhrase, 12000);
+                spokenKeep.add(u);
+                dbg(`frase letta dalla voce a velocità ${u.rate.toFixed(2)}×`);
+                speechSynthesis.speak(u);
             } else {
-                $("#game-status").textContent = "CORRI!";
-                setArena("🏃 " + LABELS[step], "Premi il tuo tasto! Obiettivo: " + TARGET + " passi");
-                step++;
-                later(playStep, duration + rand(WORD_GAP));
+                voicePhrase = false;
+                tone(330, .25, "triangle", .12);
+                tone(392, .25, "triangle", .12, .4);
+                tone(494, .25, "triangle", .12, .8);
+                later(() => {
+                    if (id !== phraseId) return;
+                    startFreeze();
+                    tone(150, .5, "sawtooth", .12);
+                    later(playStep, 600 + rand(BLOCK_GAP));
+                }, 1200);
             }
         }
 
@@ -1833,7 +2092,7 @@
             if (dq.has(id)) return;
 
             // Dopo "stai là!" (superata la tolleranza) premere è vietato
-            if (frozen && performance.now() >= freezeStart + GRACE) {
+            if (frozen && performance.now() >= freezeStart + GRACE + (voicePhrase ? VOICE_GRACE : 0)) {
                 disqualify(id);
                 return;
             }
@@ -1847,15 +2106,17 @@
             }
         };
 
+        g.pause = () => stopPhrase();   // la frase in corso si interrompe, alla ripresa ne parte una nuova
+
         g.resume = () => {
-            if (frozen) freezeStart = performance.now();   // nuova tolleranza dopo la pausa
+            frozen = false;
             setArena("🚦 Si riparte!", "Aspetta che ricominci…");
             if (phase === "run") later(playStep, 800);
         };
 
         g.dispose = () => {
             stopTimer();
-            speechSynthesis?.cancel();
+            stopPhrase();
         };
 
         return g;
@@ -1883,6 +2144,8 @@
             {name: "Bistecca di scarpa", file: DIR + "bistecca-scarpa.mp3"},
             {name: "Gelato al moccio", file: DIR + "gelato-moccio.mp3"}
         ];
+        const BACKGROUND = DIR + "background-ristorante.mp3";   // gente che mangia, in loop (se manca: sottofondo sintetico)
+        const BACKGROUND_VOLUME = .1;
         const CLAIM_SOUND = DIR + "prenotato.mp3";    // piatto buono aggiudicato
         const PENALTY_SOUND = DIR + "bleah.mp3";      // penitenza: schifo / conati
 
@@ -1952,10 +2215,11 @@
                     .concat([loadSample(CLAIM_SOUND), loadSample(PENALTY_SOUND)])
             );
 
-            await sayAsync("Benvenuti al ristorante! Prenota i piatti buoni premendo per primo. Ma attenzione ai piatti immangiabili!");
+            await sayIntro("Benvenuti al ristorante! Prenota i piatti buoni premendo per primo. Ma attenzione ai piatti immangiabili!");
             await preload;
             if (game !== g) return;
 
+            startNatureAmbience(BACKGROUND, BACKGROUND_VOLUME, makeCrowdBuffer);
             nextDish();
         };
 
@@ -2066,6 +2330,7 @@
 
         g.dispose = () => {
             stopTimer();
+            stopNatureAmbience();
             speechSynthesis?.cancel();
         };
 
@@ -2336,7 +2601,7 @@
                 })
             );
 
-            await sayAsync(
+            await sayIntro(
                 "Mola a disco. Tieni premuto per spingere il legno. " +
                 "Quando il suono finisce, lascia subito il tasto, " +
                 "o perdi la mano!"
@@ -2717,7 +2982,7 @@
                     .map(async p => buffers.set(p, await loadSample(p)))
             );
 
-            await sayAsync("Palla esplosiva. Premi solo quando senti il tuo colore. Se premi fuori turno o sei lento, sei eliminato!");
+            await sayIntro("Palla esplosiva. Premi solo quando senti il tuo colore. Se premi fuori turno o sei lento, sei eliminato!");
             await preload;
             if (game !== g) return;
 
@@ -2953,7 +3218,7 @@
                 [BACKGROUND, ROPE, JUMP, TRIP].map(async p => buffers.set(p, await loadSample(p)))
             );
 
-            await sayAsync("Saltare la corda. Salta premendo il tuo tasto a tempo con la corda. Chi non salta è eliminato, e si va sempre più veloci!");
+            await sayIntro("Saltare la corda. Salta premendo il tuo tasto a tempo con la corda. Chi non salta è eliminato, e si va sempre più veloci!");
             await preload;
             if (game !== g) return;
 
@@ -3218,7 +3483,7 @@
                 [BOUNCE, RACKET, FAULT, MISSED].map(async p => buffers.set(p, await loadSample(p)))
             );
 
-            await sayAsync("Tennis. Premi quando senti la palla rimbalzare verso di te. Si gioca in senso orario. Se premi troppo presto resti fermo due secondi.");
+            await sayIntro("Tennis. Premi quando senti la palla rimbalzare verso di te. Si gioca in senso orario. Se premi troppo presto resti fermo due secondi.");
             await preload;
             if (game !== g) return;
 
@@ -3860,7 +4125,7 @@
                 })
             );
 
-            await sayAsync(
+            await sayIntro(
                 "Consegna pizza. Ascolta il percorso e ripetilo. " +
                 "Le direzioni sono relative a te: indietro è il tuo tasto, " +
                 "avanti è quello di fronte, destra e sinistra sono ai tuoi lati. " +
@@ -3940,6 +4205,7 @@
         const DIR = "assets/sounds/rally/";
         const CRASH = DIR + "incidente.mp3";
         const SUCCESS = DIR + "ok.mp3";
+        const REV = DIR + "accelera.mp3";    // accelerata sul singolo tasto (se manca: suono sintetico)
 
         // Direzioni relative (come in Pizza) + accelera = proprio tasto
         const ACTIONS = {
@@ -3984,6 +4250,7 @@
         let alive = [];
         let outOrder = [];
         let expected = [];             // array di button id da premere
+        let expectedActions = [];      // per ogni tasto atteso, il comando a cui appartiene
         let index = 0;
         let current = null;
         let turnResolve = null;
@@ -4004,7 +4271,7 @@
 
         // Precarica
         async function preload() {
-            const files = [CRASH, SUCCESS];
+            const files = [CRASH, SUCCESS, REV];
             await Promise.all(files.map(async p => buffers.set(p, await loadSample(p))));
         }
 
@@ -4041,6 +4308,29 @@
             tone(80, 0.5, "sawtooth", 0.18);
             tone(40, 0.6, "sawtooth", 0.12, 0.15);
             return wait(700);
+        }
+
+        // Accelerata: motore che sale di giri
+        function playRev() {
+            const buffer = buffers.get(REV);
+            if (buffer) {
+                playBuffer(buffer, 0.8);
+                return;
+            }
+            if (!soundEnabled) return;
+            const ctx = ensureAudio(), t = ctx.currentTime;
+            const osc = ctx.createOscillator(), gain = ctx.createGain();
+            osc.type = "sawtooth";
+            osc.frequency.setValueAtTime(70, t);
+            osc.frequency.exponentialRampToValueAtTime(280, t + .38);
+            gain.gain.setValueAtTime(.0001, t);
+            gain.gain.exponentialRampToValueAtTime(.16, t + .05);
+            gain.gain.exponentialRampToValueAtTime(.0001, t + .45);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(t);
+            osc.stop(t + .5);
+            noise(.25, .04);
         }
 
         function playSuccess() {
@@ -4104,6 +4394,7 @@
             expected = cmds.flatMap(cmd =>
                 Array(cmd.times).fill(buttonFor(p, cmd.action))
             );
+            expectedActions = cmds.flatMap(cmd => Array(cmd.times).fill(cmd.action));
             index = 0;
             current = p;
 
@@ -4231,7 +4522,7 @@
             await preload();
             if (gone()) return;
 
-            await sayAsync(
+            await sayIntro(
                 "Rally! Il navigatore dà comandi come 3 destra o 2 accelera. " +
                 "Premi il tasto corretto il numero di volte. " +
                 "Le direzioni sono relative a te. Man mano i comandi arrivano più veloci. " +
@@ -4248,7 +4539,9 @@
 
             if (e.button === expected[index]) {
                 index++;
-                tone(400 + index * 30, 0.05, "sine", 0.05);
+                // sul comando "accelera" ogni pressione fa salire di giri il motore
+                if (expectedActions[index - 1] === "accelera") playRev();
+                else tone(400 + index * 30, 0.05, "sine", 0.05);
 
                 if (index >= expected.length) {
                     endTurn(true);
@@ -4290,10 +4583,9 @@
         const DECOYS = [2, 4];            // frasi senza parolacce per parlatore (min, max)
         const SENTENCE_GAP = [500, 1400]; // pausa casuale tra una frase e l'altra (ms)
         const BAD_GRACE = 180;            // tolleranza dopo la fine della parolaccia (tempo di rilascio) (ms)
-        const BAD_COVER = .3;             // quota minima della parolaccia da coprire
-        const BAD_MIN = 100;              // ...ma almeno questi ms
-        const NORMAL_COVER = .6;          // quota di una parte normale coperta che fa perdere un punto
-        const NORMAL_MAX = 350;           // ...o al massimo questi ms
+        const BAD_POINTS = 3;             // punti per una parolaccia coperta per intero (in proporzione alla parte coperta)
+        const NORMAL_PEN_PER_SEC = 1.5;   // punti persi per ogni secondo di bip su parole normali
+        const WRONG_PEN_PER_SEC = 1.5;    // punti persi per ogni secondo di bip su un parlatore non tuo
         const EST_MARGIN = 150;           // margine (ms) quando i tempi sono stimati e non misurati
         const BEEP_VOLUME = .22;
         const BEEP_FREQ = {P1: 1000, P2: 1250, P3: 800, P4: 1500};
@@ -4395,6 +4687,9 @@
         const kept = [];                 // evita che il browser elimini le frasi prima della fine
 
         const gone = () => game !== g || g.finished;
+        // Diagnostica per il pannello di debug (non influisce sul gioco)
+        const dbg = (lvl, msg, data) => window.BPDebug?.log("bippatore", lvl, msg, data);
+        let liveInfo = {};
         const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
         const rand = ([min, max]) => min + Math.random() * (max - min);
         const randInt = ([min, max]) => min + Math.floor(Math.random() * (max - min + 1));
@@ -4541,7 +4836,7 @@
         }
 
         // Legge la frase intera e raccoglie gli istanti di inizio di ogni parola, se la voce li fornisce
-        function speakTimed(text, persona) {
+        function speakTimed(text, persona, onWord = null) {
             return new Promise(resolve => {
                 const t0 = performance.now();
                 const u = makeUtterance(text, persona);
@@ -4563,7 +4858,10 @@
                     safety = setTimeout(end, 20000);
                 };
                 u.onboundary = ev => {
-                    if (ev.name === undefined || ev.name === "word") bounds.set(ev.charIndex, performance.now());
+                    if (ev.name === undefined || ev.name === "word") {
+                        bounds.set(ev.charIndex, performance.now());
+                        if (onWord) onWord(ev.charIndex);
+                    }
                 };
                 u.onend = end;
                 u.onerror = end;
@@ -4699,31 +4997,39 @@
             return {start: prop(seg.from), end: prop(seg.to), margin: EST_MARGIN};
         }
 
-        // Restituisce true se ha assegnato o tolto un punto
+        const round1 = x => Math.round(x * 10) / 10;
+
+        // Restituisce true se ha assegnato o tolto punti
         function judge(seg, id, t) {
             const freq = BEEP_FREQ[id] || 1000;
             let changed = false;
 
             if (seg.bad) {
-                const a = t.start - t.margin, b = t.end + t.margin;
-                const dur = Math.max(1, b - a);
-                const need = Math.min(Math.max(BAD_MIN, dur * BAD_COVER), dur * .8);
-                if (overlap(id, a, b + BAD_GRACE) >= need) {
-                    scores[id]++;
+                // Più della parolaccia copri, più punti prendi (fino a BAD_POINTS)
+                const word = Math.max(1, t.end - t.start);
+                const cov = overlap(id, t.start - t.margin, t.end + t.margin + BAD_GRACE);
+                const frac = Math.min(1, cov / word);
+                const pts = round1(frac * BAD_POINTS);
+                if (pts > 0) {
+                    scores[id] = round1((scores[id] || 0) + pts);
                     tone(freq * 1.5, .08, "triangle", .1);
                     tone(freq * 2, .1, "triangle", .1, .09);
                     changed = true;
+                    dbg("ok", `✅ ${COLORS[id]} +${pts} su «${seg.text}»: coperto ${Math.round(frac * 100)}% (bip ${Math.round(cov)} ms su ${Math.round(word)})`);
+                } else {
+                    dbg("info", `⚪ ${COLORS[id]} non ha coperto «${seg.text}»: nessun punto`);
                 }
             } else {
-                // parti normali: si restringe l'intervallo per non punire gli errori di stima
+                // Parti normali: più a lungo tieni premuto, più punti perdi. Si restringe l'intervallo per non punire gli errori di stima.
                 const a = t.start + t.margin, b = t.end - t.margin;
-                const dur = b - a;
-                if (dur > 80) {
-                    const need = Math.min(NORMAL_MAX, dur * NORMAL_COVER);
-                    if (overlap(id, a, b) >= need) {
-                        scores[id]--;
+                if (b - a > 80) {
+                    const cov = Math.min(overlap(id, a, b), b - a);
+                    const pen = round1(cov / 1000 * NORMAL_PEN_PER_SEC);
+                    if (pen >= 0.1) {
+                        scores[id] = round1((scores[id] || 0) - pen);
                         tone(110, .25, "square", .1);
                         changed = true;
+                        dbg("info", `❌ ${COLORS[id]} −${pen}: bip di ${Math.round(cov)} ms sulla parte normale «${seg.text}»`);
                     }
                 }
             }
@@ -4744,10 +5050,13 @@
             let changed = false;
             for (const id of playerIds()) {
                 if (id === ownerId) continue;
-                if (overlap(id, res.start, res.end) >= WRONG_MIN) {
-                    scores[id]--;
+                const cov = Math.min(overlap(id, res.start, res.end), res.end - res.start);
+                if (cov >= WRONG_MIN) {
+                    const pen = round1(cov / 1000 * WRONG_PEN_PER_SEC);
+                    scores[id] = round1((scores[id] || 0) - pen);
                     tone(110, .3, "square", .1);
-                    toast("Parlatore sbagliato! " + COLORS[id] + " perde un punto");
+                    dbg("info", `❌ ${COLORS[id]} −${pen}: ha bippato ${Math.round(cov)} ms durante la frase di ${COLORS[ownerId]}`);
+                    toast("Parlatore sbagliato! " + COLORS[id] + " perde " + pen + " punti");
                     changed = true;
                 }
             }
@@ -4761,18 +5070,45 @@
                 const sp = speakers[s.speaker];
                 const {text, segs} = prepare(s.text);
 
+                // --- Debug: cosa deve fare ogni giocatore in questa frase ---
+                dbg("info", `🎙 Parla ${COLORS[sp.id]} (${sp.persona.key}): «${text}»`);
+                dbg("info", `   Deve bippare SOLO ${COLORS[sp.id]}, tenendo premuto sulle parolacce (fino a +${BAD_POINTS} l'una, in proporzione a quanto le copre). Tutti gli altri NON devono bippare: −${WRONG_PEN_PER_SEC} al secondo.`);
+                liveInfo = {parlante: COLORS[sp.id] + " (" + sp.persona.key + ")", frase: text, parola: null, azione: "ascolta"};
+                const bySegStart = new Map(segs.map(sg => [sg.from, sg]));
+
                 // una sola lettura continua: nessun silenzio tra le parole
-                const res = await speakTimed(text, sp.persona);
+                const res = await speakTimed(text, sp.persona, charIndex => {
+                    const sg = bySegStart.get(charIndex);
+                    if (!sg) return;
+                    liveInfo.parola = sg.text;
+                    liveInfo.azione = sg.bad ? "PREMI ORA (+1)" : "NON premere (−1 se bippi)";
+                    dbg(sg.bad ? "ok" : "info", sg.bad
+                        ? `🟢 ORA «${sg.text}» → ${COLORS[sp.id]} deve TENERE PREMUTO per tutta la parola (fino a +${BAD_POINTS})`
+                        : `🔴 «${sg.text}» è normale → NON premere (−${NORMAL_PEN_PER_SEC} al secondo)`);
+                });
                 if (gone()) return;
+                liveInfo.azione = "giudizio";
+
+                // --- Debug: finestre temporali (in ms dall'inizio della frase) ---
+                const measured = segs.some(sg => res.bounds.has(sg.from));
+                dbg("info", `   Tempi ${measured ? "misurati dalla voce" : "STIMATI (la voce non fornisce i confini delle parole)"} · frase lunga ${Math.round(res.end - res.start)} ms`);
+                for (const sg of segs) {
+                    const t = timesFor(sg, res, text);
+                    const rel = x => Math.max(0, Math.round(x - res.start));
+                    if (sg.bad) {
+                        dbg("info", `   🟢 «${sg.text}»: tieni premuto da ${rel(t.start - t.margin)} a ${rel(t.end + t.margin + BAD_GRACE)} ms · parola da ${rel(t.start)} a ${rel(t.end)} ms · punti = copertura × ${BAD_POINTS}`);
+                    } else {
+                        const a = t.start + t.margin, b = t.end - t.margin;
+                        if (b - a > 80) {
+                            dbg("info", `   🔴 «${sg.text}»: NON bippare tra ${rel(a)} e ${rel(b)} ms · ogni secondo di bip = −${NORMAL_PEN_PER_SEC}`);
+                        } else {
+                            dbg("info", `   ⚪ «${sg.text}»: parte troppo breve, non penalizza`);
+                        }
+                    }
+                }
 
                 await wait(BAD_GRACE);   // tempo per rilasciare l'ultimo tasto
                 if (gone()) return;
-
-                // giudizio dei pezzi in ordine, con una pausa per sentire ogni segnale
-                for (const seg of segs) {
-                    if (judge(seg, sp.id, timesFor(seg, res, text))) await wait(220);
-                    if (gone()) return;
-                }
 
                 // giudizio dei pezzi in ordine, con una pausa per sentire ogni segnale
                 for (const seg of segs) {
@@ -4812,6 +5148,15 @@
             waiter = null;
             scores = Object.fromEntries(playerIds().map(p => [p, 0]));
 
+            // Stato mostrato nella scheda Live del pannello di debug
+            window.BPDebug?.watch(() => ({
+                fase: phase,
+                parlatori: speakers.map(s => s.id + " = " + s.persona.key),
+                ...liveInfo,
+                staBippando: playerIds().filter(id => open[id] != null),
+                punti: {...scores}
+            }));
+
             $("#game-status").textContent = "ASSEGNAZIONE";
             setArena("🎙 Assegno le voci…", "Premi il tuo tasto per provare il bip");
             renderScores();
@@ -4830,7 +5175,7 @@
                 speakers.map(s => s.id + " = " + s.persona.key + (s.persona.voice ? " (" + s.persona.voice.name + ")" : " (voce predefinita)")));
 
             // Intro brevissima
-            await sayAsync("Il bippatore. Ora assegno le voci, e tu provi il bip.");
+            await sayIntro("Il bippatore. Ora assegno le voci, e tu provi il bip.");
             if (gone()) return;
 
             // Assegnazione: è il parlatore stesso a chiamare il giocatore
@@ -4881,6 +5226,307 @@
         g.dispose = () => {
             stopTimer();
             closeAll();
+            speechSynthesis?.cancel();
+        };
+
+        return g;
+    }
+
+    function makeThirsty() {
+        const g = baseGame("thirsty");
+
+        // === File audio (facoltativi: se mancano si usano suoni sintetici) ===
+        const DIR = "assets/sounds/assetato/";
+        const UNCAP = DIR + "stappa.mp3";              // la birra viene stappata
+        const DRINK = DIR + "bevi.mp3";                // la bevuta: dura quanto il file
+        const DONE = DIR + "finita.mp3";               // la birra è finita
+        const BREAK = DIR + "bicchiere-rotto.mp3";     // il bicchiere vuoto si rompe
+        const BURP = DIR + "rutto.mp3";                // il rutto: dura quanto il file
+
+        // === Parametri ===
+        const TURN_SECONDS = 30;          // durata del turno di ogni giocatore
+        const DRINK_FALLBACK_MS = 3000;   // durata della bevuta se manca il file
+        const BURP_FALLBACK_MS = 1500;    // durata del rutto se manca il file
+
+        // Sequenza di una birra: stappa (tocco) → bevi (tieni premuto) → rompi il bicchiere (tocco) → rutto (tieni premuto).
+        // La birra vale un punto solo quando tutta la sequenza è completa.
+        let order = [], turn = 0, cur = null, phase = "intro";   // intro | announce | cap | drink | empty | burp | between | over
+        let turnLeft = 0, prog = 0, need = 0, holding = false, wasHolding = false, lastTick = 0, lastShow = 0;
+        let holdTotal = {};
+        const sounds = {drink: null, burp: null};                 // AudioBuffer dei file, se presenti
+        let interval = null, holdSource = null, holdGain = null, glugTimer = null;
+        const dbg = (lvl, msg) => window.BPDebug?.log("assetato", lvl, msg);
+        const needFor = kind => sounds[kind]
+            ? sounds[kind].duration * 1000
+            : (kind === "drink" ? DRINK_FALLBACK_MS : BURP_FALLBACK_MS);
+
+        // --- suoni ---
+        const uncapSound = () => playSample(UNCAP, () => {
+            noise(.14, .1);
+            tone(1900, .03, "square", .08);
+            tone(900, .06, "triangle", .08, .03);
+        });
+        const doneSound = () => playSample(DONE, () => {
+            tone(660, .1, "triangle", .1);
+            tone(880, .22, "triangle", .1, .1);
+        });
+        const breakSound = () => playSample(BREAK, () => {
+            noise(.4, .2);
+            [2400, 3100, 1800, 3600].forEach((f, i) => tone(f, .08, "triangle", .08, i * .04));
+        });
+        const pointSound = () => {
+            tone(1046, .1, "triangle", .1);
+            tone(1318, .18, "triangle", .1, .1);
+        };
+        const glug = () => tone(150 + Math.random() * 90, .13, "sine", .14);
+        const burpTone = () => tone(55 + Math.random() * 25, .16, "sawtooth", .16);
+
+        // Riproduce il file (bevuta o rutto) a partire da offsetMs: se si interrompe, riparte da lì
+        function startHoldSound(kind, offsetMs) {
+            stopHoldSound();
+            const buffer = sounds[kind];
+            if (buffer) {
+                if (offsetMs >= buffer.duration * 1000) return;
+                const ctx = ensureAudio();
+                holdSource = ctx.createBufferSource();
+                holdGain = ctx.createGain();
+                holdSource.buffer = buffer;
+                holdGain.gain.value = soundEnabled ? .9 : 0;
+                holdSource.connect(holdGain);
+                holdGain.connect(ctx.destination);
+                holdSource.start(0, Math.max(0, offsetMs) / 1000);
+            } else if (kind === "drink") {
+                glug();
+                glugTimer = setInterval(glug, 240);
+            } else {
+                burpTone();
+                glugTimer = setInterval(burpTone, 160);
+            }
+        }
+
+        function stopHoldSound() {
+            if (holdSource) {
+                try {
+                    holdSource.stop();
+                } catch (e) { /* già fermo */ }
+                holdSource.disconnect();
+                holdSource = null;
+            }
+            if (holdGain) {
+                holdGain.disconnect();
+                holdGain = null;
+            }
+            if (glugTimer) {
+                clearInterval(glugTimer);
+                glugTimer = null;
+            }
+        }
+
+        function stopInterval() {
+            if (interval) {
+                clearInterval(interval);
+                interval = null;
+            }
+        }
+
+        // --- schermo ---
+        function show() {
+            lastShow = performance.now();
+            const secs = Math.max(0, Math.ceil(turnLeft / 1000));
+            const head = COLORS[cur] + " · " + (scores[cur] || 0) + " 🍺 · " + secs + "s";
+            const bar = (prog / 1000).toFixed(1) + " / " + (need / 1000).toFixed(1) + " s";
+            if (phase === "cap") setArena("🍺 STAPPA!", "Premi per stappare la birra · " + head);
+            else if (phase === "drink") setArena(holding ? "🍻 BEVI!" : "🍺 Tieni premuto per bere", bar + " · " + head, holding ? "signal" : "");
+            else if (phase === "empty") setArena("🥃 Finita!", "Premi per buttare il bicchiere · " + head);
+            else if (phase === "burp") setArena(holding ? "😮‍💨 RUTTO!" : "😮‍💨 Tieni premuto per il rutto", bar + " · " + head, holding ? "signal" : "");
+        }
+
+        // --- svolgimento ---
+        g.start = async () => {
+            order = [...playerIds()];
+            turn = 0;
+            scores = Object.fromEntries(order.map(p => [p, 0]));
+            holdTotal = Object.fromEntries(order.map(p => [p, 0]));
+            phase = "intro";
+            [UNCAP, DONE, BREAK].forEach(loadSample);
+            // durata di bevuta e rutto = durata dei rispettivi file
+            const preload = Promise.all([
+                loadSample(DRINK).then(b => { sounds.drink = b; }),
+                loadSample(BURP).then(b => { sounds.burp = b; })
+            ]);
+            $("#game-status").textContent = "ASSETATO";
+            setArena("🍺 Assetato", "Ascolta le istruzioni");
+            renderScores();
+
+            window.BPDebug?.watch(() => ({
+                turno: cur ? COLORS[cur] + " (" + (turn + 1) + "/" + order.length + ")" : "—",
+                fase: phase,
+                birreComplete: {...scores},
+                progresso_s: +(prog / 1000).toFixed(2),
+                durataFase_s: +(need / 1000).toFixed(2),
+                tempoRimasto_s: +(turnLeft / 1000).toFixed(1),
+                staPremendo: holding,
+                fileBevuta: sounds.drink ? "sì" : "no (3 s)",
+                fileRutto: sounds.burp ? "sì" : "no (1,5 s)"
+            }));
+
+            if (!await narrate(g, "Assetato. Quante birre riesci a bere? A turno, ogni giocatore ha " + TURN_SECONDS +
+                " secondi. Premi per stappare la birra, poi tieni premuto per berla. Quando è finita, premi per buttare il bicchiere, " +
+                "poi tieni premuto per fare il rutto. Se lasci il tasto, il suono si ferma e quando premi di nuovo riparte da dove eri arrivato. " +
+                "La birra vale un punto solo se completi tutta la sequenza. Vince chi ne completa di più.")) return;
+            await preload;
+            if (game !== g) return;
+            startTurn();
+        };
+
+        function startTurn() {
+            if (g.finished) return;
+            cur = order[turn];
+            phase = "announce";
+            prog = 0;
+            holding = false;
+            $("#game-status").textContent = "TURNO DI " + COLORS[cur].toUpperCase();
+            setArena("🍺 Tocca a " + COLORS[cur], "Preparati…");
+            renderScores();
+            if (order.length > 1) say("Tocca a " + COLORS[cur]);
+            dbg("info", "▶ turno di " + COLORS[cur]);
+            later(begin, order.length > 1 ? 2200 : 800);
+        }
+
+        function begin() {
+            if (g.finished) return;
+            tone(880, .12, "square", .1);
+            phase = "cap";
+            prog = 0;
+            turnLeft = TURN_SECONDS * 1000;
+            lastTick = performance.now();
+            stopInterval();
+            interval = setInterval(tick, 30);
+            show();
+        }
+
+        function tick() {
+            const now = performance.now();
+            const dt = Math.min(200, now - lastTick);
+            lastTick = now;
+            if (paused || g.finished) return;
+            if (phase !== "cap" && phase !== "drink" && phase !== "empty" && phase !== "burp") return;
+            turnLeft -= dt;
+            if (holding && (phase === "drink" || phase === "burp")) {
+                prog += dt;
+                holdTotal[cur] += dt;
+                if (prog >= need) completeStage();
+            }
+            if (turnLeft <= 0) {
+                endTurn();
+                return;
+            }
+            if (now - lastShow > 100) show();
+        }
+
+        // Fine della bevuta o del rutto
+        function completeStage() {
+            holding = false;
+            stopHoldSound();
+            if (phase === "drink") {
+                phase = "empty";
+                doneSound();
+                dbg("info", "🍺 " + COLORS[cur] + " ha finito di bere: ora butta il bicchiere");
+            } else {
+                scores[cur] = (scores[cur] || 0) + 1;
+                renderScores();
+                phase = "cap";
+                prog = 0;
+                pointSound();
+                toast("🍺 " + COLORS[cur] + " completa la birra n° " + scores[cur] + "!");
+                dbg("ok", "✅ " + COLORS[cur] + " completa la birra n° " + scores[cur] + " (" + Math.round(turnLeft / 1000) + " s rimasti)");
+            }
+            show();
+        }
+
+        function endTurn() {
+            stopInterval();
+            stopHoldSound();
+            const incomplete = phase === "drink" || phase === "empty" || phase === "burp";
+            holding = false;
+            phase = "between";
+            tone(220, .35, "sawtooth", .12);
+            setArena("⏱ Tempo!", COLORS[cur] + ": " + scores[cur] + (scores[cur] === 1 ? " birra" : " birre") +
+                (incomplete ? " (l'ultima non era completa)" : ""));
+            dbg("info", "■ fine turno di " + COLORS[cur] + ": " + scores[cur] + " birre" + (incomplete ? " (+ una incompleta)" : ""));
+            turn++;
+            later(turn >= order.length ? conclude : startTurn, 2200);
+        }
+
+        function conclude() {
+            if (g.finished) return;
+            phase = "over";
+            const ranked = [...order].sort((a, b) => scores[b] - scores[a] || holdTotal[b] - holdTotal[a]);
+            const [a, b] = ranked;
+            const tie = ranked.length > 1 && scores[a] === scores[b] && Math.abs(holdTotal[a] - holdTotal[b]) < 50;
+            renderScores();
+            finish(tie
+                ? "🍺 Pareggio con " + scores[a] + " birre!"
+                : "🍺 " + COLORS[a] + " vince con " + scores[a] + (scores[a] === 1 ? " birra!" : " birre!"),
+                tie ? null : ranked);
+        }
+
+        g.onInput = e => {
+            if (g.finished || e.button !== cur || !playerIds().includes(e.button)) return;
+
+            if (e.type === "down") {
+                if (phase === "cap") {
+                    uncapSound();
+                    phase = "drink";
+                    prog = 0;
+                    need = needFor("drink");
+                    holding = false;
+                    dbg("info", "🍾 " + COLORS[cur] + " stappa (la bevuta dura " + (need / 1000).toFixed(1) + " s)");
+                } else if (phase === "drink" || phase === "burp") {
+                    holding = true;
+                    startHoldSound(phase, prog);
+                    dbg("info", "   " + COLORS[cur] + (phase === "drink" ? " beve" : " fa il rutto") + " (da " + (prog / 1000).toFixed(1) + " s)");
+                } else if (phase === "empty") {
+                    breakSound();
+                    phase = "burp";
+                    prog = 0;
+                    need = needFor("burp");
+                    holding = false;
+                    dbg("info", "💥 bicchiere buttato: ora " + COLORS[cur] + " tiene premuto per il rutto (" + (need / 1000).toFixed(1) + " s)");
+                } else {
+                    return;
+                }
+                show();
+            } else if (e.type === "up" && holding && (phase === "drink" || phase === "burp")) {
+                holding = false;
+                stopHoldSound();
+                dbg("info", "   " + COLORS[cur] + " ha smesso a " + (prog / 1000).toFixed(1) + " / " + (need / 1000).toFixed(1) + " s");
+                show();
+            }
+        };
+
+        g.pause = () => {
+            wasHolding = holding;
+            holding = false;
+            stopHoldSound();
+        };
+
+        g.resume = () => {
+            lastTick = performance.now();
+            // durante la pausa i rilasci non arrivano: si riprende solo se il tasto è ancora premuto
+            if (wasHolding && (phase === "drink" || phase === "burp") && held.has(cur)) {
+                holding = true;
+                startHoldSound(phase, prog);
+            }
+            wasHolding = false;
+            if (phase === "cap" || phase === "drink" || phase === "empty" || phase === "burp") show();
+            else setArena("🍺 Si riparte!", "Tra poco tocca a " + (cur ? COLORS[cur] : "…"));
+        };
+
+        g.dispose = () => {
+            stopTimer();
+            stopInterval();
+            stopHoldSound();
             speechSynthesis?.cancel();
         };
 
@@ -5279,7 +5925,7 @@
                 files.map(async f => buffers.set(f, await loadSample(f)))
             );
 
-            await sayAsync(
+            await sayIntro(
                 "Tieni il tempo. Prima faremo un giro di prova senza punteggio. " +
                 "Poi inizierà la partita. Premi il tuo tasto quando senti " +
                 "la tua percussione."
@@ -5306,7 +5952,7 @@
                 if (gone()) return;
             }
 
-            await sayAsync(
+            await sayIntro(
                 "Quattro tempi, poi un giro di prova senza punti. " +
                 "Ascolta il ritmo e preparati!"
             );
