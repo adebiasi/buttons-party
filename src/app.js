@@ -52,6 +52,24 @@
     let fallSource = null, fallGain = null;
     let ground = 0, start = 0;
 
+    // --- Debug: espone al pannello lo stato interno (solo lettura) ---
+    window.BPDebug?.attach({
+        getState: () => ({
+            game: game ? {id: game.id, mode: game.mode, finished: !!game.finished} : null,
+            paused,
+            held: [...held],
+            players,
+            scores: {...scores},
+            soundEnabled,
+            audioState: audio ? audio.state : "non creato",
+            baseLatency: audio ? audio.baseLatency : null,
+            outputLatency: audio ? audio.outputLatency : null,
+            timerActive: timer !== null,
+            natureActive: !!natureSource,
+            fallActive: !!fallSource,
+        }),
+    });
+
     function ensureAudio() {
         if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
         if (audio.state === "suspended") audio.resume();
@@ -356,19 +374,31 @@
         }
         if (type === "down") {
             if (!game) {
+                window.BPDebug?.input(event, id === "C" ? "→ avvio partita" : "ignorato (nessuna partita)");
                 if (id === "C") startGame();
                 return;
             }
             if (paused) {
+                window.BPDebug?.input(event, id === "C" ? "→ riprendi" : "ignorato (in pausa)");
                 if (id === "C") resumeGame();
                 return;
             }
             if (id === "C" && game.mode === "realtime") {
+                window.BPDebug?.input(event, "→ pausa");
                 pauseGame();
                 return;
             }
         }
-        if (game && !paused) game.onInput(event);
+        if (game && !paused) {
+            const t0 = performance.now();
+            try {
+                game.onInput(event);
+            } finally {
+                window.BPDebug?.input(event, "→ gioco", performance.now() - t0);
+            }
+        } else {
+            window.BPDebug?.input(event, game ? "ignorato (in pausa)" : "ignorato (nessuna partita)");
+        }
     }
 
 
@@ -483,6 +513,7 @@
     function pauseGame() {
         if (!game || paused || game.finished) return;
         paused = true;
+        window.BPDebug?.pause(true);
         stopTimer();
         setArena("⏸ Partita in pausa", "Premi Riprendi per continuare");
         $("#pause-button").textContent = "▶ Riprendi";
@@ -492,6 +523,7 @@
     function resumeGame() {
         if (!game || !paused) return;
         paused = false;
+        window.BPDebug?.pause(false);
         $("#pause-button").textContent = "Ⅱ Pausa";
         game.resume?.();
         if (!game.resume) setArena("Si riparte!");
@@ -505,10 +537,12 @@
         $("#setup-panel").hidden = true;
         $("#game-panel").hidden = false;
         $("#pause-button").textContent = "Ⅱ Pausa";
+        $("#pause-button").disabled = false;
         $("#game-title").textContent = GAME_NAMES[$("#game-select").value];
         $("#simon-feedback").textContent = "";
         const id = $("#game-select").value;
         game = makeGame(id);
+        window.BPDebug?.gameStart(game, GAME_NAMES[id]);
         game.setup();
         game.start();
         renderScores();
@@ -526,11 +560,16 @@
         $("#setup-panel").hidden = false;
         $("#pause-button").textContent = "Ⅱ Pausa";
         setArena("Premi Inizia");
+        window.BPDebug?.gameEnd("uscita");
     }
 
     function finish(message, ranking = null, announce = true) {
-        if (!game || game.finished) return;
+        if (!game || game.finished) {
+            window.BPDebug?.finishIgnored(message, !game);
+            return;
+        }
         game.finished = true;
+        window.BPDebug?.gameFinish(message, ranking, announce);
         stopTimer();
         stopFallSound();
 

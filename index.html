@@ -8,6 +8,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./src/style.css">
+  <link rel="stylesheet" href="./src/debug.css">
   <title>Buttons-party · prototipo</title>
 </head>
 <body>
@@ -88,9 +89,46 @@
       </div>
       <p class="hint controller-hint">Il tasto centrale conferma nei menu, mette in pausa durante i giochi in tempo reale ed è un quinto input in Simon.</p>
     </section>
+
+    <section id="debug-panel" class="panel debug-panel" aria-label="Pannello di debug dei minigiochi">
+      <div class="section-heading debug-heading">
+        <div><p class="eyebrow">STRUMENTI DI SVILUPPO</p><h2>Debug minigiochi</h2></div>
+        <div class="debug-head-actions">
+          <button type="button" id="debug-health" class="pill dbg-health" data-act="health" title="Mostra solo errori e avvisi">…</button>
+          <button type="button" id="debug-toggle" class="quiet-button" data-act="toggle" aria-expanded="true" aria-controls="debug-body">Comprimi</button>
+        </div>
+      </div>
+      <p id="debug-fallback" class="muted">Caricamento del debug… se questo messaggio resta, <code>src/debug.js</code> non è stato caricato.</p>
+      <div id="debug-body" class="debug-body">
+        <div class="debug-toolbar">
+          <button type="button" data-act="bot" aria-pressed="false" title="Preme tasti a caso nel gioco in corso">🤖 Bot input</button>
+          <button type="button" data-act="hud" aria-pressed="true" title="Mostra o nasconde l'indicatore in alto a sinistra">🐞 HUD</button>
+          <button type="button" data-act="copy" title="Copia un riepilogo testuale da incollare in una chat o in una issue">📋 Copia report</button>
+          <button type="button" data-act="json">⬇ Scarica JSON</button>
+          <button type="button" data-act="clear">🗑 Svuota log</button>
+        </div>
+        <div class="debug-tabs" role="tablist" aria-label="Sezioni del debug">
+          <button type="button" role="tab" data-tab="live" aria-selected="true">Live</button>
+          <button type="button" role="tab" data-tab="games" aria-selected="false">Minigiochi</button>
+          <button type="button" role="tab" data-tab="log" aria-selected="false">Log</button>
+          <button type="button" role="tab" data-tab="audio" aria-selected="false">Audio e file</button>
+          <button type="button" role="tab" data-tab="collaudo" aria-selected="false">Collaudo</button>
+          <button type="button" role="tab" data-tab="system" aria-selected="false">Sistema</button>
+        </div>
+        <div class="debug-views">
+          <div id="debug-view-live" data-view="live" role="tabpanel"></div>
+          <div id="debug-view-games" data-view="games" role="tabpanel" hidden></div>
+          <div id="debug-view-log" data-view="log" role="tabpanel" hidden></div>
+          <div id="debug-view-audio" data-view="audio" role="tabpanel" hidden></div>
+          <div id="debug-view-collaudo" data-view="collaudo" role="tabpanel" hidden></div>
+          <div id="debug-view-system" data-view="system" role="tabpanel" hidden></div>
+        </div>
+      </div>
+    </section>
     <footer><span>Buttons-party · v0.1</span><span>Offline-first · nessun account</span></footer>
   </main>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./src/debug.js"></script>
   <script src="./src/controller-ble.js"></script>
   <script src="./src/app.js"></script>
 </body>
