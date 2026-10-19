@@ -6235,81 +6235,244 @@
     function makeHorse() {
         const g = baseGame("horse");
         const DIR = "assets/sounds/cavallino/";
-        const GALLOP = DIR + "galoppo.mp3", JUMP = DIR + "salto.mp3", TURN = DIR + "cambio-verso.mp3";
+        const GALLOP = DIR + "galoppo.mp3",
+            JUMP  = DIR + "salto.mp3",
+            TURN  = DIR + "cambio-verso.mp3",
+            VIA   = DIR + "via.mp3";
         const DOUBLE_MS = 280, HOLD_MS = 420;
-        let order=[], current=0, direction=1, deadlineMs=1800, lastTap={}, downAt={}, round=0;
+        let order = [], current = 0, direction = 1, deadlineMs = 10000,
+            lastTap = {}, downAt = {}, round = 0, turnSerial = 0,
+            inputReady = false, holdTimer = null, heldAction = {},
+            needsFullAnnounce = true;
+
         const active = () => order.filter(p => playerIds().includes(p));
-        const currentPlayer = () => active()[((current % Math.max(1,active().length))+Math.max(1,active().length))%Math.max(1,active().length)];
+        const currentPlayer = () => {
+            const list = active();
+            return list.length ? list[((current % list.length) + list.length) % list.length] : null;
+        };
+
         function announceTurn() {
             if (g.finished) return;
-            const list=active();
-            if (list.length<=1) { finish(list[0] ? "🐎 "+COLORS[list[0]]+" vince!" : "🐎 Nessun vincitore", list[0]?[list[0]]:null); return; }
-            const p=currentPlayer();
-            setArena("🐎 Tocca a "+COLORS[p], "Premi: galoppo · doppio tocco: salto · tieni premuto: cambia verso · "+(deadlineMs/1000).toFixed(1)+" s");
-            $("#game-status").textContent="CAVALLINO · GIRO "+(round+1);
+            const list = active();
+            if (list.length <= 1) {
+                finish(list[0] ? "🐎 " + COLORS[list[0]] + " vince!" : "🐎 Nessun vincitore", list[0] ? [list[0]] : null);
+                return;
+            }
+            const p = currentPlayer();
+            const serial = ++turnSerial;
             stopTimer();
-            later(() => {
-                if (g.finished) return;
-                toast(COLORS[p]+" ha perso il tempo!");
-                order=active().filter(x=>x!==p); current=Math.min(current, Math.max(0,order.length-1));
-                deadlineMs=Math.max(420,deadlineMs*.91); round++; announceTurn();
-            },deadlineMs);
+            if (holdTimer !== null) clearTimeout(holdTimer);
+            holdTimer = null;
+            heldAction = {};
+            inputReady = false;
+            Object.keys(downAt).forEach(k => delete downAt[k]);
+            lastTap = {};
+
+            setArena("🐎 Tocca a " + COLORS[p],
+                "Ascolta il segnale: dopo il suono hai " + (deadlineMs / 1000).toFixed(1) +
+                " s · singolo: galoppo · doppio: salta · tieni: cambia verso");
+            $("#game-status").textContent = "CAVALLINO · GIRO " + (round + 1);
+
+            const enableAndStartTimer = () => {
+                if (g.finished || serial !== turnSerial || currentPlayer() !== p) return;
+                inputReady = true;
+
+                later(() => {
+                    if (g.finished || serial !== turnSerial || currentPlayer() !== p) return;
+                    stopTimer();
+                    inputReady = false;
+
+                    // pulizia di sicurezza
+                    if (holdTimer !== null) {
+                        clearTimeout(holdTimer);
+                        holdTimer = null;
+                    }
+                    delete downAt[p];
+                    delete heldAction[p];
+
+                    toast(COLORS[p] + " perde ed è eliminato!");
+                    sayAsync(COLORS[p] + " perde ed è eliminato.").then(() => {
+                        if (g.finished || serial !== turnSerial) return;
+                        order = order.filter(x => x !== p);
+                        const stillThere = active().indexOf(p);
+                        current = stillThere >= 0 ? stillThere : Math.max(0, Math.min(current, active().length - 1));
+                        deadlineMs = Math.max(420, deadlineMs * .91);
+                        round++;
+                        needsFullAnnounce = true;
+                        announceTurn();
+                    });
+                }, deadlineMs);
+            };
+
+            if (needsFullAnnounce) {
+                needsFullAnnounce = false;
+                // Voce + suono di via solo all’inizio e dopo eliminazione
+                sayAsync("Tocca a " + COLORS[p] + ". Attendi il segnale.").then(() => {
+                    if (g.finished || serial !== turnSerial || currentPlayer() !== p) return;
+                    playSample(VIA);               // suono di via
+                    enableAndStartTimer();         // abilita appena inizia il suono
+                });
+            } else {
+                // Turno normale: nessun annuncio e nessun suono di via
+                enableAndStartTimer();
+            }
         }
-        function advance() {
-            const len=active().length;
+
+        function advance(steps = 1) {
+            const len = active().length;
             if (!len) return;
-            current=(current+direction+len)%len;
-            deadlineMs=Math.max(420,deadlineMs*.96); round++; announceTurn();
+            current = ((current + direction * steps) % len + len) % len;
+            deadlineMs = Math.max(420, deadlineMs * .96);
+            round++;
+            announceTurn();
         }
+
         g.start = async () => {
-            order=[...playerIds()]; current=0; direction=1; deadlineMs=1800; round=0; lastTap={}; downAt={};
-            scores=Object.fromEntries(order.map(p=>[p,0])); renderScores();
-            [GALLOP,JUMP,TURN].forEach(loadSample);
-            if (!await narrate(g,"Cavallino. Premi una volta per galoppare e passare al giocatore successivo. Fai doppio tocco per saltare il prossimo giocatore. Tieni premuto per cambiare il verso. Il tempo diminuisce continuamente.")) return;
+            order = [...playerIds()];
+            current = 0;
+            direction = 1;
+            deadlineMs = 10000;
+            round = 0;
+            lastTap = {};
+            downAt = {};
+            turnSerial = 0;
+            inputReady = false;
+            heldAction = {};
+            holdTimer = null;
+            needsFullAnnounce = true;
+
+            scores = Object.fromEntries(order.map(p => [p, 0]));
+            renderScores();
+            [GALLOP, JUMP, TURN, VIA].forEach(loadSample);
+
+            if (!await narrate(g,
+                "Cavallino. Ascolta: la voce dirà a chi tocca e poi dirà «Attendi il segnale». " +
+                "Solo dopo l’inizio del suono di via hai pochi secondi. " +
+                "Un tocco fa galoppare e passa al successivo; doppio tocco salta il prossimo giocatore senza eliminarlo; " +
+                "tieni premuto per cambiare verso. " +
+                "Se non fai nessuna mossa in tempo, sei eliminato. " +
+                "Se premi quando non è il tuo turno, sei eliminato.")) return;
+
             announceTurn();
         };
+
         g.onInput = e => {
             if (g.finished || !playerIds().includes(e.button)) return;
             const id = e.button;
+
+            if (!order.includes(id)) return;   // già eliminato → ignora eventuali up/down in ritardo
+
+            if (e.type === "up" && heldAction[id]) {
+                delete heldAction[id];
+                return;
+            }
+
+            if (!inputReady) return;
+
+// Fuori turno: elimina SOLO se è un nuovo "down".
+// Gli "up" residui vengono ignorati (non devono eliminare).
+            if (id !== currentPlayer()) {
+                if (e.type === "down") {
+                    stopTimer();
+                    turnSerial++;
+                    inputReady = false;
+                    if (holdTimer !== null) {
+                        clearTimeout(holdTimer);
+                        holdTimer = null;
+                    }
+                    delete downAt[id];
+
+                    toast(COLORS[id] + " preme fuori turno!");
+                    sayAsync(COLORS[id] + " preme fuori turno e viene eliminato.").then(() => {
+                        if (g.finished) return;
+                        const prevCurrent = currentPlayer();
+                        order = order.filter(x => x !== id);
+                        const idx = active().indexOf(prevCurrent);
+                        current = idx >= 0 ? idx : Math.max(0, Math.min(current, active().length - 1));
+                        deadlineMs = Math.max(420, deadlineMs * .91);
+                        round++;
+                        needsFullAnnounce = true;
+                        announceTurn();
+                    });
+                }
+                return;   // up o qualsiasi altro evento da non-current → ignora
+            }
+
+            // Solo il giocatore di turno
             if (e.type === "down") {
                 downAt[id] = performance.now();
-                if (id === currentPlayer()) stopTimer();
-            } else if (e.type === "up" && downAt[id] !== undefined) {
-                const heldMs = performance.now() - downAt[id];
-                delete downAt[id];
-                if (id !== currentPlayer()) return;
-                if (heldMs >= HOLD_MS) {
-                    stopTimer(); lastTap[id] = 0;
+
+                stopTimer();
+
+                if (holdTimer !== null) clearTimeout(holdTimer);
+                holdTimer = setTimeout(() => {
+                    holdTimer = null;
+                    if (g.finished || !inputReady || downAt[id] === undefined || id !== currentPlayer()) return;
+                    delete downAt[id];
+                    heldAction[id] = true;
+                    stopTimer();
+                    turnSerial++;
+                    inputReady = false;
+                    lastTap[id] = 0;
                     direction *= -1;
                     playSample(TURN, () => tone(180, .18, "sawtooth", .1));
+                    toast("Verso invertito!");
                     advance();
-                    return;
-                }
-                if (lastTap[id] && performance.now() - lastTap[id] <= DOUBLE_MS) {
-                    stopTimer(); lastTap[id] = 0;
-                    playSample(JUMP, () => tone(700, .15, "triangle", .1));
-                    const list = active();
-                    const skippedIndex = (current + direction + list.length) % list.length;
-                    const skipped = list[skippedIndex];
-                    if (skipped) order = order.filter(p => p !== skipped);
-                    current = Math.max(0, current);
-                    advance();
-                    return;
-                }
-                lastTap[id] = performance.now();
-                later(() => {
-                    if (g.finished || id !== currentPlayer()) return;
-                    lastTap[id] = 0;
-                    playSample(GALLOP, () => tone(220, .09, "triangle", .1));
-                    advance();
-                }, DOUBLE_MS);
+                }, HOLD_MS);
+                return;
             }
-        };
-        g.dispose=()=>stopTimer();
-        return g;
-    }
 
-    function makeBeat() {
+            if (e.type !== "up" || downAt[id] === undefined) return;
+            if (holdTimer !== null) clearTimeout(holdTimer);
+            holdTimer = null;
+            const heldMs = performance.now() - downAt[id];
+            delete downAt[id];
+
+            if (heldMs >= HOLD_MS) {
+                stopTimer();
+                turnSerial++;
+                inputReady = false;
+                lastTap[id] = 0;
+                direction *= -1;
+                playSample(TURN, () => tone(180, .18, "sawtooth", .1));
+                toast("Verso invertito!");
+                advance();
+                return;
+            }
+
+            // doppio tocco
+            if (lastTap[id] && performance.now() - lastTap[id] <= DOUBLE_MS) {
+                stopTimer();
+                turnSerial++;
+                inputReady = false;
+                lastTap[id] = 0;
+                playSample(JUMP, () => tone(700, .15, "triangle", .1));
+                advance(2);
+                return;
+            }
+
+            // singolo tocco
+            lastTap[id] = performance.now();
+            later(() => {
+                if (g.finished || id !== currentPlayer()) return;
+                lastTap[id] = 0;
+                turnSerial++;
+                inputReady = false;
+                playSample(GALLOP, () => tone(220, .09, "triangle", .1));
+                advance();
+            }, DOUBLE_MS);
+        };
+
+        g.dispose = () => {
+            turnSerial++;
+            inputReady = false;
+            if (holdTimer !== null) clearTimeout(holdTimer);
+            holdTimer = null;
+            stopTimer();
+        };
+
+        return g;
+    }    function makeBeat() {
         const g = baseGame("beat");
 
         const DIR = "assets/sounds/batteria/";
