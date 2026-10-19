@@ -1407,7 +1407,7 @@
     /* ======================================================================
      * UI: costruzione e eventi
      * ==================================================================== */
-    const LOG_CATS = ["partita", "input", "arena", "punteggio", "bippatore", "assetato", "audio", "voce", "timer", "sistema", "console", "errore"];
+    const LOG_CATS = ["partita", "input", "arena", "punteggio", "bippatore", "assetato", "fune", "taglia", "audio", "voce", "timer", "sistema", "console", "errore"];
 
     function buildLogView() {
         const log = $("#debug-view-log");

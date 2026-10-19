@@ -6,13 +6,17 @@
     const PLAYER_BUTTONS = ["P1", "P2", "P3", "P4"];
     const KEY_MAP = {"1": "P1", "2": "P2", "3": "P3", "4": "P4", " ": "C", "Enter": "C"};
     const DESCRIPTIONS = {
-        thirsty: "Quante birre riesci a bere? A turno, ogni giocatore ha 30 secondi. Per ogni birra: premi per stappare, tieni premuto per bere, premi per buttare il bicchiere, tieni premuto per il rutto. Se lasci il tasto il suono riparte da dove eri. Conta solo la sequenza completa.",
+        tug: "Premi il tuo tasto più veloce che puoi per tirare la corda dalla tua parte. In due: al meglio di tre round. In tre: tre sfide uno contro uno. In quattro: due squadre, le pressioni dei compagni si sommano.",
+        bounty: "Il narratore dice chi è il ricercato, poi dà il via. Tutti premono: se arrivi prima tu prendi un punto e il ricercato ne perde uno. Se il ricercato è più veloce, si salva e prende un punto. Se premi prima del via perdi un punto.",
+        copyrhythm: "Un giocatore crea un ritmo di 8 battute premendo o restando fermo a ogni battuta. Gli altri lo copiano a turno seguendo la base. Poi cambia il creatore.",
+        horse: "Cavallino: premi per galoppare e passare al prossimo, doppio tocco per saltare un giocatore, tieni premuto per invertire il verso. Il tempo per agire diminuisce continuamente.",
+        thirsty: "Quante birre riesci a bere? Per ogni birra: premi per stappare, tieni premuto per bere, premi per buttare il bicchiere, tieni premuto per il rutto. Se lasci il tasto il suono riparte da dove eri. Conta solo la sequenza completa. In due: turni singoli. In tre: tre sfide uno contro uno. In quattro: due squadre, uno stappa e butta, l'altro beve e rutta.",
         pig: "Ascolta i versi: premi quando senti il maiale, non gli altri animali.",
         duel: "Conferma con il tuo tasto, poi premi appena senti il segnale. Anticipare significa falsa partenza.",
         parachute: "Apri il paracadute il più tardi possibile, ma prima dell'impatto. L'esito è rivelato alla fine.",
         disturber: "Premi il più possibile mentre parla Marta: ogni pressione è un punto. Fuori da Marta, ogni pressione toglie un punto. Ogni giocatore ha un suono diverso.",
         pot: "Il piatto cresce: incassa quando vuoi, ma se aspetti troppo rischi di perdere tutto.",
-        simon: "Ascolta la sequenza e ripetila con i quattro tasti colorati. A turno, un errore elimina. Il tasto centrale mette in pausa.",
+        simon: "Simon a catena: il primo sceglie una nota, poi in senso orario ognuno ripete tutta la sequenza e ne aggiunge una. Hai 3 secondi tra una nota e l'altra. Chi sbaglia è eliminato. Il tasto centrale mette in pausa.",
         mosquito: "Una zanzara vola intorno a te: premi quando il ronzio è fortissimo, cioè quando è vicina. Se premi troppo presto perdi un punto.",
         mine: "Ascolta il canarino: se smette di cantare per più di 10 secondi è morto. Allora premi entro 2 secondi. Se premi prima scappi, se premi dopo è troppo tardi. Vince l'ultimo a uscire in tempo.",
         freeze: "Premi il più possibile mentre senti uno, due, tre. Appena senti «stai là!» fermati: chi preme è squalificato. Vince chi arriva per primo al numero di passi stabilito.",
@@ -46,6 +50,10 @@
         beeper: "Il bippatore",
         beat: "Tieni il tempo",
         thirsty: "Assetato",
+        tug: "Tiro alla fune",
+        bounty: "Taglia",
+        copyrhythm: "Copia il ritmo",
+        horse: "Cavallino",
     };
     const ANIMALS = ["cane", "gatto", "mucca", "pecora", "gallina", "cavallo", "papera", "gallo"];
     let audio = null, soundEnabled = true, game = null, timer = null, paused = false;
@@ -729,7 +737,11 @@
             rally: makeRally,
             beeper: makeBeeper,
             beat: makeBeat,
-            thirsty: makeThirsty
+            thirsty: makeThirsty,
+            tug: makeTug,
+            bounty: makeBounty,
+            copyrhythm: makeCopyRhythm,
+            horse: makeHorse
         })[id]();
     }
 
@@ -1328,81 +1340,182 @@
     }
 
     function makeSimon() {
-        // Modalità "realtime": il tasto centrale mette in pausa e non fa mai parte della sequenza
+        // Simon a catena: il primo giocatore sceglie una nota; in senso orario ognuno ripete tutta la
+        // sequenza e ne aggiunge una in fondo. Chi sbaglia o è troppo lento è eliminato.
+        // Modalità "realtime": il tasto centrale mette in pausa e non fa mai parte della sequenza.
         const g = baseGame("simon");
-        let sequence = [], turn = 0, round = 0, index = 0, showing = true, alive = [], maxRounds = 12;
+        const NOTES = ["P1", "P2", "P3", "P4"];
         const tones = {P1: 330, P2: 392, P3: 494, P4: 262};
-        g.start = async () => {
-            sequence = [];
-            turn = 0;
-            round = 0;
-            showing = true;      // finché parla il narratore nessun input
-            alive = playerIds();
-            $("#game-status").textContent = "A TURNI";
-            setArena("🎵 Simon", "Ascolta le istruzioni");
-            if (!await narrate(g, "Simon. Ascolta la sequenza di suoni e ripetila con i quattro tasti colorati, a turno. " +
-                "Ogni giro la sequenza si allunga. Chi sbaglia è eliminato. Il tasto centrale mette in pausa.")) return;
-            nextRound();
-        };
+        const STEP_LIMIT = 3000;   // tempo massimo tra una pressione e l'altra (ms)
+        const MAX_LENGTH = 30;     // oltre questa lunghezza i superstiti pareggiano
 
-        function nextRound() {
-            if (g.finished) return;
-            if (alive.length <= 1 || round >= maxRounds) {
-                const order = [...alive, ...playerIds().filter(p => !alive.includes(p))];
-                finish(alive.length ? "🏆 Vince " + COLORS[alive[0]] : "Simon terminato", order);
-                return;
-            }
-            round++;
-            sequence.push(Object.keys(tones)[Math.floor(Math.random() * 4)]);
-            turn = turn % alive.length;
-            index = 0;
-            showing = true;
-            $("#game-status").textContent = "ROUND " + round + " · " + COLORS[alive[turn]].toUpperCase();
-            setArena("🎵 Ascolta la sequenza", "Turno di " + COLORS[alive[turn]]);
-            playSequence(0);
+        let seq = [], alive = [], eliminated = [], turn = 0, idx = 0, phase = "intro";   // intro | announce | repeat | add | between | over
+        const cur = () => alive[turn];
+        const dbg = (lvl, msg) => window.BPDebug?.log("partita", lvl, msg);
+        const colorName = id => ({P1: "rosso", P2: "blu", P3: "giallo", P4: "verde"})[id];
+
+        function showScores() {
+            renderScores(Object.fromEntries(playerIds().map(p => [p, alive.includes(p) ? (scores[p] || 0) : "OUT"])));
         }
 
-        function playSequence(i) {
+        function flash(id) {
+            const el = buttons.find(b => b.dataset.button === id);
+            el?.classList.add("pressed");
+            setTimeout(() => el?.classList.remove("pressed"), 220);
+        }
+
+        g.start = async () => {
+            seq = [];
+            alive = [...playerIds()];
+            eliminated = [];
+            turn = 0;
+            idx = 0;
+            phase = "intro";
+            scores = Object.fromEntries(alive.map(p => [p, 0]));
+            $("#game-status").textContent = "SIMON A CATENA";
+            setArena("🎵 Simon", "Ascolta le istruzioni");
+            $("#simon-feedback").textContent = "";
+            showScores();
+
+            window.BPDebug?.watch(() => ({
+                fase: phase,
+                tocca: cur() ? COLORS[cur()] : "—",
+                sequenza: seq.map(colorName).join(" "),
+                posizione: idx + "/" + seq.length,
+                inGioco: alive.map(p => COLORS[p]),
+                eliminati: eliminated.map(p => COLORS[p])
+            }));
+
+            if (!await narrate(g, "Simon a catena. Il primo giocatore sceglie una nota. Poi, in senso orario, ognuno deve ripetere tutta la sequenza " +
+                "e aggiungere una nota nuova in fondo. Hai tre secondi tra una nota e l'altra. Chi sbaglia è eliminato, " +
+                "e la sequenza giusta viene riascoltata una volta. Vince l'ultimo rimasto. Il tasto centrale mette in pausa.")) return;
+            startTurn();
+        };
+
+        function startTurn() {
             if (g.finished) return;
-            if (i >= sequence.length) {
-                showing = false;
-                index = 0;
-                setArena("Tocca a " + COLORS[alive[turn]], "Ripeti " + sequence.length + " tasti");
-                return;
-            }
-            const id = sequence[i];
-            tone(tones[id], .24, "sine", .12);
-            buttons.find(b => b.dataset.button === id)?.classList.add("pressed");
-            later(() => {
-                buttons.find(b => b.dataset.button === id)?.classList.remove("pressed");
-                later(() => playSequence(i + 1), 180);
-            }, 320);
+            const p = cur();
+            idx = 0;
+            phase = "announce";
+            $("#game-status").textContent = "TURNO DI " + COLORS[p].toUpperCase();
+            setArena("🎵 Tocca a " + COLORS[p], seq.length ? "Ripeti le " + seq.length + " note e aggiungine una" : "Scegli la prima nota");
+            say("Tocca a " + COLORS[p]);
+            dbg("info", "▶ tocca a " + COLORS[p] + " (sequenza di " + seq.length + ")");
+            later(begin, 1800);
+        }
+
+        function begin() {
+            if (g.finished) return;
+            phase = seq.length ? "repeat" : "add";
+            tone(880, .08, "square", .08);
+            showTurn();
+            later(timeUp, STEP_LIMIT);
+        }
+
+        function showTurn() {
+            const p = cur();
+            if (phase === "repeat") setArena("🎵 " + COLORS[p] + ": ripeti", "Nota " + (idx + 1) + " di " + seq.length + " (3 s per nota)");
+            else setArena("🎵 " + COLORS[p] + ": aggiungi una nota", "Scegline una nuova (3 s)");
+        }
+
+        function timeUp() {
+            if (g.finished || (phase !== "repeat" && phase !== "add")) return;
+            eliminate("tempo scaduto");
         }
 
         g.onInput = e => {
-            if (e.type !== "down" || !alive.includes(alive[turn]) || showing || g.finished) return;
+            if (e.type !== "down" || g.finished) return;
+            if (phase !== "repeat" && phase !== "add") return;
             const id = e.button;
-            if (id === "C") return;
-            if (sequence[index] === id) {
-                index++;
-                if (index === sequence.length) {
-                    scores[alive[turn]] = (scores[alive[turn]] || 0) + 1;
-                    renderScores();
-                    $("#simon-feedback").textContent = "Corretto!";
-                    tone(780, .1);
-                    turn = (turn + 1) % alive.length;
-                    later(nextRound, 700);
+            if (!NOTES.includes(id)) return;
+
+            if (phase === "repeat") {
+                if (seq[idx] !== id) {
+                    eliminate("nota sbagliata (era " + colorName(seq[idx]) + ")");
+                    return;
                 }
+                tone(tones[id], .12, "sine", .11);
+                $("#simon-feedback").textContent = COLORS[cur()] + " · nota " + (idx + 1) + " corretta";
+                idx++;
+                if (idx === seq.length) phase = "add";
+                showTurn();
+                later(timeUp, STEP_LIMIT);
             } else {
-                const out = alive[turn];
-                alive = alive.filter(p => p !== out);
-                $("#simon-feedback").textContent = COLORS[out] + " eliminato";
-                noise(.25, .05);
-                if (alive.length <= 1) later(nextRound, 800); else {
-                    turn = turn % alive.length;
-                    later(nextRound, 800);
+                seq.push(id);
+                scores[cur()] = (scores[cur()] || 0) + 1;
+                phase = "between";
+                $("#simon-feedback").textContent = COLORS[cur()] + " aggiunge " + colorName(id);
+                tone(780, .1);
+                dbg("ok", "✅ " + COLORS[cur()] + " aggiunge " + colorName(id) + " → sequenza: " + seq.map(colorName).join(" "));
+                showScores();
+                stopTimer();
+                if (seq.length >= MAX_LENGTH) {
+                    later(conclude, 800);
+                    return;
                 }
+                turn = (turn + 1) % alive.length;
+                later(startTurn, 900);
             }
+        };
+
+        function eliminate(why) {
+            const p = cur();
+            stopTimer();
+            phase = "between";
+            alive.splice(turn, 1);
+            eliminated.push(p);
+            noise(.25, .05);
+            tone(130, .4, "sawtooth", .12);
+            $("#simon-feedback").textContent = COLORS[p] + " eliminato";
+            toast(COLORS[p] + " eliminato: " + why);
+            dbg("info", "❌ " + COLORS[p] + " eliminato: " + why);
+            showScores();
+            if (alive.length <= 1) {
+                later(conclude, 1000);
+                return;
+            }
+            turn = turn % alive.length;
+            if (seq.length) later(() => replay(startTurn), 1200);
+            else later(startTurn, 1200);
+        }
+
+        // Dopo un errore la sequenza giusta viene riprodotta una volta, così il prossimo la sente
+        function replay(done) {
+            if (g.finished) return;
+            let i = 0;
+            setArena("🎵 Ascolta la sequenza giusta", seq.length + (seq.length === 1 ? " nota" : " note"));
+            const step = () => {
+                if (g.finished) return;
+                if (i >= seq.length) {
+                    later(done, 600);
+                    return;
+                }
+                const id = seq[i++];
+                tone(tones[id], .2, "sine", .12);
+                flash(id);
+                later(step, 450);
+            };
+            later(step, 500);
+        }
+
+        function conclude() {
+            if (g.finished) return;
+            phase = "over";
+            if (alive.length === 1) {
+                finish("🏆 Vince " + COLORS[alive[0]] + " con " + (scores[alive[0]] || 0) + " note", [alive[0], ...eliminated.slice().reverse()]);
+            } else {
+                finish("🎵 Pareggio: la sequenza ha raggiunto " + MAX_LENGTH + " note", null);
+            }
+        }
+
+        g.resume = () => {
+            if (phase === "repeat" || phase === "add") showTurn();
+            else setArena("🎵 Si riparte!", "Tra poco tocca a " + (cur() ? COLORS[cur()] : "…"));
+        };
+
+        g.dispose = () => {
+            stopTimer();
+            speechSynthesis?.cancel();
         };
         return g;
     }
@@ -1859,13 +1972,13 @@
 
         // === Parametri ===
         const TARGET = 30;              // passi necessari per vincere
-        const STAI_LA_FROM = 0.72;      // a che punto della frase (0–1) inizia "stai là": da lì chi preme è fuori
+        const STAI_LA_FROM = 0.58;      // a che punto della frase (0–1) inizia "stai là": da lì chi preme è fuori
         const RATE_START = [0.8, 1.05]; // velocità a inizio frase (casuale in questo intervallo)
         const RATE_END = [1.6, 2.4];    // velocità a fine frase: la frase accelera mentre viene riprodotta
         const VOICE_RATE = [1.0, 1.9];  // con la voce sintetica non si può accelerare a metà frase: velocità casuale per frase
         const VOICE_GRACE = 450;        // tolleranza extra: la voce sintetica parte con un po' di ritardo
         const BLOCK_GAP = [1500, 4000]; // pausa casuale dopo "stai là!", prima di ricominciare (ms)
-        const GRACE = 250;              // dopo l'inizio di "stai là!" il tempo di reazione è tollerato (ms)
+        const GRACE = 0;              // dopo l'inizio di "stai là!" il tempo di reazione è tollerato (ms)
         const MIN_VOL = 0.08;           // volume dei passi al primo passo
         const MAX_VOL = 1.0;            // volume dei passi al traguardo
         const PITCH = {P1: 1.0, P2: 0.88, P3: 1.12, P4: 0.78}; // passi diversi per giocatore
@@ -3369,7 +3482,7 @@
         const REACT_END = 380;          // tempo alla massima velocità (ms)
         const RAMP_HITS = 20;           // colpi per arrivare alla massima velocità
         const RATE_END = 1.4;           // velocità finale dei suoni (1 = normale)
-        const GRACE = 250;              // chi ha appena colpito può ripremere senza essere punito (ms)
+        const GRACE = 0;              // chi ha appena colpito può ripremere senza essere punito (ms)
         const REST = 1500;              // pausa dopo una palla persa (ms)
         const PAN = {P1: -.8, P2: -.3, P3: .3, P4: .8};   // posizione stereo di ogni giocatore
 
@@ -5244,21 +5357,32 @@
         const BURP = DIR + "rutto.mp3";                // il rutto: dura quanto il file
 
         // === Parametri ===
-        const TURN_SECONDS = 30;          // durata del turno di ogni giocatore
+        const TURN_SECONDS = {2: 30, 3: 20, 4: 30};    // durata di un turno, in base al numero di giocatori
         const DRINK_FALLBACK_MS = 3000;   // durata della bevuta se manca il file
         const BURP_FALLBACK_MS = 1500;    // durata del rutto se manca il file
 
-        // Sequenza di una birra: stappa (tocco) → bevi (tieni premuto) → rompi il bicchiere (tocco) → rutto (tieni premuto).
+        // Sequenza di una birra: stappa (tocco) → bevi (tieni premuto) → butta il bicchiere (tocco) → rutto (tieni premuto).
         // La birra vale un punto solo quando tutta la sequenza è completa.
-        let order = [], turn = 0, cur = null, phase = "intro";   // intro | announce | cap | drink | empty | burp | between | over
-        let turnLeft = 0, prog = 0, need = 0, holding = false, wasHolding = false, lastTick = 0, lastShow = 0;
-        let holdTotal = {};
+        // 2 giocatori: ognuno gioca da solo. 3: tre sfide uno contro uno (chi vince prende 2 punti).
+        // 4: due squadre; nel turno della squadra uno stappa e butta, l'altro beve e rutta.
+        let turns = [], turn = 0, phase = "intro";   // intro | announce | cap | drink | empty | burp | between | over
+        let turnLeft = 0, prog = 0, need = 0, beers = 0, holding = false, wasHolding = false, lastTick = 0, lastShow = 0;
+        let turnBeers = [], points = {}, totalBeers = {}, holdTotal = {}, teams = [];
         const sounds = {drink: null, burp: null};                 // AudioBuffer dei file, se presenti
         let interval = null, holdSource = null, holdGain = null, glugTimer = null;
         const dbg = (lvl, msg) => window.BPDebug?.log("assetato", lvl, msg);
+        const names = ids => ids.map(p => COLORS[p]).join(" e ");
         const needFor = kind => sounds[kind]
             ? sounds[kind].duration * 1000
             : (kind === "drink" ? DRINK_FALLBACK_MS : BURP_FALLBACK_MS);
+        const cur = () => turns[turn];
+        // Chi deve premere in questa fase: in squadra uno stappa e butta, l'altro beve e rutta
+        const actor = (ph = phase) => {
+            const t = cur();
+            if (!t) return null;
+            if (t.actors.length === 2) return (ph === "cap" || ph === "empty") ? t.actors[0] : t.actors[1];
+            return t.actors[0];
+        };
 
         // --- suoni ---
         const uncapSound = () => playSample(UNCAP, () => {
@@ -5330,24 +5454,51 @@
         }
 
         // --- schermo ---
+        function refreshScores() {
+            const n = playerIds().length;
+            const extra = {};
+            for (const p of playerIds()) {
+                if (n === 3) extra[p] = (points[p] || 0) + "★ " + (totalBeers[p] || 0) + "🍺";
+                else extra[p] = scores[p] || 0;
+            }
+            renderScores(extra);
+        }
+
         function show() {
             lastShow = performance.now();
+            const t = cur();
             const secs = Math.max(0, Math.ceil(turnLeft / 1000));
-            const head = COLORS[cur] + " · " + (scores[cur] || 0) + " 🍺 · " + secs + "s";
+            const who = COLORS[actor()];
+            const head = names(t.actors) + " · " + beers + " 🍺 · " + secs + "s";
             const bar = (prog / 1000).toFixed(1) + " / " + (need / 1000).toFixed(1) + " s";
-            if (phase === "cap") setArena("🍺 STAPPA!", "Premi per stappare la birra · " + head);
-            else if (phase === "drink") setArena(holding ? "🍻 BEVI!" : "🍺 Tieni premuto per bere", bar + " · " + head, holding ? "signal" : "");
-            else if (phase === "empty") setArena("🥃 Finita!", "Premi per buttare il bicchiere · " + head);
-            else if (phase === "burp") setArena(holding ? "😮‍💨 RUTTO!" : "😮‍💨 Tieni premuto per il rutto", bar + " · " + head, holding ? "signal" : "");
+            if (phase === "cap") setArena("🍺 " + who + ": STAPPA!", "Premi per stappare la birra · " + head);
+            else if (phase === "drink") setArena(holding ? "🍻 " + who + ": BEVI!" : "🍺 " + who + ": tieni premuto per bere", bar + " · " + head, holding ? "signal" : "");
+            else if (phase === "empty") setArena("🥃 " + who + ": butta il bicchiere!", "Premi per buttare il bicchiere · " + head);
+            else if (phase === "burp") setArena(holding ? "😮‍💨 " + who + ": RUTTO!" : "😮‍💨 " + who + ": tieni premuto per il rutto", bar + " · " + head, holding ? "signal" : "");
         }
 
         // --- svolgimento ---
         g.start = async () => {
-            order = [...playerIds()];
+            const ids = [...playerIds()];
+            const n = ids.length;
             turn = 0;
-            scores = Object.fromEntries(order.map(p => [p, 0]));
-            holdTotal = Object.fromEntries(order.map(p => [p, 0]));
             phase = "intro";
+            turnBeers = [];
+            points = Object.fromEntries(ids.map(p => [p, 0]));
+            totalBeers = Object.fromEntries(ids.map(p => [p, 0]));
+            holdTotal = Object.fromEntries(ids.map(p => [p, 0]));
+            scores = Object.fromEntries(ids.map(p => [p, 0]));
+            teams = [];
+            if (n === 4) {
+                const sh = [...ids].sort(() => Math.random() - .5);      // squadre sorteggiate
+                teams = [[sh[0], sh[1]], [sh[2], sh[3]]];
+                turns = teams.map((actors, i) => ({actors, team: i}));
+            } else if (n === 3) {
+                const pairs = [[ids[0], ids[1]], [ids[1], ids[2]], [ids[2], ids[0]]];
+                turns = pairs.flatMap((pair, m) => pair.map(p => ({actors: [p], match: m, pair})));
+            } else {
+                turns = ids.map(p => ({actors: [p]}));
+            }
             [UNCAP, DONE, BREAK].forEach(loadSample);
             // durata di bevuta e rutto = durata dei rispettivi file
             const preload = Promise.all([
@@ -5356,12 +5507,16 @@
             ]);
             $("#game-status").textContent = "ASSETATO";
             setArena("🍺 Assetato", "Ascolta le istruzioni");
-            renderScores();
+            refreshScores();
 
             window.BPDebug?.watch(() => ({
-                turno: cur ? COLORS[cur] + " (" + (turn + 1) + "/" + order.length + ")" : "—",
+                modalita: n === 4 ? "squadre" : n === 3 ? "tre sfide 1 contro 1" : "singolo",
+                squadre: teams.map(t => names(t)),
+                turno: cur() ? names(cur().actors) + " (" + (turn + 1) + "/" + turns.length + ")" : "—",
+                tocca: cur() ? COLORS[actor()] : "—",
                 fase: phase,
-                birreComplete: {...scores},
+                birreTurno: beers,
+                punti: {...points},
                 progresso_s: +(prog / 1000).toFixed(2),
                 durataFase_s: +(need / 1000).toFixed(2),
                 tempoRimasto_s: +(turnLeft / 1000).toFixed(1),
@@ -5370,10 +5525,18 @@
                 fileRutto: sounds.burp ? "sì" : "no (1,5 s)"
             }));
 
-            if (!await narrate(g, "Assetato. Quante birre riesci a bere? A turno, ogni giocatore ha " + TURN_SECONDS +
-                " secondi. Premi per stappare la birra, poi tieni premuto per berla. Quando è finita, premi per buttare il bicchiere, " +
+            const secs = TURN_SECONDS[n] || 30;
+            const modeText = n === 4
+                ? "In quattro si gioca a squadre. Nel turno della squadra, uno stappa e butta il bicchiere, l'altro beve e fa il rutto. Le squadre sono " +
+                  teams.map(t => names(t)).join(" contro ") + ". "
+                : n === 3
+                    ? "In tre si fanno tre sfide uno contro uno: " + [[0, 1], [1, 2], [2, 0]].map(([x, y]) => COLORS[ids[x]] + " contro " + COLORS[ids[y]]).join(", ") +
+                      ". Chi vince una sfida prende due punti. "
+                    : "A turno, ogni giocatore gioca da solo. ";
+            if (!await narrate(g, "Assetato. Quante birre riesci a bere? Ogni turno dura " + secs + " secondi. " + modeText +
+                "Premi per stappare la birra, poi tieni premuto per berla. Quando è finita, premi per buttare il bicchiere, " +
                 "poi tieni premuto per fare il rutto. Se lasci il tasto, il suono si ferma e quando premi di nuovo riparte da dove eri arrivato. " +
-                "La birra vale un punto solo se completi tutta la sequenza. Vince chi ne completa di più.")) return;
+                "La birra vale un punto solo se completi tutta la sequenza.")) return;
             await preload;
             if (game !== g) return;
             startTurn();
@@ -5381,16 +5544,25 @@
 
         function startTurn() {
             if (g.finished) return;
-            cur = order[turn];
+            const t = cur();
             phase = "announce";
             prog = 0;
+            beers = 0;
             holding = false;
-            $("#game-status").textContent = "TURNO DI " + COLORS[cur].toUpperCase();
-            setArena("🍺 Tocca a " + COLORS[cur], "Preparati…");
-            renderScores();
-            if (order.length > 1) say("Tocca a " + COLORS[cur]);
-            dbg("info", "▶ turno di " + COLORS[cur]);
-            later(begin, order.length > 1 ? 2200 : 800);
+            $("#game-status").textContent = "TURNO: " + names(t.actors).toUpperCase();
+            let text;
+            if (t.actors.length === 2) text = "Tocca alla squadra " + names(t.actors) + ". " + COLORS[t.actors[0]] + " stappa e butta il bicchiere, " + COLORS[t.actors[1]] + " beve e fa il rutto.";
+            else if (t.pair && turn % 2 === 0) text = "Sfida: " + names(t.pair).replace(" e ", " contro ") + ". Tocca a " + COLORS[t.actors[0]];
+            else text = "Tocca a " + COLORS[t.actors[0]];
+            setArena("🍺 " + (t.actors.length === 2 ? "Squadra " : "Tocca a ") + names(t.actors), t.actors.length === 2
+                ? COLORS[t.actors[0]] + " stappa e butta · " + COLORS[t.actors[1]] + " beve e rutta" : "Preparati…");
+            refreshScores();
+            dbg("info", "▶ " + text);
+            if (turns.length > 1) {
+                sayAsync(text).then(() => {
+                    if (game === g && !g.finished && phase === "announce") later(begin, 500);
+                });
+            } else later(begin, 800);
         }
 
         function begin() {
@@ -5398,7 +5570,7 @@
             tone(880, .12, "square", .1);
             phase = "cap";
             prog = 0;
-            turnLeft = TURN_SECONDS * 1000;
+            turnLeft = (TURN_SECONDS[playerIds().length] || 30) * 1000;
             lastTick = performance.now();
             stopInterval();
             interval = setInterval(tick, 30);
@@ -5414,7 +5586,7 @@
             turnLeft -= dt;
             if (holding && (phase === "drink" || phase === "burp")) {
                 prog += dt;
-                holdTotal[cur] += dt;
+                holdTotal[actor()] += dt;
                 if (prog >= need) completeStage();
             }
             if (turnLeft <= 0) {
@@ -5431,15 +5603,19 @@
             if (phase === "drink") {
                 phase = "empty";
                 doneSound();
-                dbg("info", "🍺 " + COLORS[cur] + " ha finito di bere: ora butta il bicchiere");
+                dbg("info", "🍺 " + COLORS[actor("drink")] + " ha finito di bere: ora si butta il bicchiere");
             } else {
-                scores[cur] = (scores[cur] || 0) + 1;
-                renderScores();
+                beers++;
+                for (const p of cur().actors) {
+                    totalBeers[p] = (totalBeers[p] || 0) + 1;
+                    scores[p] = playerIds().length === 4 ? beers : totalBeers[p];
+                }
+                refreshScores();
                 phase = "cap";
                 prog = 0;
                 pointSound();
-                toast("🍺 " + COLORS[cur] + " completa la birra n° " + scores[cur] + "!");
-                dbg("ok", "✅ " + COLORS[cur] + " completa la birra n° " + scores[cur] + " (" + Math.round(turnLeft / 1000) + " s rimasti)");
+                toast("🍺 " + names(cur().actors) + ": birra n° " + beers + " completa!");
+                dbg("ok", "✅ " + names(cur().actors) + " completa la birra n° " + beers + " (" + Math.round(turnLeft / 1000) + " s rimasti)");
             }
             show();
         }
@@ -5450,29 +5626,68 @@
             const incomplete = phase === "drink" || phase === "empty" || phase === "burp";
             holding = false;
             phase = "between";
+            turnBeers[turn] = beers;
             tone(220, .35, "sawtooth", .12);
-            setArena("⏱ Tempo!", COLORS[cur] + ": " + scores[cur] + (scores[cur] === 1 ? " birra" : " birre") +
-                (incomplete ? " (l'ultima non era completa)" : ""));
-            dbg("info", "■ fine turno di " + COLORS[cur] + ": " + scores[cur] + " birre" + (incomplete ? " (+ una incompleta)" : ""));
+            let extra = "";
+            // 3 giocatori: a fine sfida (secondo turno della coppia) si assegnano i punti
+            if (playerIds().length === 3 && turn % 2 === 1) {
+                const [x, y] = cur().pair;
+                const bx = turnBeers[turn - 1], by = turnBeers[turn];
+                if (bx === by) {
+                    points[x] += 1;
+                    points[y] += 1;
+                    extra = " Sfida pari: 1 punto a testa.";
+                } else {
+                    const w = bx > by ? x : y;
+                    points[w] += 2;
+                    extra = " Sfida a " + COLORS[w] + ": 2 punti.";
+                }
+                dbg("info", "🏁 sfida " + COLORS[x] + " " + bx + " - " + by + " " + COLORS[y] + extra);
+                refreshScores();
+            }
+            setArena("⏱ Tempo!", names(cur().actors) + ": " + beers + (beers === 1 ? " birra" : " birre") +
+                (incomplete ? " (l'ultima non era completa)" : "") + extra);
+            dbg("info", "■ fine turno di " + names(cur().actors) + ": " + beers + " birre" + (incomplete ? " (+ una incompleta)" : ""));
             turn++;
-            later(turn >= order.length ? conclude : startTurn, 2200);
+            later(turn >= turns.length ? conclude : startTurn, 2400);
         }
 
         function conclude() {
             if (g.finished) return;
             phase = "over";
-            const ranked = [...order].sort((a, b) => scores[b] - scores[a] || holdTotal[b] - holdTotal[a]);
+            const ids = playerIds();
+            refreshScores();
+            if (ids.length === 4) {
+                const tot = teams.map((t, i) => ({t, beers: turnBeers[i] || 0, hold: t.reduce((a, p) => a + holdTotal[p], 0)}));
+                const [x, y] = tot;
+                if (x.beers === y.beers && Math.abs(x.hold - y.hold) < 50) {
+                    finish("🍺 Pareggio: " + x.beers + " birre a testa!", null);
+                    return;
+                }
+                const [w, l] = x.beers > y.beers || (x.beers === y.beers && x.hold > y.hold) ? [x, y] : [y, x];
+                finish("🍺 Vince la squadra " + names(w.t) + " con " + w.beers + (w.beers === 1 ? " birra" : " birre") + " contro " + l.beers + "!", [...w.t, ...l.t], false);
+                say("Vince la squadra " + names(w.t));
+                return;
+            }
+            const ranked = [...ids].sort((a, b) => ids.length === 3
+                ? points[b] - points[a] || totalBeers[b] - totalBeers[a] || holdTotal[b] - holdTotal[a]
+                : totalBeers[b] - totalBeers[a] || holdTotal[b] - holdTotal[a]);
             const [a, b] = ranked;
-            const tie = ranked.length > 1 && scores[a] === scores[b] && Math.abs(holdTotal[a] - holdTotal[b]) < 50;
-            renderScores();
+            const key = p => ids.length === 3 ? points[p] + "/" + totalBeers[p] : totalBeers[p];
+            const tie = key(a) === key(b) && Math.abs(holdTotal[a] - holdTotal[b]) < 50;
             finish(tie
-                ? "🍺 Pareggio con " + scores[a] + " birre!"
-                : "🍺 " + COLORS[a] + " vince con " + scores[a] + (scores[a] === 1 ? " birra!" : " birre!"),
+                ? "🍺 Pareggio!"
+                : ids.length === 3
+                    ? "🍺 " + COLORS[a] + " vince con " + points[a] + " punti e " + totalBeers[a] + " birre!"
+                    : "🍺 " + COLORS[a] + " vince con " + totalBeers[a] + (totalBeers[a] === 1 ? " birra!" : " birre!"),
                 tie ? null : ranked);
         }
 
         g.onInput = e => {
-            if (g.finished || e.button !== cur || !playerIds().includes(e.button)) return;
+            if (g.finished || !playerIds().includes(e.button)) return;
+            if (phase !== "cap" && phase !== "drink" && phase !== "empty" && phase !== "burp") return;
+            if (e.button !== actor()) return;     // in squadra ogni fase ha il suo giocatore
+            const who = COLORS[e.button];
 
             if (e.type === "down") {
                 if (phase === "cap") {
@@ -5481,26 +5696,24 @@
                     prog = 0;
                     need = needFor("drink");
                     holding = false;
-                    dbg("info", "🍾 " + COLORS[cur] + " stappa (la bevuta dura " + (need / 1000).toFixed(1) + " s)");
+                    dbg("info", "🍾 " + who + " stappa (la bevuta dura " + (need / 1000).toFixed(1) + " s)");
                 } else if (phase === "drink" || phase === "burp") {
                     holding = true;
                     startHoldSound(phase, prog);
-                    dbg("info", "   " + COLORS[cur] + (phase === "drink" ? " beve" : " fa il rutto") + " (da " + (prog / 1000).toFixed(1) + " s)");
+                    dbg("info", "   " + who + (phase === "drink" ? " beve" : " fa il rutto") + " (da " + (prog / 1000).toFixed(1) + " s)");
                 } else if (phase === "empty") {
                     breakSound();
                     phase = "burp";
                     prog = 0;
                     need = needFor("burp");
                     holding = false;
-                    dbg("info", "💥 bicchiere buttato: ora " + COLORS[cur] + " tiene premuto per il rutto (" + (need / 1000).toFixed(1) + " s)");
-                } else {
-                    return;
+                    dbg("info", "💥 bicchiere buttato: ora " + COLORS[actor("burp")] + " tiene premuto per il rutto (" + (need / 1000).toFixed(1) + " s)");
                 }
                 show();
             } else if (e.type === "up" && holding && (phase === "drink" || phase === "burp")) {
                 holding = false;
                 stopHoldSound();
-                dbg("info", "   " + COLORS[cur] + " ha smesso a " + (prog / 1000).toFixed(1) + " / " + (need / 1000).toFixed(1) + " s");
+                dbg("info", "   " + who + " ha smesso a " + (prog / 1000).toFixed(1) + " / " + (need / 1000).toFixed(1) + " s");
                 show();
             }
         };
@@ -5514,13 +5727,13 @@
         g.resume = () => {
             lastTick = performance.now();
             // durante la pausa i rilasci non arrivano: si riprende solo se il tasto è ancora premuto
-            if (wasHolding && (phase === "drink" || phase === "burp") && held.has(cur)) {
+            if (wasHolding && (phase === "drink" || phase === "burp") && held.has(actor())) {
                 holding = true;
                 startHoldSound(phase, prog);
             }
             wasHolding = false;
             if (phase === "cap" || phase === "drink" || phase === "empty" || phase === "burp") show();
-            else setArena("🍺 Si riparte!", "Tra poco tocca a " + (cur ? COLORS[cur] : "…"));
+            else setArena("🍺 Si riparte!", "Tra poco tocca a " + (cur() ? names(cur().actors) : "…"));
         };
 
         g.dispose = () => {
@@ -5530,6 +5743,569 @@
             speechSynthesis?.cancel();
         };
 
+        return g;
+    }
+
+    function makeTug() {
+        const g = baseGame("tug");
+
+        // === Parametri ===
+        const LIMIT = 20;              // vantaggio di pressioni con cui si vince subito il round
+        const ROUND_SECONDS = 12;      // durata massima di un round
+        const EXTRA_SECONDS = 4;       // tempo aggiunto se alla fine è pari
+        const PRE_GO = [900, 2200];    // attesa casuale dopo "Pronti" prima del via (ms)
+        const BAR = 21;                // larghezza della corda mostrata
+
+        let matches = [], mi = 0, phase = "intro";         // intro | announce | ready | fight | between | over
+        let A = [], B = [], winsA = 0, winsB = 0, needWins = 1, round = 1;
+        let pressA = 0, pressB = 0, left = 0, lastTick = 0, lastShow = 0, interval = null;
+        let points = {}, totalPresses = {};
+        const dbg = (lvl, msg) => window.BPDebug?.log("fune", lvl, msg);
+        const names = ids => ids.map(p => COLORS[p]).join(" e ");
+        const rand = ([min, max]) => min + Math.random() * (max - min);
+
+        function stopInterval() {
+            if (interval) {
+                clearInterval(interval);
+                interval = null;
+            }
+        }
+
+        function refreshScores() {
+            const n = playerIds().length;
+            const extra = {};
+            for (const p of playerIds()) {
+                if (n === 3) extra[p] = (points[p] || 0) + "★";
+                else extra[p] = A.includes(p) ? winsA : B.includes(p) ? winsB : 0;
+            }
+            renderScores(extra);
+        }
+
+        // La corda: il segno ● si sposta verso chi tira di più
+        function rope() {
+            lastShow = performance.now();
+            const diff = pressA - pressB;
+            const pos = Math.max(-1, Math.min(1, diff / LIMIT));
+            const at = Math.round((1 - pos) / 2 * (BAR - 1));
+            const bar = Array.from({length: BAR}, (_, i) => i === at ? "●" : "─").join("");
+            setArena("🤼 TIRA!", names(A) + " " + bar + " " + names(B) + " · " + pressA + "–" + pressB + " · " + Math.max(0, Math.ceil(left / 1000)) + "s", "signal");
+        }
+
+        g.start = async () => {
+            const ids = [...playerIds()];
+            const n = ids.length;
+            points = Object.fromEntries(ids.map(p => [p, 0]));
+            totalPresses = Object.fromEntries(ids.map(p => [p, 0]));
+            scores = Object.fromEntries(ids.map(p => [p, 0]));
+            mi = 0;
+            phase = "intro";
+            if (n === 4) {
+                const sh = [...ids].sort(() => Math.random() - .5);        // squadre sorteggiate
+                matches = [{a: [sh[0], sh[1]], b: [sh[2], sh[3]], need: 2}];
+            } else if (n === 3) {
+                matches = [{a: [ids[0]], b: [ids[1]], need: 1}, {a: [ids[1]], b: [ids[2]], need: 1}, {a: [ids[2]], b: [ids[0]], need: 1}];
+            } else {
+                matches = [{a: [ids[0]], b: [ids[1]], need: 2}];
+            }
+            A = matches[0].a;
+            B = matches[0].b;
+            winsA = winsB = 0;
+            $("#game-status").textContent = "TIRO ALLA FUNE";
+            setArena("🤼 Tiro alla fune", "Ascolta le istruzioni");
+            refreshScores();
+
+            window.BPDebug?.watch(() => ({
+                fase: phase,
+                sfida: (mi + 1) + "/" + matches.length + " · " + names(A) + " contro " + names(B),
+                round: round,
+                vittorie: winsA + "–" + winsB,
+                pressioni: pressA + "–" + pressB,
+                tempoRimasto_s: +(left / 1000).toFixed(1),
+                punti: {...points}
+            }));
+
+            const modeText = n === 4
+                ? "In quattro si gioca a squadre da due: le pressioni dei compagni si sommano. Le squadre sono " + names(matches[0].a) + " contro " + names(matches[0].b) + ". Si gioca al meglio di tre round. "
+                : n === 3
+                    ? "In tre si fanno tre sfide uno contro uno, un round ciascuna: " + matches.map(m => names(m.a) + " contro " + names(m.b)).join(", ") + ". Chi vince una sfida prende due punti. "
+                    : "Si gioca al meglio di tre round. ";
+            if (!await narrate(g, "Tiro alla fune. Premi il tuo tasto più veloce che puoi per tirare la corda dalla tua parte. " +
+                "Vince il round chi ha più pressioni allo scadere, o chi arriva per primo a venti di vantaggio. " + modeText +
+                "Aspetta il via: le pressioni prima del via non contano.")) return;
+            startMatch();
+        };
+
+        function startMatch() {
+            if (g.finished) return;
+            const m = matches[mi];
+            A = m.a;
+            B = m.b;
+            needWins = m.need;
+            winsA = winsB = 0;
+            round = 1;
+            phase = "announce";
+            refreshScores();
+            const n = playerIds().length;
+            const text = A.length === 2
+                ? "Squadra " + names(A) + " contro squadra " + names(B)
+                : names(A) + " contro " + names(B);
+            setArena("🤼 " + text, "Preparati…");
+            $("#game-status").textContent = n === 3 ? "SFIDA " + (mi + 1) + " DI 3" : "ROUND " + round;
+            dbg("info", "▶ " + text + (needWins > 1 ? " (al meglio di " + (needWins * 2 - 1) + ")" : ""));
+            if (matches.length > 1 || A.length === 2) {
+                sayAsync(text).then(() => {
+                    if (game === g && !g.finished && phase === "announce") later(ready, 600);
+                });
+            } else later(ready, 800);
+        }
+
+        function ready() {
+            if (g.finished) return;
+            phase = "ready";
+            pressA = pressB = 0;
+            $("#game-status").textContent = playerIds().length === 3 ? "SFIDA " + (mi + 1) + " DI 3" : "ROUND " + round;
+            setArena("✋ Pronti…", names(A) + " contro " + names(B) + " · aspetta il via");
+            tone(440, .12, "triangle", .1);
+            later(go, rand(PRE_GO));
+        }
+
+        function go() {
+            if (g.finished) return;
+            phase = "fight";
+            tone(988, .22, "square", .14);
+            left = ROUND_SECONDS * 1000;
+            lastTick = performance.now();
+            stopInterval();
+            interval = setInterval(tick, 40);
+            rope();
+        }
+
+        function tick() {
+            const now = performance.now();
+            const dt = Math.min(200, now - lastTick);
+            lastTick = now;
+            if (paused || g.finished || phase !== "fight") return;
+            left -= dt;
+            if (Math.abs(pressA - pressB) >= LIMIT) {
+                endRound();
+                return;
+            }
+            if (left <= 0) {
+                if (pressA !== pressB) {
+                    endRound();
+                    return;
+                }
+                left += EXTRA_SECONDS * 1000;     // pari: supplementare
+                toast("Pari! Si continua " + EXTRA_SECONDS + " secondi");
+                tone(660, .15, "square", .1);
+            }
+            if (now - lastShow > 100) rope();
+        }
+
+        g.onInput = e => {
+            if (e.type !== "down" || g.finished || phase !== "fight") return;
+            const id = e.button;
+            if (A.includes(id)) pressA++;
+            else if (B.includes(id)) pressB++;
+            else return;
+            totalPresses[id]++;
+            if (performance.now() - lastShow > 60) rope();
+        };
+
+        function endRound() {
+            stopInterval();
+            phase = "between";
+            const aWon = pressA > pressB;
+            if (aWon) winsA++;
+            else winsB++;
+            const winners = aWon ? A : B;
+            tone(aWon ? 784 : 659, .12, "triangle", .12);
+            tone(aWon ? 1046 : 880, .25, "triangle", .12, .12);
+            refreshScores();
+            dbg("ok", "🏁 round " + round + ": " + names(winners) + " vince " + Math.max(pressA, pressB) + "–" + Math.min(pressA, pressB) + " (round vinti " + winsA + "–" + winsB + ")");
+            const matchOver = winsA >= needWins || winsB >= needWins;
+            setArena("🏁 " + names(winners) + (winners.length === 2 ? " vincono" : " vince") + " il round", pressA + "–" + pressB + " · round vinti " + winsA + "–" + winsB);
+            const roundText = names(winners) + (winners.length === 2 ? " vincono" : " vince") +
+                " il round, " + pressA + " a " + pressB + ". Round vinti: " + winsA + " a " + winsB + ".";
+            sayAsync(roundText).then(() => {
+                if (game !== g || g.finished || phase !== "between") return;
+                if (!matchOver) {
+                    round++;
+                    later(ready, 500);
+                    return;
+                }
+                const n = playerIds().length;
+                if (n === 3) {
+                    const w = aWon ? A[0] : B[0];
+                    points[w] += 2;
+                    refreshScores();
+                    mi++;
+                    later(mi < matches.length ? startMatch : conclude, 700);
+                } else later(conclude, 700);
+            });
+        }
+
+        function conclude() {
+            if (g.finished) return;
+            phase = "over";
+            const ids = playerIds();
+            if (ids.length === 3) {
+                const ranked = [...ids].sort((a, b) => points[b] - points[a] || totalPresses[b] - totalPresses[a]);
+                const [a, b] = ranked;
+                const tie = points[a] === points[b] && totalPresses[a] === totalPresses[b];
+                finish(tie ? "🤼 Pareggio!" : "🤼 " + COLORS[a] + " vince con " + points[a] + " punti!", tie ? null : ranked);
+                return;
+            }
+            const aWon = winsA > winsB;
+            const w = aWon ? A : B, l = aWon ? B : A;
+            if (w.length === 2) {
+                finish("🤼 Vince la squadra " + names(w) + " " + Math.max(winsA, winsB) + "–" + Math.min(winsA, winsB) + "!", [...w, ...l], false);
+                say("Vince la squadra " + names(w));
+            } else {
+                finish("🤼 " + COLORS[w[0]] + " vince " + Math.max(winsA, winsB) + "–" + Math.min(winsA, winsB) + "!", [w[0], l[0]]);
+            }
+        }
+
+        g.resume = () => {
+            lastTick = performance.now();
+            if (phase === "fight") rope();
+            else setArena("🤼 Si riparte!", "Tra poco si tira");
+        };
+
+        g.dispose = () => {
+            stopTimer();
+            stopInterval();
+            speechSynthesis?.cancel();
+        };
+        return g;
+    }
+
+    function makeBounty() {
+        const g = baseGame("bounty");
+        const SHOT_SOUND = "assets/sounds/taglia/sparo.mp3";
+        const TARGET_ESCAPE_SOUND = "assets/sounds/taglia/ricercato-corsa.mp3";
+        const PRESS_START_SOUND = "assets/sounds/taglia/inizio-premi.mp3";
+
+        // === Parametri ===
+        const ROUNDS = 10;
+        const AFTER_NAME = [400, 1500];   // attesa casuale tra il nome del ricercato e lo sparo (ms)
+        const REACT_LIMIT = 3000;         // dopo lo sparo, tempo massimo per reagire (ms)
+
+        let round = 0, target = null, phase = "intro", openAt = 0, fouls = new Set(), recent = [];  // intro | gap | name | wait | open | between | over
+        const dbg = (lvl, msg) => window.BPDebug?.log("taglia", lvl, msg);
+        const rand = ([min, max]) => min + Math.random() * (max - min);
+        const pick = list => list[Math.floor(Math.random() * list.length)];
+
+        function pickTarget() {
+            const ids = playerIds();
+            const max = Math.max(...ids.map(p => scores[p]));
+            const leaders = ids.filter(p => scores[p] === max);
+            // Dal terzo round in poi, una volta su due il ricercato è chi è in testa
+            let t = round > 2 && leaders.length < ids.length && Math.random() < .5 ? pick(leaders) : pick(ids);
+            if (recent.length >= 2 && recent[recent.length - 1] === t && recent[recent.length - 2] === t) {
+                t = pick(ids.filter(p => p !== t));    // mai lo stesso tre volte di fila
+            }
+            recent.push(t);
+            return t;
+        }
+
+        g.start = async () => {
+            scores = Object.fromEntries(playerIds().map(p => [p, 0]));
+            round = 0;
+            recent = [];
+            phase = "intro";
+            loadSample(SHOT_SOUND);
+            loadSample(TARGET_ESCAPE_SOUND);
+            loadSample(PRESS_START_SOUND);
+            $("#game-status").textContent = "TAGLIA";
+            setArena("🎯 Taglia", "Ascolta le istruzioni");
+            renderScores();
+
+            window.BPDebug?.watch(() => ({
+                round: round + "/" + ROUNDS,
+                fase: phase,
+                ricercato: target ? COLORS[target] : "—",
+                falsePartenze: [...fouls].map(p => COLORS[p]),
+                punti: {...scores}
+            }));
+
+            if (!await narrate(g, "Taglia. In ogni round il narratore dice chi è il ricercato, poi spara. Tutti premono il più in fretta possibile. " +
+                "Se arrivi prima tu, prendi un punto e il ricercato ne perde uno. Se il più veloce è il ricercato, si salva e prende un punto. " +
+                "Se premi prima dello sparo, perdi un punto. Si giocano dieci round.")) return;
+            nextRound();
+        };
+
+        function nextRound() {
+            if (g.finished) return;
+            round++;
+            if (round > ROUNDS) {
+                round = ROUNDS;
+                conclude();
+                return;
+            }
+            target = pickTarget();
+            fouls = new Set();
+            phase = "gap";
+            $("#game-status").textContent = "ROUND " + round + " DI " + ROUNDS;
+            setArena("🎯 Round " + round + " di " + ROUNDS, "Ascolta chi è il ricercato… e aspetta lo sparo");
+            later(announce, 900);
+        }
+
+        function announce() {
+            if (g.finished) return;
+            phase = "name";
+            sayAsync("Ricercato: " + COLORS[target] + "!", 4000).then(() => {
+                if (game !== g || g.finished || phase !== "name") return;
+                phase = "wait";
+                later(fire, rand(AFTER_NAME));
+            });
+        }
+
+        function fire() {
+            if (g.finished) return;
+            if (playerIds().every(p => fouls.has(p))) {        // tutti hanno anticipato: nessuno può vincere il round
+                resolve(null);
+                return;
+            }
+            phase = "open";
+            openAt = performance.now();
+            playSample(PRESS_START_SOUND, () => tone(880, .12, "square", .15));
+            setArena("💥 PREMI!", "Ricercato: " + COLORS[target]);
+            later(() => resolve(null), REACT_LIMIT);
+        }
+
+        g.onInput = e => {
+            if (e.type !== "down" || g.finished || !playerIds().includes(e.button)) return;
+            const id = e.button;
+            if (phase === "name" || phase === "wait") {
+                if (fouls.has(id)) return;
+                fouls.add(id);
+                scores[id]--;
+                renderScores();
+                tone(100, .3, "square", .12);
+                toast("Falsa partenza! " + COLORS[id] + " −1");
+                dbg("info", "❌ falsa partenza di " + COLORS[id]);
+            } else if (phase === "open" && !fouls.has(id)) {
+                resolve(id);
+            }
+        };
+
+        function resolve(id) {
+            if (phase === "between") return;
+            stopTimer();
+            const wasOpen = phase === "open";
+            phase = "between";
+            let msg;
+            if (id === null) {
+                msg = wasOpen ? "Nessuno ha reagito" : "Tutti hanno anticipato";
+                dbg("info", "⚪ " + msg);
+            } else {
+                const ms = Math.round(performance.now() - openAt);
+                if (id === target) {
+                    scores[id]++;
+                    msg = COLORS[id] + " si è salvato! +1";
+                    playSample(TARGET_ESCAPE_SOUND, () => {
+                        tone(220, .12, "sawtooth", .12);
+                        tone(330, .16, "sawtooth", .12, .1);
+                    });
+                    tone(880, .12, "triangle", .12);
+                    tone(1320, .2, "triangle", .12, .1);
+                } else {
+                    scores[id]++;
+                    scores[target]--;
+                    msg = COLORS[id] + " prende la taglia su " + COLORS[target] + "! (+1 / −1)";
+                    playSample(SHOT_SOUND, () => {
+                        tone(330, .1, "square", .12);
+                        tone(660, .2, "triangle", .12, .1);
+                    });
+                }
+                dbg("ok", "🎯 " + msg + " · reazione " + ms + " ms");
+            }
+            renderScores();
+            setArena("🎯 " + msg, "Round " + round + " di " + ROUNDS);
+            later(nextRound, 2000);
+        }
+
+        function conclude() {
+            if (g.finished) return;
+            phase = "over";
+            const ranked = [...playerIds()].sort((a, b) => scores[b] - scores[a]);
+            const [a, b] = ranked;
+            if (scores[a] === scores[b]) finish("🎯 Pareggio con " + scores[a] + " punti!", null);
+            else finish("🎯 " + COLORS[a] + " vince con " + scores[a] + " punti!", ranked);
+        }
+
+        g.resume = () => {
+            if (phase === "open") setArena("💥 PREMI!", "Ricercato: " + COLORS[target]);
+            else setArena("🎯 Si riparte!", "Round " + round + " di " + ROUNDS);
+        };
+
+        g.dispose = () => {
+            stopTimer();
+            speechSynthesis?.cancel();
+        };
+        return g;
+    }
+
+
+    function makeCopyRhythm() {
+        const g = baseGame("copyrhythm");
+        const BEATS = 8, BEAT_MS = 650, CLICK = "assets/sounds/batteria/click.mp3";
+        let creatorIndex = 0, sequence = [], phase = "intro", beat = 0, currentPlayer = null;
+        let hits = [], results = {}, nextCopy = null;
+        const ids = () => playerIds();
+        const metronome = () => playSample(CLICK, () => tone(900, .045, "square", .055));
+        function beginCreator() {
+            if (g.finished) return;
+            if (creatorIndex >= ids().length) {
+                finish("🥁 Ritmo completato!", [...ids()].sort((a,b)=>(scores[b]||0)-(scores[a]||0)));
+                return;
+            }
+            currentPlayer = ids()[creatorIndex];
+            sequence = Array(BEATS).fill(false); beat = 0; phase = "create";
+            $("#game-status").textContent = "CREA IL RITMO";
+            setArena("🥁 " + COLORS[currentPlayer] + " crea il ritmo", "Battuta 1 di 8 · premi per segnare un colpo");
+            metronome(); later(creatorBeat, BEAT_MS);
+        }
+        function creatorBeat() {
+            if (g.finished || phase !== "create") return;
+            beat++;
+            if (beat >= BEATS) {
+                phase = "between";
+                setArena("Ritmo registrato!", "Ora gli altri lo copieranno");
+                later(startCopies, 900); return;
+            }
+            setArena("🥁 " + COLORS[currentPlayer] + " crea il ritmo", "Battuta " + (beat+1) + " di 8 · premi per segnare un colpo");
+            metronome(); later(creatorBeat, BEAT_MS);
+        }
+        function startCopies() {
+            const creator = currentPlayer;
+            const copyPlayers = ids().filter(p => p !== creator);
+            let n = 0; results = {};
+            nextCopy = () => {
+                if (g.finished) return;
+                if (n >= copyPlayers.length) {
+                    const detail = copyPlayers.map(p => COLORS[p] + ": " + results[p] + "/8").join(" · ");
+                    setArena("Esiti del ritmo", detail);
+                    sayAsync("Il ritmo di " + COLORS[creator] + ". " + detail).then(() => {
+                        if (game !== g || g.finished) return;
+                        creatorIndex++; later(beginCreator, 700);
+                    });
+                    return;
+                }
+                currentPlayer = copyPlayers[n++]; hits = Array(BEATS).fill(false); beat = 0; phase = "copy";
+                setArena("Copia il ritmo: " + COLORS[currentPlayer], "Battuta 1 di 8 · premi dove senti un colpo");
+                $("#game-status").textContent = "COPIA IL RITMO";
+                metronome(); later(copyBeat, BEAT_MS);
+            };
+            nextCopy();
+        }
+        function copyBeat() {
+            if (g.finished || phase !== "copy") return;
+            beat++;
+            if (beat >= BEATS) {
+                let correct = 0;
+                for (let i=0; i<BEATS; i++) if (hits[i] === sequence[i]) correct++;
+                results[currentPlayer] = correct;
+                scores[currentPlayer] = (scores[currentPlayer] || 0) + correct;
+                renderScores(); phase = "between";
+                later(() => nextCopy?.(), 500); return;
+            }
+            setArena("Copia il ritmo: " + COLORS[currentPlayer], "Battuta " + (beat+1) + " di 8");
+            metronome(); later(copyBeat, BEAT_MS);
+        }
+        g.start = async () => {
+            creatorIndex=0; sequence=[]; phase="intro";
+            scores = Object.fromEntries(ids().map(p=>[p,0])); renderScores();
+            if (!await narrate(g, "Copia il ritmo. A turno un giocatore crea un ritmo di otto battute: premi sulle battute dove vuoi un colpo. Gli altri lo copiano premendo sulle stesse battute. La base segna il tempo.")) return;
+            beginCreator();
+        };
+        g.onInput = e => {
+            if (e.type !== "down" || !ids().includes(e.button) || g.finished || e.button !== currentPlayer) return;
+            if (phase === "create" && beat < BEATS) {
+                sequence[beat] = true; tone(({P1:330,P2:392,P3:494,P4:262})[e.button], .08, "sine", .09);
+            } else if (phase === "copy" && beat < BEATS) {
+                hits[beat] = true; tone(({P1:330,P2:392,P3:494,P4:262})[e.button], .08, "sine", .09);
+            }
+        };
+        g.dispose = () => stopTimer();
+        return g;
+    }
+
+    function makeHorse() {
+        const g = baseGame("horse");
+        const DIR = "assets/sounds/cavallino/";
+        const GALLOP = DIR + "galoppo.mp3", JUMP = DIR + "salto.mp3", TURN = DIR + "cambio-verso.mp3";
+        const DOUBLE_MS = 280, HOLD_MS = 420;
+        let order=[], current=0, direction=1, deadlineMs=1800, lastTap={}, downAt={}, round=0;
+        const active = () => order.filter(p => playerIds().includes(p));
+        const currentPlayer = () => active()[((current % Math.max(1,active().length))+Math.max(1,active().length))%Math.max(1,active().length)];
+        function announceTurn() {
+            if (g.finished) return;
+            const list=active();
+            if (list.length<=1) { finish(list[0] ? "🐎 "+COLORS[list[0]]+" vince!" : "🐎 Nessun vincitore", list[0]?[list[0]]:null); return; }
+            const p=currentPlayer();
+            setArena("🐎 Tocca a "+COLORS[p], "Premi: galoppo · doppio tocco: salto · tieni premuto: cambia verso · "+(deadlineMs/1000).toFixed(1)+" s");
+            $("#game-status").textContent="CAVALLINO · GIRO "+(round+1);
+            stopTimer();
+            later(() => {
+                if (g.finished) return;
+                toast(COLORS[p]+" ha perso il tempo!");
+                order=active().filter(x=>x!==p); current=Math.min(current, Math.max(0,order.length-1));
+                deadlineMs=Math.max(420,deadlineMs*.91); round++; announceTurn();
+            },deadlineMs);
+        }
+        function advance() {
+            const len=active().length;
+            if (!len) return;
+            current=(current+direction+len)%len;
+            deadlineMs=Math.max(420,deadlineMs*.96); round++; announceTurn();
+        }
+        g.start = async () => {
+            order=[...playerIds()]; current=0; direction=1; deadlineMs=1800; round=0; lastTap={}; downAt={};
+            scores=Object.fromEntries(order.map(p=>[p,0])); renderScores();
+            [GALLOP,JUMP,TURN].forEach(loadSample);
+            if (!await narrate(g,"Cavallino. Premi una volta per galoppare e passare al giocatore successivo. Fai doppio tocco per saltare il prossimo giocatore. Tieni premuto per cambiare il verso. Il tempo diminuisce continuamente.")) return;
+            announceTurn();
+        };
+        g.onInput = e => {
+            if (g.finished || !playerIds().includes(e.button)) return;
+            const id = e.button;
+            if (e.type === "down") {
+                downAt[id] = performance.now();
+                if (id === currentPlayer()) stopTimer();
+            } else if (e.type === "up" && downAt[id] !== undefined) {
+                const heldMs = performance.now() - downAt[id];
+                delete downAt[id];
+                if (id !== currentPlayer()) return;
+                if (heldMs >= HOLD_MS) {
+                    stopTimer(); lastTap[id] = 0;
+                    direction *= -1;
+                    playSample(TURN, () => tone(180, .18, "sawtooth", .1));
+                    advance();
+                    return;
+                }
+                if (lastTap[id] && performance.now() - lastTap[id] <= DOUBLE_MS) {
+                    stopTimer(); lastTap[id] = 0;
+                    playSample(JUMP, () => tone(700, .15, "triangle", .1));
+                    const list = active();
+                    const skippedIndex = (current + direction + list.length) % list.length;
+                    const skipped = list[skippedIndex];
+                    if (skipped) order = order.filter(p => p !== skipped);
+                    current = Math.max(0, current);
+                    advance();
+                    return;
+                }
+                lastTap[id] = performance.now();
+                later(() => {
+                    if (g.finished || id !== currentPlayer()) return;
+                    lastTap[id] = 0;
+                    playSample(GALLOP, () => tone(220, .09, "triangle", .1));
+                    advance();
+                }, DOUBLE_MS);
+            }
+        };
+        g.dispose=()=>stopTimer();
         return g;
     }
 
