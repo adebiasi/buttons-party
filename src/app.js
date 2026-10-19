@@ -8,7 +8,7 @@
     const DESCRIPTIONS = {
         tug: "Premi il tuo tasto più veloce che puoi per tirare la corda dalla tua parte. In due: al meglio di tre round. In tre: tre sfide uno contro uno. In quattro: due squadre, le pressioni dei compagni si sommano.",
         bounty: "Il narratore dice chi è il ricercato, poi dà il via. Tutti premono: se arrivi prima tu prendi un punto e il ricercato ne perde uno. Se il ricercato è più veloce, si salva e prende un punto. Se premi prima del via perdi un punto.",
-        copyrhythm: "Un giocatore crea un ritmo di 8 battute premendo o restando fermo a ogni battuta. Gli altri lo copiano a turno seguendo la base. Poi cambia il creatore.",
+        copyrhythm: "Un giocatore crea un ritmo di 8 battute premendo il suo tasto. Gli altri lo copiano tutti insieme seguendo la base. Poi cambia il creatore. Si fa un giro completo.",
         horse: "Cavallino: premi per galoppare e passare al prossimo, doppio tocco per saltare un giocatore, tieni premuto per invertire il verso. Il tempo per agire diminuisce continuamente.",
         thirsty: "Quante birre riesci a bere? Per ogni birra: premi per stappare, tieni premuto per bere, premi per buttare il bicchiere, tieni premuto per il rutto. Se lasci il tasto il suono riparte da dove eri. Conta solo la sequenza completa. In due: turni singoli. In tre: tre sfide uno contro uno. In quattro: due squadre, uno stappa e butta, l'altro beve e rutta.",
         pig: "Ascolta i versi: premi quando senti il maiale, non gli altri animali.",
@@ -282,7 +282,8 @@
             d[i] = (lp - lp2) * 3.6 * env;
         }
         for (let k = 0; k < 16; k++) {
-            const at = Math.floor(Math.random() * len), f = 2400 + Math.random() * 1900, amp = .12 + Math.random() * .16;
+            const at = Math.floor(Math.random() * len), f = 2400 + Math.random() * 1900,
+                amp = .12 + Math.random() * .16;
             for (let j = 0; j < sr * .14; j++) {
                 d[(at + j) % len] += Math.sin(TAU * f * j / sr) * Math.exp(-j / (sr * .03)) * amp;
             }
@@ -2010,7 +2011,8 @@
             if (current) {
                 try {
                     current.stop();
-                } catch (e) { /* già finita */ }
+                } catch (e) { /* già finita */
+                }
                 current = null;
             }
             speechSynthesis?.cancel();
@@ -4322,11 +4324,11 @@
 
         // Direzioni relative (come in Pizza) + accelera = proprio tasto
         const ACTIONS = {
-            destra:   { text: "destra",   arrow: "→" },
-            sinistra: { text: "sinistra", arrow: "←" },
-            avanti:   { text: "avanti",   arrow: "↑" },
-            indietro: { text: "indietro", arrow: "↓" },
-            accelera: { text: "accelera", arrow: "⚡" }
+            destra: {text: "destra", arrow: "→"},
+            sinistra: {text: "sinistra", arrow: "←"},
+            avanti: {text: "avanti", arrow: "↑"},
+            indietro: {text: "indietro", arrow: "↓"},
+            accelera: {text: "accelera", arrow: "⚡"}
         };
 
         // Tasti in senso orario
@@ -4336,8 +4338,8 @@
         const OFFSET = {
             indietro: 0,   // proprio tasto
             sinistra: 1,
-            avanti:   2,
-            destra:   3,
+            avanti: 2,
+            destra: 3,
             accelera: 0    // accelera = proprio tasto
         };
 
@@ -4478,7 +4480,7 @@
                 } while (action === prev && keys.length > 1);
                 prev = action;
                 const times = 1 + Math.floor(Math.random() * TIMES_MAX);
-                cmds.push({ action, times });
+                cmds.push({action, times});
             }
             return cmds;
         }
@@ -4708,10 +4710,10 @@
         // lang: voce straniera che legge testo italiano (usata solo se il dispositivo la ha)
         // vi: indice della voce italiana da preferire
         const PERSONAS = [
-            {key: "uomo",     name: "l'uomo",                 pitch: .7,  rate: .98,  lang: null,    vi: 1},
-            {key: "spagnolo", name: "il parlatore spagnolo", pitch: 1,   rate: .95,  lang: "es",    vi: 0},
-            {key: "tedesco",  name: "il parlatore tedesco",   pitch: .9,  rate: .95,  lang: "de",    vi: 0},
-            {key: "francese", name: "il parlatore francese",  pitch: 1.1, rate: 1,    lang: "fr",    vi: 0},
+            {key: "uomo", name: "l'uomo", pitch: .7, rate: .98, lang: null, vi: 1},
+            {key: "spagnolo", name: "il parlatore spagnolo", pitch: 1, rate: .95, lang: "es", vi: 0},
+            {key: "tedesco", name: "il parlatore tedesco", pitch: .9, rate: .95, lang: "de", vi: 0},
+            {key: "francese", name: "il parlatore francese", pitch: 1.1, rate: 1, lang: "fr", vi: 0},
         ];
 
         // === Vocabolario ===
@@ -4843,7 +4845,10 @@
             const b = beeps[id];
             if (!b) return;
             beeps[id] = null;
-            try { b.osc.stop(); } catch (e) {}
+            try {
+                b.osc.stop();
+            } catch (e) {
+            }
             b.osc.disconnect();
             b.gain.disconnect();
         }
@@ -5152,8 +5157,17 @@
 
         function waitPress(id, ms) {
             return new Promise(resolve => {
-                const t = setTimeout(() => { waiter = null; resolve(); }, ms);
-                waiter = {id, done: () => { clearTimeout(t); waiter = null; resolve(); }};
+                const t = setTimeout(() => {
+                    waiter = null;
+                    resolve();
+                }, ms);
+                waiter = {
+                    id, done: () => {
+                        clearTimeout(t);
+                        waiter = null;
+                        resolve();
+                    }
+                };
             });
         }
 
@@ -5186,7 +5200,12 @@
                 // --- Debug: cosa deve fare ogni giocatore in questa frase ---
                 dbg("info", `🎙 Parla ${COLORS[sp.id]} (${sp.persona.key}): «${text}»`);
                 dbg("info", `   Deve bippare SOLO ${COLORS[sp.id]}, tenendo premuto sulle parolacce (fino a +${BAD_POINTS} l'una, in proporzione a quanto le copre). Tutti gli altri NON devono bippare: −${WRONG_PEN_PER_SEC} al secondo.`);
-                liveInfo = {parlante: COLORS[sp.id] + " (" + sp.persona.key + ")", frase: text, parola: null, azione: "ascolta"};
+                liveInfo = {
+                    parlante: COLORS[sp.id] + " (" + sp.persona.key + ")",
+                    frase: text,
+                    parola: null,
+                    azione: "ascolta"
+                };
                 const bySegStart = new Map(segs.map(sg => [sg.from, sg]));
 
                 // una sola lettura continua: nessun silenzio tra le parole
@@ -5366,7 +5385,8 @@
         // 2 giocatori: ognuno gioca da solo. 3: tre sfide uno contro uno (chi vince prende 2 punti).
         // 4: due squadre; nel turno della squadra uno stappa e butta, l'altro beve e rutta.
         let turns = [], turn = 0, phase = "intro";   // intro | announce | cap | drink | empty | burp | between | over
-        let turnLeft = 0, prog = 0, need = 0, beers = 0, holding = false, wasHolding = false, lastTick = 0, lastShow = 0;
+        let turnLeft = 0, prog = 0, need = 0, beers = 0, holding = false, wasHolding = false, lastTick = 0,
+            lastShow = 0;
         let turnBeers = [], points = {}, totalBeers = {}, holdTotal = {}, teams = [];
         const sounds = {drink: null, burp: null};                 // AudioBuffer dei file, se presenti
         let interval = null, holdSource = null, holdGain = null, glugTimer = null;
@@ -5432,7 +5452,8 @@
             if (holdSource) {
                 try {
                     holdSource.stop();
-                } catch (e) { /* già fermo */ }
+                } catch (e) { /* già fermo */
+                }
                 holdSource.disconnect();
                 holdSource = null;
             }
@@ -5502,8 +5523,12 @@
             [UNCAP, DONE, BREAK].forEach(loadSample);
             // durata di bevuta e rutto = durata dei rispettivi file
             const preload = Promise.all([
-                loadSample(DRINK).then(b => { sounds.drink = b; }),
-                loadSample(BURP).then(b => { sounds.burp = b; })
+                loadSample(DRINK).then(b => {
+                    sounds.drink = b;
+                }),
+                loadSample(BURP).then(b => {
+                    sounds.burp = b;
+                })
             ]);
             $("#game-status").textContent = "ASSETATO";
             setArena("🍺 Assetato", "Ascolta le istruzioni");
@@ -5528,10 +5553,10 @@
             const secs = TURN_SECONDS[n] || 30;
             const modeText = n === 4
                 ? "In quattro si gioca a squadre. Nel turno della squadra, uno stappa e butta il bicchiere, l'altro beve e fa il rutto. Le squadre sono " +
-                  teams.map(t => names(t)).join(" contro ") + ". "
+                teams.map(t => names(t)).join(" contro ") + ". "
                 : n === 3
                     ? "In tre si fanno tre sfide uno contro uno: " + [[0, 1], [1, 2], [2, 0]].map(([x, y]) => COLORS[ids[x]] + " contro " + COLORS[ids[y]]).join(", ") +
-                      ". Chi vince una sfida prende due punti. "
+                    ". Chi vince una sfida prende due punti. "
                     : "A turno, ogni giocatore gioca da solo. ";
             if (!await narrate(g, "Assetato. Quante birre riesci a bere? Ogni turno dura " + secs + " secondi. " + modeText +
                 "Premi per stappare la birra, poi tieni premuto per berla. Quando è finita, premi per buttare il bicchiere, " +
@@ -5658,7 +5683,11 @@
             const ids = playerIds();
             refreshScores();
             if (ids.length === 4) {
-                const tot = teams.map((t, i) => ({t, beers: turnBeers[i] || 0, hold: t.reduce((a, p) => a + holdTotal[p], 0)}));
+                const tot = teams.map((t, i) => ({
+                    t,
+                    beers: turnBeers[i] || 0,
+                    hold: t.reduce((a, p) => a + holdTotal[p], 0)
+                }));
                 const [x, y] = tot;
                 if (x.beers === y.beers && Math.abs(x.hold - y.hold) < 50) {
                     finish("🍺 Pareggio: " + x.beers + " birre a testa!", null);
@@ -5676,10 +5705,10 @@
             const key = p => ids.length === 3 ? points[p] + "/" + totalBeers[p] : totalBeers[p];
             const tie = key(a) === key(b) && Math.abs(holdTotal[a] - holdTotal[b]) < 50;
             finish(tie
-                ? "🍺 Pareggio!"
-                : ids.length === 3
-                    ? "🍺 " + COLORS[a] + " vince con " + points[a] + " punti e " + totalBeers[a] + " birre!"
-                    : "🍺 " + COLORS[a] + " vince con " + totalBeers[a] + (totalBeers[a] === 1 ? " birra!" : " birre!"),
+                    ? "🍺 Pareggio!"
+                    : ids.length === 3
+                        ? "🍺 " + COLORS[a] + " vince con " + points[a] + " punti e " + totalBeers[a] + " birre!"
+                        : "🍺 " + COLORS[a] + " vince con " + totalBeers[a] + (totalBeers[a] === 1 ? " birra!" : " birre!"),
                 tie ? null : ranked);
         }
 
@@ -5803,7 +5832,11 @@
                 const sh = [...ids].sort(() => Math.random() - .5);        // squadre sorteggiate
                 matches = [{a: [sh[0], sh[1]], b: [sh[2], sh[3]], need: 2}];
             } else if (n === 3) {
-                matches = [{a: [ids[0]], b: [ids[1]], need: 1}, {a: [ids[1]], b: [ids[2]], need: 1}, {a: [ids[2]], b: [ids[0]], need: 1}];
+                matches = [{a: [ids[0]], b: [ids[1]], need: 1}, {a: [ids[1]], b: [ids[2]], need: 1}, {
+                    a: [ids[2]],
+                    b: [ids[0]],
+                    need: 1
+                }];
             } else {
                 matches = [{a: [ids[0]], b: [ids[1]], need: 2}];
             }
@@ -6150,85 +6183,389 @@
 
     function makeCopyRhythm() {
         const g = baseGame("copyrhythm");
-        const BEATS = 8, BEAT_MS = 650, CLICK = "assets/sounds/batteria/click.mp3";
-        let creatorIndex = 0, sequence = [], phase = "intro", beat = 0, currentPlayer = null;
-        let hits = [], results = {}, nextCopy = null;
+
+        const DIR = "assets/sounds/batteria/";
+        const KITS = {
+            P1: {name: "la cassa", type: "kick", file: DIR + "kick.mp3"},
+            P2: {name: "il rullante", type: "snare", file: DIR + "snare.mp3"},
+            P3: {name: "il charleston", type: "hat", file: DIR + "hat.mp3"},
+            P4: {name: "il battimani", type: "clap", file: DIR + "clap.mp3"}
+        };
+        const CLICK = DIR + "click.mp3";
+
+        // === PARAMETRI ===
+        const BEATS = 8;
+        const COUNT_IN = 4;           // 4 battute di preparazione
+        const BEAT_MS = 700;
+        const TOL = 280;
+        const MASTER = 0.9;
+
+        let phase = "intro";          // intro | create | between | copy | over
+        let creatorIndex = 0;
+        let currentCreator = null;
+        let sequence = [];            // boolean[8]
+        let beat = 0;                 // -COUNT_IN ... BEATS-1  (negativo = count-in)
+        let hits = {};
+        let beatStart = 0;
+        const buffers = new Map();
+
+        const gone = () => game !== g || g.finished;
+        const wait = ms => new Promise(r => setTimeout(r, ms));
         const ids = () => playerIds();
-        const metronome = () => playSample(CLICK, () => tone(900, .045, "square", .055));
+        const legend = () =>
+            ids().map(p => COLORS[p] + " " + KITS[p].name.replace(/^(il|la) /, "")).join(" · ");
+
+        // === SUONI ===
+        let noiseBuf = null;
+        function getNoise(ctx) {
+            if (!noiseBuf) {
+                noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+                const data = noiseBuf.getChannelData(0);
+                for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+            }
+            return noiseBuf;
+        }
+
+        function noiseHit(ctx, when, type, freq, q, vol, dur, out) {
+            const src = ctx.createBufferSource();
+            const filter = ctx.createBiquadFilter();
+            const gain = ctx.createGain();
+            src.buffer = getNoise(ctx);
+            filter.type = type;
+            filter.frequency.value = freq;
+            filter.Q.value = q;
+            gain.gain.setValueAtTime(vol, when);
+            gain.gain.exponentialRampToValueAtTime(.001, when + dur);
+            src.connect(filter);
+            filter.connect(gain);
+            gain.connect(out);
+            src.start(when, Math.random() * .5, dur + .02);
+        }
+
+        function synth(ctx, type, when, out) {
+            if (type === "kick") {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.frequency.setValueAtTime(160, when);
+                osc.frequency.exponentialRampToValueAtTime(45, when + .12);
+                gain.gain.setValueAtTime(1, when);
+                gain.gain.exponentialRampToValueAtTime(.001, when + .3);
+                osc.connect(gain);
+                gain.connect(out);
+                osc.start(when);
+                osc.stop(when + .32);
+            } else if (type === "snare") {
+                noiseHit(ctx, when, "bandpass", 1800, .8, .55, .18, out);
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = "triangle";
+                osc.frequency.value = 190;
+                gain.gain.setValueAtTime(.35, when);
+                gain.gain.exponentialRampToValueAtTime(.001, when + .1);
+                osc.connect(gain);
+                gain.connect(out);
+                osc.start(when);
+                osc.stop(when + .12);
+            } else if (type === "hat") {
+                noiseHit(ctx, when, "highpass", 7000, .7, .3, .06, out);
+            } else if (type === "clap") {
+                [0, .012, .024].forEach(k =>
+                    noiseHit(ctx, when + k, "bandpass", 1400, 1, .4, .05, out)
+                );
+                noiseHit(ctx, when + .036, "bandpass", 1400, 1, .35, .12, out);
+            } else {
+                // click generico
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = "square";
+                osc.frequency.value = 1500;
+                gain.gain.setValueAtTime(.2, when);
+                gain.gain.exponentialRampToValueAtTime(.001, when + .04);
+                osc.connect(gain);
+                gain.connect(out);
+                osc.start(when);
+                osc.stop(when + .06);
+            }
+        }
+
+        function playDrum(type, file, when = null) {
+            const ctx = ensureAudio();
+            const out = ctx.createGain();
+            out.gain.value = soundEnabled ? MASTER : 0;
+            out.connect(ctx.destination);
+            const t = when ?? ctx.currentTime;
+            const buffer = buffers.get(file);
+            if (buffer) {
+                const src = ctx.createBufferSource();
+                src.buffer = buffer;
+                src.connect(out);
+                src.start(t);
+            } else {
+                synth(ctx, type, t, out);
+            }
+        }
+
+        // Metronomo con due suoni diversi (pari / dispari) + count-in speciale
+        function playMetronome(beatIndex) {
+            const ctx = ensureAudio();
+            const out = ctx.createGain();
+            out.gain.value = soundEnabled ? 0.55 : 0;
+            out.connect(ctx.destination);
+
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "square";
+
+            if (beatIndex < 0) {
+                // Count-in: suono più acuto e un po' più lungo
+                osc.frequency.value = 1800;
+                gain.gain.setValueAtTime(0.28, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.09);
+                osc.connect(gain);
+                gain.connect(out);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.11);
+            } else if (beatIndex % 2 === 0) {
+                // Battuta pari → più grave
+                osc.frequency.value = 900;
+                gain.gain.setValueAtTime(0.22, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+                osc.connect(gain);
+                gain.connect(out);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.07);
+            } else {
+                // Battuta dispari → più acuta
+                osc.frequency.value = 1400;
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+                osc.connect(gain);
+                gain.connect(out);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.06);
+            }
+        }
+
+        // === CREAZIONE ===
         function beginCreator() {
             if (g.finished) return;
+
             if (creatorIndex >= ids().length) {
-                finish("🥁 Ritmo completato!", [...ids()].sort((a,b)=>(scores[b]||0)-(scores[a]||0)));
+                const order = ids().sort((a, b) => (scores[b] || 0) - (scores[a] || 0));
+                const tie = order.length > 1 && scores[order[0]] === scores[order[1]];
+                finish(
+                    tie ? "🥁 Pareggio!" : "🥁 " + COLORS[order[0]] + " vince con " + scores[order[0]] + " punti!",
+                    tie ? null : order
+                );
                 return;
             }
-            currentPlayer = ids()[creatorIndex];
-            sequence = Array(BEATS).fill(false); beat = 0; phase = "create";
-            $("#game-status").textContent = "CREA IL RITMO";
-            setArena("🥁 " + COLORS[currentPlayer] + " crea il ritmo", "Battuta 1 di 8 · premi per segnare un colpo");
-            metronome(); later(creatorBeat, BEAT_MS);
+
+            currentCreator = ids()[creatorIndex];
+            sequence = Array(BEATS).fill(false);
+            beat = -COUNT_IN;          // parte dal count-in
+            phase = "create";
+
+            $("#game-status").textContent = "CREA IL RITMO · " + COLORS[currentCreator].toUpperCase();
+            setArena(
+                "🥁 " + COLORS[currentCreator] + " crea il ritmo",
+                "Preparazione… poi 8 battute",
+                "signal"
+            );
+
+            sayAsync(COLORS[currentCreator] + " crea il ritmo. Ascolta i quattro colpi di preparazione.").then(() => {
+                if (gone() || phase !== "create") return;
+                beatStart = performance.now();
+                playMetronome(beat);
+                later(nextCreateBeat, BEAT_MS);
+            });
         }
-        function creatorBeat() {
+
+        function nextCreateBeat() {
             if (g.finished || phase !== "create") return;
+
             beat++;
             if (beat >= BEATS) {
                 phase = "between";
-                setArena("Ritmo registrato!", "Ora gli altri lo copieranno");
-                later(startCopies, 900); return;
+                const hitsCount = sequence.filter(Boolean).length;
+                setArena(
+                    "Ritmo registrato!",
+                    COLORS[currentCreator] + " ha messo " + hitsCount + (hitsCount === 1 ? " colpo" : " colpi"),
+                    "signal"
+                );
+                later(startCopyPhase, 1200);
+                return;
             }
-            setArena("🥁 " + COLORS[currentPlayer] + " crea il ritmo", "Battuta " + (beat+1) + " di 8 · premi per segnare un colpo");
-            metronome(); later(creatorBeat, BEAT_MS);
+
+            const isCountIn = beat < 0;
+            setArena(
+                "🥁 " + COLORS[currentCreator] + " crea il ritmo",
+                isCountIn
+                    ? "Preparazione " + (COUNT_IN + beat + 1) + " / " + COUNT_IN
+                    : "Battuta " + (beat + 1) + " di " + BEATS + " · premi quando vuoi un colpo"
+            );
+
+            beatStart = performance.now();
+            playMetronome(beat);
+            later(nextCreateBeat, BEAT_MS);
         }
-        function startCopies() {
-            const creator = currentPlayer;
-            const copyPlayers = ids().filter(p => p !== creator);
-            let n = 0; results = {};
-            nextCopy = () => {
-                if (g.finished) return;
-                if (n >= copyPlayers.length) {
-                    const detail = copyPlayers.map(p => COLORS[p] + ": " + results[p] + "/8").join(" · ");
-                    setArena("Esiti del ritmo", detail);
-                    sayAsync("Il ritmo di " + COLORS[creator] + ". " + detail).then(() => {
-                        if (game !== g || g.finished) return;
-                        creatorIndex++; later(beginCreator, 700);
-                    });
-                    return;
-                }
-                currentPlayer = copyPlayers[n++]; hits = Array(BEATS).fill(false); beat = 0; phase = "copy";
-                setArena("Copia il ritmo: " + COLORS[currentPlayer], "Battuta 1 di 8 · premi dove senti un colpo");
-                $("#game-status").textContent = "COPIA IL RITMO";
-                metronome(); later(copyBeat, BEAT_MS);
-            };
-            nextCopy();
+
+        // === COPIA (tutti insieme) ===
+        function startCopyPhase() {
+            if (g.finished) return;
+
+            const copyPlayers = ids().filter(p => p !== currentCreator);
+            hits = Object.fromEntries(copyPlayers.map(p => [p, Array(BEATS).fill(false)]));
+            beat = -COUNT_IN;
+            phase = "copy";
+
+            $("#game-status").textContent = "COPIA IL RITMO";
+            setArena(
+                "🥁 Copiate il ritmo di " + COLORS[currentCreator] + "!",
+                "Preparazione… poi 8 battute",
+                "signal"
+            );
+
+            sayAsync("Ora copiate tutti insieme!").then(() => {
+                if (gone() || phase !== "copy") return;
+                beatStart = performance.now();
+                playMetronome(beat);
+                later(nextCopyBeat, BEAT_MS);
+            });
         }
-        function copyBeat() {
+
+        function nextCopyBeat() {
             if (g.finished || phase !== "copy") return;
+
             beat++;
             if (beat >= BEATS) {
-                let correct = 0;
-                for (let i=0; i<BEATS; i++) if (hits[i] === sequence[i]) correct++;
-                results[currentPlayer] = correct;
-                scores[currentPlayer] = (scores[currentPlayer] || 0) + correct;
-                renderScores(); phase = "between";
-                later(() => nextCopy?.(), 500); return;
+                phase = "between";
+                judgeCopy();
+                return;
             }
-            setArena("Copia il ritmo: " + COLORS[currentPlayer], "Battuta " + (beat+1) + " di 8");
-            metronome(); later(copyBeat, BEAT_MS);
+
+            const isCountIn = beat < 0;
+            setArena(
+                "🥁 Copiate il ritmo di " + COLORS[currentCreator] + "!",
+                isCountIn
+                    ? "Preparazione " + (COUNT_IN + beat + 1) + " / " + COUNT_IN
+                    : "Battuta " + (beat + 1) + " di " + BEATS
+            );
+
+            beatStart = performance.now();
+            playMetronome(beat);
+
+            // Durante le battute vere suona anche il colpo del creatore (se c'era)
+            if (!isCountIn && sequence[beat]) {
+                playDrum(KITS[currentCreator].type, KITS[currentCreator].file);
+            }
+
+            later(nextCopyBeat, BEAT_MS);
         }
+
+        function judgeCopy() {
+            const copyPlayers = ids().filter(p => p !== currentCreator);
+            let detail = [];
+
+            for (const p of copyPlayers) {
+                let correct = 0;
+                for (let i = 0; i < BEATS; i++) {
+                    if (hits[p][i] === sequence[i]) {
+                        correct++;
+                        scores[p] = (scores[p] || 0) + 1;
+                    } else {
+                        scores[p] = (scores[p] || 0) - 1;
+                    }
+                }
+                detail.push(COLORS[p] + ": " + correct + "/" + BEATS);
+            }
+
+            renderScores();
+            setArena("Esiti del ritmo", detail.join(" · "));
+            toast(detail.join(" · "));
+
+            sayAsync("Il ritmo di " + COLORS[currentCreator] + ". " + detail.join(". ")).then(() => {
+                if (gone()) return;
+                creatorIndex++;
+                later(beginCreator, 900);
+            });
+        }
+
+        // === AVVIO ===
         g.start = async () => {
-            creatorIndex=0; sequence=[]; phase="intro";
-            scores = Object.fromEntries(ids().map(p=>[p,0])); renderScores();
-            if (!await narrate(g, "Copia il ritmo. A turno un giocatore crea un ritmo di otto battute: premi sulle battute dove vuoi un colpo. Gli altri lo copiano premendo sulle stesse battute. La base segna il tempo.")) return;
+            phase = "intro";
+            creatorIndex = 0;
+            currentCreator = null;
+            sequence = [];
+            scores = Object.fromEntries(ids().map(p => [p, 0]));
+            renderScores();
+
+            $("#game-status").textContent = "PREPARATI";
+            setArena("🥁 Copia il ritmo", legend());
+
+            const files = [CLICK, ...Object.values(KITS).map(k => k.file)];
+            const preload = Promise.all(files.map(async f => buffers.set(f, await loadSample(f))));
+
+            await sayIntro(
+                "Copia il ritmo. A turno un giocatore crea un ritmo di otto battute. " +
+                "Prima di ogni ritmo ci sono quattro colpi di preparazione. " +
+                "Gli altri copiano tutti insieme. Ogni giocatore ha il suo suono. " +
+                "Si fa un giro completo."
+            );
+            await preload;
+            if (gone()) return;
+
+            for (const p of ids()) {
+                await sayAsync(COLORS[p] + ", " + KITS[p].name + ".");
+                if (gone()) return;
+                playDrum(KITS[p].type, KITS[p].file);
+                await wait(700);
+                if (gone()) return;
+            }
+
             beginCreator();
         };
+
+        // === INPUT ===
         g.onInput = e => {
-            if (e.type !== "down" || !ids().includes(e.button) || g.finished || e.button !== currentPlayer) return;
-            if (phase === "create" && beat < BEATS) {
-                sequence[beat] = true; tone(({P1:330,P2:392,P3:494,P4:262})[e.button], .08, "sine", .09);
-            } else if (phase === "copy" && beat < BEATS) {
-                hits[beat] = true; tone(({P1:330,P2:392,P3:494,P4:262})[e.button], .08, "sine", .09);
+            if (e.type !== "down" || !ids().includes(e.button) || g.finished) return;
+
+            const id = e.button;
+            const now = performance.now();
+
+            // Solo durante le battute vere (beat >= 0)
+            if (beat < 0) return;
+
+            if (phase === "create" && id === currentCreator && beat < BEATS) {
+                if (now - beatStart < BEAT_MS + TOL) {
+                    sequence[beat] = true;
+                    playDrum(KITS[id].type, KITS[id].file);
+                }
+                return;
+            }
+
+            if (phase === "copy" && id !== currentCreator && beat < BEATS) {
+                if (now - beatStart < BEAT_MS + TOL) {
+                    hits[id][beat] = true;
+                    playDrum(KITS[id].type, KITS[id].file);
+                }
             }
         };
-        g.dispose = () => stopTimer();
+
+        g.resume = () => {
+            if (phase === "create") {
+                setArena("🥁 " + COLORS[currentCreator] + " crea il ritmo", "Continua…");
+            } else if (phase === "copy") {
+                setArena("🥁 Copiate il ritmo!", "Continua…");
+            } else {
+                setArena("🥁 Si riparte!", "");
+            }
+        };
+
+        g.dispose = () => {
+            stopTimer();
+            speechSynthesis?.cancel();
+        };
+
         return g;
     }
 
@@ -6236,9 +6573,9 @@
         const g = baseGame("horse");
         const DIR = "assets/sounds/cavallino/";
         const GALLOP = DIR + "galoppo.mp3",
-            JUMP  = DIR + "salto.mp3",
-            TURN  = DIR + "cambio-verso.mp3",
-            VIA   = DIR + "via.mp3";
+            JUMP = DIR + "salto.mp3",
+            TURN = DIR + "cambio-verso.mp3",
+            VIA = DIR + "via.mp3";
         const DOUBLE_MS = 280, HOLD_MS = 420;
         let order = [], current = 0, direction = 1, deadlineMs = 10000,
             lastTap = {}, downAt = {}, round = 0, turnSerial = 0,
@@ -6472,7 +6809,10 @@
         };
 
         return g;
-    }    function makeBeat() {
+    }
+
+
+    function makeBeat() {
         const g = baseGame("beat");
 
         const DIR = "assets/sounds/batteria/";
@@ -6546,10 +6886,10 @@
 
         function buildPattern() {
             const rules = {
-                kick:  () => [0, 4],
+                kick: () => [0, 4],
                 snare: () => [2, 6],
-                hat:   () => pickSteps([0, 2, 4, 6], HITS),
-                clap:  () => pickSteps([1, 3, 5, 7], HITS)
+                hat: () => pickSteps([0, 2, 4, 6], HITS),
+                clap: () => pickSteps([1, 3, 5, 7], HITS)
             };
 
             pattern = {};
@@ -6979,6 +7319,8 @@
 
         return g;
     }
+
+
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
         window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {
         }));
