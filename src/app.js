@@ -310,29 +310,77 @@
         tone(freqs[id] || 440, .07, "sine", .045);
     }
 
+
+    // Voce preferita del narratore
+    const NARRATOR_VOICE_NAME = "Google italiano";
+    const NARRATOR_LANG = "it-IT";
+    const NARRATOR_RATE = 1.0;
+    const NARRATOR_PITCH = 0.7;
+
+    let cachedNarratorVoice = null;
+
+    function getNarratorVoice() {
+        if (cachedNarratorVoice) return cachedNarratorVoice;
+
+        const voices = speechSynthesis.getVoices();
+        // Cerca prima per nome esatto
+        let voice = voices.find(v => v.name === NARRATOR_VOICE_NAME);
+        // Fallback: qualsiasi voce it-IT
+        if (!voice) {
+            voice = voices.find(v => (v.lang || "").toLowerCase().startsWith("it"));
+        }
+        // Ultimo fallback: la prima voce disponibile
+        if (!voice && voices.length) voice = voices[0];
+
+        cachedNarratorVoice = voice || null;
+        return cachedNarratorVoice;
+    }
+
+// Precarica le voci (su alcuni browser arrivano in ritardo)
+    if ("speechSynthesis" in window) {
+        speechSynthesis.getVoices(); // trigger
+        speechSynthesis.addEventListener("voiceschanged", () => {
+            cachedNarratorVoice = null; // forza il ri-scan
+            getNarratorVoice();
+        });
+    }
+
     function say(text) {
         if (!("speechSynthesis" in window)) return;
         speechSynthesis.cancel();
         const u = new SpeechSynthesisUtterance(text);
-        u.lang = "it-IT";
-        u.rate = 1.05;
+        const voice = getNarratorVoice();
+        if (voice) {
+            u.voice = voice;
+            u.lang = voice.lang || NARRATOR_LANG;
+        } else {
+            u.lang = NARRATOR_LANG;
+        }
+        u.rate = NARRATOR_RATE;
+        u.pitch = NARRATOR_PITCH;
         u.volume = soundEnabled ? .8 : 0;
         speechSynthesis.speak(u);
     }
 
-// Come say(), ma restituisce una Promise che si risolve a fine frase
-    const spokenKeep = new Set();   // evita che il browser elimini la frase prima della fine
+    const spokenKeep = new Set();
 
     function sayAsync(text, maxMs) {
-        // Il limite di sicurezza dipende dalla lunghezza: con 8 s fissi le spiegazioni lunghe venivano tagliate
         const limit = maxMs ?? Math.max(8000, 4000 + String(text).length * 130);
         return new Promise(resolve => {
             if (!("speechSynthesis" in window)) return resolve();
             speechSynthesis.cancel();
             const u = new SpeechSynthesisUtterance(text);
-            u.lang = "it-IT";
-            u.rate = 1.05;
+            const voice = getNarratorVoice();
+            if (voice) {
+                u.voice = voice;
+                u.lang = voice.lang || NARRATOR_LANG;
+            } else {
+                u.lang = NARRATOR_LANG;
+            }
+            u.rate = NARRATOR_RATE;
+            u.pitch = NARRATOR_PITCH;
             u.volume = soundEnabled ? .8 : 0;
+
             let done = false;
             const end = () => {
                 if (done) return;
@@ -341,7 +389,6 @@
                 spokenKeep.delete(u);
                 resolve();
             };
-            // Sicurezza: su alcuni browser onend non scatta sempre
             const safety = setTimeout(end, limit);
             u.onend = end;
             u.onerror = end;
@@ -760,7 +807,7 @@
 
             ready = true;
             started = performance.now();
-            startNatureAmbience("assets/sounds/background-cattura-maiale.mp3", 0.08);
+            startNatureAmbience("assets/sounds/maiale/background-cattura-maiale.mp3", 0.08);
 
             next();
         };
@@ -798,7 +845,7 @@
         }
 
         function animalSound(a) {
-            playSample(`assets/sounds/${a}.mp3`, () => {
+            playSample(`assets/sounds/maiale/${a}.mp3`, () => {
             });
         }
 
@@ -820,7 +867,7 @@
                 scores[id]++;
                 renderScores();
 
-                playSample("assets/sounds/punto.mp3", () => {
+                playSample("assets/sounds/maiale/punto.mp3", () => {
                     tone(880, .14, "sine", .1);
                 });
 
@@ -835,7 +882,7 @@
                 renderScores();
                 blocked[id] = performance.now() + 1000;
 
-                playSample("assets/sounds/penalita.mp3", () => {
+                playSample("assets/sounds/maiale/penalita.mp3", () => {
                     tone(110, .22, "square", .08);
                 });
 
@@ -853,7 +900,7 @@
 
     function makeDuel() {
         const g = baseGame("duel");
-        const FALSE_START_SOUND = "assets/sounds/falsa-partenza.mp3";
+        const FALSE_START_SOUND = "assets/sounds/duello/falsa-partenza.mp3";
         let ready = new Set(), eligible = new Set(), round = 1, started = false, waiting = false, goAt = 0, wins = {};
         const total = 5;
         let introDone = false;
@@ -883,7 +930,7 @@
             setArena("Round " + round + " / " + total, "Premi il tuo tasto per prepararti");
             $("#game-status").textContent = "DUELLO";
             renderScores(wins);
-            say("Round " + round + ". Prepararsi");
+            say("Round " + round + ". Premi il tuo tasto per prepararti");
         }
 
         function signal() {
@@ -894,7 +941,7 @@
 
             setArena("🔥 VIA!", "Premi il tuo tasto!", "signal");
 
-            playSample("assets/sounds/inizio-duello.mp3", () => {
+            playSample("assets/sounds/duello/inizio-duello.mp3", () => {
                 tone(880, .28, "square", .18);
             });
 
@@ -922,14 +969,14 @@
             if (g.finished) return;
 
             if (g.duelWinner !== undefined) {
-                playSample("assets/sounds/proiettile-schiavato.mp3", () => {
+                playSample("assets/sounds/duello/proiettile-schiavato.mp3", () => {
                 });
                 return;
             }
 
             g.duelWinner = id;
 
-            playSample("assets/sounds/pistola-sparo.mp3", () => {
+            playSample("assets/sounds/duello/pistola-sparo.mp3", () => {
                 tone(180, .18, "sawtooth", .15);
             });
 
@@ -982,7 +1029,7 @@
             // Segnale già dato
             if (!eligible.has(id)) {
                 if (g.duelWinner !== undefined && id !== g.duelWinner) {
-                    playSample("assets/sounds/proiettile-schiavato.mp3", () => {
+                    playSample("assets/sounds/duello/proiettile-schiavato.mp3", () => {
                     });
                 }
                 return;
@@ -2238,6 +2285,69 @@
     }
 
     function makeRestaurant() {
+
+        // === Voce dedicata del ristoratore ===
+        const RESTAURANT_VOICE_PREFER = [
+            "Google 日本語"
+            // "Microsoft Elsa Online (Natural) - Italian (Italy)",
+            // "Microsoft Isabella Online (Natural) - Italian (Italy)",
+            // "Microsoft GiuseppeMultilingual Online (Natural) - Italian (Italy)",
+            // "Google italiano 2",
+            // "Google italiano"
+        ];
+        const RESTAURANT_RATE = 1.05;
+        const RESTAURANT_PITCH = 1.15;   // un po' più acuta/vivace rispetto al narratore
+
+        let restaurantVoice = null;
+
+        function getRestaurantVoice() {
+            if (restaurantVoice) return restaurantVoice;
+            const voices = speechSynthesis.getVoices();
+            for (const name of RESTAURANT_VOICE_PREFER) {
+                const found = voices.find(v => v.name === name);
+                if (found) {
+                    restaurantVoice = found;
+                    return found;
+                }
+            }
+            // Fallback: qualsiasi voce italiana diversa da quella del narratore
+            const itVoices = voices.filter(v => (v.lang || "").toLowerCase().startsWith("it"));
+            restaurantVoice = itVoices.find(v => v.name !== NARRATOR_VOICE_NAME) || itVoices[0] || null;
+            return restaurantVoice;
+        }
+
+        function sayRestaurant(text) {
+            return new Promise(resolve => {
+                if (!("speechSynthesis" in window)) {
+                    resolve();
+                    return;
+                }
+                const u = new SpeechSynthesisUtterance(text);
+                const voice = getRestaurantVoice();
+                if (voice) {
+                    u.voice = voice;
+                    u.lang = voice.lang || "it-IT";
+                } else {
+                    u.lang = "it-IT";
+                }
+                u.rate = RESTAURANT_RATE;
+                u.pitch = RESTAURANT_PITCH;
+                u.volume = soundEnabled ? 1 : 0;
+
+                let done = false;
+                const end = () => {
+                    if (done) return;
+                    done = true;
+                    clearTimeout(safety);
+                    resolve();
+                };
+                const safety = setTimeout(end, 6000);
+                u.onend = end;
+                u.onerror = end;
+                speechSynthesis.speak(u);
+            });
+        }
+
         const g = baseGame("restaurant");
 
         // === File audio ===
@@ -2288,7 +2398,7 @@
             return dish;
         }
 
-        // Annuncia il piatto e restituisce la durata in ms
+// Annuncia il piatto e restituisce la durata in ms
         function announce(dish) {
             const buffer = buffers.get(dish.file);
             if (buffer) {
@@ -2302,11 +2412,11 @@
                 source.start();
                 return buffer.duration * 1000;
             }
-            // Fallback: voce sintetica
-            say(dish.name);
-            return 500 + dish.name.length * 75;
-        }
 
+            // Fallback: voce dedicata del ristoratore
+            sayRestaurant(dish.name);
+            return 550 + dish.name.length * 70;
+        }
         function ranking() {
             return playerIds().sort((a, b) => scores[b] - scores[a]);
         }
@@ -6195,28 +6305,45 @@
 
         // === PARAMETRI ===
         const BEATS = 8;
-        const COUNT_IN = 4;           // 4 battute di preparazione
+        const COUNT_IN = 4;           // battute di preparazione
         const BEAT_MS = 700;
-        const TOL = 280;
+        const MIN_HITS = 2;           // colpi minimi che il creatore deve mettere
         const MASTER = 0.9;
 
-        let phase = "intro";          // intro | create | between | copy | over
+        // Bonus del creatore: premia il ritmo "ben calibrato", né troppo facile né troppo difficile.
+        // Si basa sulla precisione media di chi copia (colpi giusti meno colpi in più, diviso i colpi del ritmo).
+        //   precisione media tra 30% e 80%   → +2
+        //   tra 80% e 95%, oppure tra 10% e 30% → +1
+        //   oltre 95% (tutti perfetti) o sotto 10% (nessuno ci riesce) → 0
+        const bonusFor = avg =>
+            avg >= .30 && avg <= .80 ? 2
+                : (avg > .80 && avg <= .95) || (avg >= .10 && avg < .30) ? 1
+                    : 0;
+
+        let phase = "intro";          // intro | announce | create | listen | copy | between | over
         let creatorIndex = 0;
         let currentCreator = null;
         let sequence = [];            // boolean[8]
-        let beat = 0;                 // -COUNT_IN ... BEATS-1  (negativo = count-in)
+        let beat = 0;                 // -COUNT_IN ... BEATS-1  (negativo = preparazione)
         let hits = {};
         let beatStart = 0;
+        let pausedAt = 0;
+        let tries = 0;
+        let barSerial = 0;
         const buffers = new Map();
 
         const gone = () => game !== g || g.finished;
         const wait = ms => new Promise(r => setTimeout(r, ms));
         const ids = () => playerIds();
+        const dbg = (lvl, msg) => window.BPDebug?.log("ritmo", lvl, msg);
         const legend = () =>
             ids().map(p => COLORS[p] + " " + KITS[p].name.replace(/^(il|la) /, "")).join(" · ");
+        const grid = (marks, current) =>
+            marks.map((x, i) => (i === current ? "[" : "") + (x ? "●" : "○") + (i === current ? "]" : "")).join(" ");
 
         // === SUONI ===
         let noiseBuf = null;
+
         function getNoise(ctx) {
             if (!noiseBuf) {
                 noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
@@ -6274,7 +6401,6 @@
                 );
                 noiseHit(ctx, when + .036, "bandpass", 1400, 1, .35, .12, out);
             } else {
-                // click generico
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
                 osc.type = "square";
@@ -6305,45 +6431,77 @@
             }
         }
 
-        // Metronomo con due suoni diversi (pari / dispari) + count-in speciale
+        // Metronomo: preparazione più acuta, poi battute pari più gravi e dispari più acute
         function playMetronome(beatIndex) {
             const ctx = ensureAudio();
             const out = ctx.createGain();
             out.gain.value = soundEnabled ? 0.55 : 0;
             out.connect(ctx.destination);
-
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = "square";
+            const freq = beatIndex < 0 ? 1800 : beatIndex % 2 === 0 ? 900 : 1400;
+            const dur = beatIndex < 0 ? .09 : .05;
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.25, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+            osc.connect(gain);
+            gain.connect(out);
+            osc.start();
+            osc.stop(ctx.currentTime + dur + .02);
+        }
 
-            if (beatIndex < 0) {
-                // Count-in: suono più acuto e un po' più lungo
-                osc.frequency.value = 1800;
-                gain.gain.setValueAtTime(0.28, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.09);
-                osc.connect(gain);
-                gain.connect(out);
-                osc.start();
-                osc.stop(ctx.currentTime + 0.11);
-            } else if (beatIndex % 2 === 0) {
-                // Battuta pari → più grave
-                osc.frequency.value = 900;
-                gain.gain.setValueAtTime(0.22, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
-                osc.connect(gain);
-                gain.connect(out);
-                osc.start();
-                osc.stop(ctx.currentTime + 0.07);
-            } else {
-                // Battuta dispari → più acuta
-                osc.frequency.value = 1400;
-                gain.gain.setValueAtTime(0.2, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
-                osc.connect(gain);
-                gain.connect(out);
-                osc.start();
-                osc.stop(ctx.currentTime + 0.06);
+        // === UNA BARRA: preparazione + 8 battute ===
+        function showBeat() {
+            const countIn = beat < 0;
+            const prep = "Preparazione " + (COUNT_IN + beat + 1) + " / " + COUNT_IN;
+            if (phase === "create") {
+                setArena("🥁 " + COLORS[currentCreator] + " crea il ritmo",
+                    countIn ? prep : "Battuta " + (beat + 1) + " di " + BEATS + " · " + grid(sequence, beat), "signal");
+            } else if (phase === "listen") {
+                setArena("👂 Ascoltate il ritmo di " + COLORS[currentCreator],
+                    countIn ? prep : "Battuta " + (beat + 1) + " di " + BEATS + " · non premete");
+            } else if (phase === "copy") {
+                setArena("🥁 Copiate il ritmo di " + COLORS[currentCreator] + "!",
+                    countIn ? prep : "Battuta " + (beat + 1) + " di " + BEATS, "signal");
             }
+        }
+
+        function runBar(kind, onEnd) {
+            phase = kind;
+            beat = -COUNT_IN;
+            const serial = ++barSerial;
+            $("#game-status").textContent = kind === "create" ? "CREA IL RITMO · " + COLORS[currentCreator].toUpperCase()
+                : kind === "listen" ? "ASCOLTA" : "COPIA IL RITMO";
+            beatStart = performance.now();
+            playMetronome(beat);
+            showBeat();
+
+            const step = () => {
+                if (g.finished || phase !== kind || serial !== barSerial) return;
+                beat++;
+                if (beat >= BEATS) {
+                    phase = "between";
+                    onEnd();
+                    return;
+                }
+                beatStart = performance.now();
+                playMetronome(beat);
+                // solo nel giro di ascolto suona il ritmo del creatore; durante la copia nessun aiuto
+                if (kind === "listen" && beat >= 0 && sequence[beat]) {
+                    playDrum(KITS[currentCreator].type, KITS[currentCreator].file);
+                    dbg("info", "   🔊 modello: colpo sulla battuta " + (beat + 1));
+                }
+                showBeat();
+                later(step, BEAT_MS);
+            };
+            later(step, BEAT_MS);
+        }
+
+        // Battuta più vicina al momento della pressione (anche se si anticipa quella dopo)
+        function nearestBeat() {
+            const dt = performance.now() - beatStart;
+            return dt > BEAT_MS / 2 ? beat + 1 : beat;
         }
 
         // === CREAZIONE ===
@@ -6361,129 +6519,99 @@
             }
 
             currentCreator = ids()[creatorIndex];
-            sequence = Array(BEATS).fill(false);
-            beat = -COUNT_IN;          // parte dal count-in
-            phase = "create";
+            tries = 0;
+            startCreate();
+        }
 
+        function startCreate() {
+            if (g.finished) return;
+            sequence = Array(BEATS).fill(false);
+            phase = "announce";
             $("#game-status").textContent = "CREA IL RITMO · " + COLORS[currentCreator].toUpperCase();
-            setArena(
-                "🥁 " + COLORS[currentCreator] + " crea il ritmo",
-                "Preparazione… poi 8 battute",
-                "signal"
-            );
+            setArena("🥁 " + COLORS[currentCreator] + " crea il ritmo", "Ascolta i colpi di preparazione", "signal");
 
             sayAsync(COLORS[currentCreator] + " crea il ritmo. Ascolta i quattro colpi di preparazione.").then(() => {
-                if (gone() || phase !== "create") return;
-                beatStart = performance.now();
-                playMetronome(beat);
-                later(nextCreateBeat, BEAT_MS);
+                if (gone() || phase !== "announce") return;
+                runBar("create", afterCreate);
             });
         }
 
-        function nextCreateBeat() {
-            if (g.finished || phase !== "create") return;
+        function afterCreate() {
+            const n = sequence.filter(Boolean).length;
+            dbg("info", "🥁 " + COLORS[currentCreator] + " ha creato: " + grid(sequence, -1) + " (" + n + " colpi)");
 
-            beat++;
-            if (beat >= BEATS) {
-                phase = "between";
-                const hitsCount = sequence.filter(Boolean).length;
-                setArena(
-                    "Ritmo registrato!",
-                    COLORS[currentCreator] + " ha messo " + hitsCount + (hitsCount === 1 ? " colpo" : " colpi"),
-                    "signal"
-                );
-                later(startCopyPhase, 1200);
+            if (n < MIN_HITS) {
+                tries++;
+                if (tries >= 2) {
+                    sayAsync("Troppo pochi colpi. Si passa al prossimo.").then(() => {
+                        if (gone()) return;
+                        creatorIndex++;
+                        later(beginCreator, 500);
+                    });
+                } else {
+                    sayAsync("Troppo pochi colpi, riprova.").then(() => {
+                        if (gone()) return;
+                        later(startCreate, 500);
+                    });
+                }
                 return;
             }
 
-            const isCountIn = beat < 0;
-            setArena(
-                "🥁 " + COLORS[currentCreator] + " crea il ritmo",
-                isCountIn
-                    ? "Preparazione " + (COUNT_IN + beat + 1) + " / " + COUNT_IN
-                    : "Battuta " + (beat + 1) + " di " + BEATS + " · premi quando vuoi un colpo"
-            );
-
-            beatStart = performance.now();
-            playMetronome(beat);
-            later(nextCreateBeat, BEAT_MS);
+            setArena("Ritmo registrato!", COLORS[currentCreator] + " ha messo " + n + (n === 1 ? " colpo" : " colpi"), "signal");
+            sayAsync("Ritmo registrato. Ora ascoltatelo, senza premere.").then(() => {
+                if (gone()) return;
+                runBar("listen", () => {
+                    sayAsync("Ora copiatelo tutti insieme, senza aiuto!").then(() => {
+                        if (gone()) return;
+                        startCopy();
+                    });
+                });
+            });
         }
 
-        // === COPIA (tutti insieme) ===
-        function startCopyPhase() {
-            if (g.finished) return;
-
+        // === COPIA (tutti insieme, senza modello) ===
+        function startCopy() {
             const copyPlayers = ids().filter(p => p !== currentCreator);
             hits = Object.fromEntries(copyPlayers.map(p => [p, Array(BEATS).fill(false)]));
-            beat = -COUNT_IN;
-            phase = "copy";
-
-            $("#game-status").textContent = "COPIA IL RITMO";
-            setArena(
-                "🥁 Copiate il ritmo di " + COLORS[currentCreator] + "!",
-                "Preparazione… poi 8 battute",
-                "signal"
-            );
-
-            sayAsync("Ora copiate tutti insieme!").then(() => {
-                if (gone() || phase !== "copy") return;
-                beatStart = performance.now();
-                playMetronome(beat);
-                later(nextCopyBeat, BEAT_MS);
-            });
+            runBar("copy", judgeCopy);
         }
 
-        function nextCopyBeat() {
-            if (g.finished || phase !== "copy") return;
-
-            beat++;
-            if (beat >= BEATS) {
-                phase = "between";
-                judgeCopy();
-                return;
-            }
-
-            const isCountIn = beat < 0;
-            setArena(
-                "🥁 Copiate il ritmo di " + COLORS[currentCreator] + "!",
-                isCountIn
-                    ? "Preparazione " + (COUNT_IN + beat + 1) + " / " + COUNT_IN
-                    : "Battuta " + (beat + 1) + " di " + BEATS
-            );
-
-            beatStart = performance.now();
-            playMetronome(beat);
-
-            // Durante le battute vere suona anche il colpo del creatore (se c'era)
-            if (!isCountIn && sequence[beat]) {
-                playDrum(KITS[currentCreator].type, KITS[currentCreator].file);
-            }
-
-            later(nextCopyBeat, BEAT_MS);
-        }
-
+        // Punti solo per i colpi azzeccati; ogni colpo in più toglie un punto
         function judgeCopy() {
             const copyPlayers = ids().filter(p => p !== currentCreator);
-            let detail = [];
+            const total = sequence.filter(Boolean).length;
+            const detail = [];
+            const accuracy = [];
 
             for (const p of copyPlayers) {
-                let correct = 0;
+                let right = 0, extra = 0, missed = 0;
                 for (let i = 0; i < BEATS; i++) {
-                    if (hits[p][i] === sequence[i]) {
-                        correct++;
-                        scores[p] = (scores[p] || 0) + 1;
-                    } else {
-                        scores[p] = (scores[p] || 0) - 1;
-                    }
+                    if (sequence[i] && hits[p][i]) right++;
+                    else if (!sequence[i] && hits[p][i]) extra++;
+                    else if (sequence[i]) missed++;
                 }
-                detail.push(COLORS[p] + ": " + correct + "/" + BEATS);
+                const pts = right - extra;
+                scores[p] = (scores[p] || 0) + pts;
+                accuracy.push(Math.max(0, pts) / total);
+                detail.push(COLORS[p] + " " + pts + (Math.abs(pts) === 1 ? " punto" : " punti"));
+                dbg(pts > 0 ? "ok" : "info", (pts > 0 ? "✅ " : "⚪ ") + COLORS[p] + ": " + right + " giusti, " + extra + " in più, " + missed + " mancati → " + pts);
             }
 
-            renderScores();
-            setArena("Esiti del ritmo", detail.join(" · "));
-            toast(detail.join(" · "));
+            // Bonus del creatore in base a quanto bene (ma non troppo bene) è stato copiato il suo ritmo
+            const avg = accuracy.reduce((a, b) => a + b, 0) / Math.max(1, accuracy.length);
+            const bonus = bonusFor(avg);
+            scores[currentCreator] = (scores[currentCreator] || 0) + bonus;
+            const verdict = avg > .95 ? "troppo facile" : avg < .10 ? "troppo difficile" : "ben calibrato";
+            dbg(bonus ? "ok" : "info", "🎁 " + COLORS[currentCreator] + ": precisione media " + Math.round(avg * 100) + "% (" + verdict + ") → bonus " + bonus);
+            const bonusText = bonus
+                ? COLORS[currentCreator] + " prende " + bonus + (bonus === 1 ? " punto" : " punti") + " di bonus: ritmo " + verdict
+                : "Nessun bonus per " + COLORS[currentCreator] + ": ritmo " + verdict;
 
-            sayAsync("Il ritmo di " + COLORS[currentCreator] + ". " + detail.join(". ")).then(() => {
+            renderScores();
+            setArena("Esiti del ritmo", detail.join(" · ") + " · " + bonusText);
+            toast(detail.join(" · ") + " · " + bonusText);
+
+            sayAsync("Il ritmo di " + COLORS[currentCreator] + " aveva " + total + " colpi. " + detail.join(". ") + ". " + bonusText + ".").then(() => {
                 if (gone()) return;
                 creatorIndex++;
                 later(beginCreator, 900);
@@ -6499,18 +6627,27 @@
             scores = Object.fromEntries(ids().map(p => [p, 0]));
             renderScores();
 
+            window.BPDebug?.watch(() => ({
+                fase: phase,
+                creatore: currentCreator ? COLORS[currentCreator] : "—",
+                battuta: beat,
+                ritmo: sequence.length ? grid(sequence, -1) : "—",
+                punti: {...scores}
+            }));
+
             $("#game-status").textContent = "PREPARATI";
             setArena("🥁 Copia il ritmo", legend());
 
             const files = [CLICK, ...Object.values(KITS).map(k => k.file)];
             const preload = Promise.all(files.map(async f => buffers.set(f, await loadSample(f))));
 
-            await sayIntro(
+            if (!await narrate(g,
                 "Copia il ritmo. A turno un giocatore crea un ritmo di otto battute. " +
                 "Prima di ogni ritmo ci sono quattro colpi di preparazione. " +
-                "Gli altri copiano tutti insieme. Ogni giocatore ha il suo suono. " +
-                "Si fa un giro completo."
-            );
+                "Poi tutti lo ascoltano una volta, e infine gli altri lo copiano insieme, senza aiuto. " +
+                "Ogni colpo giusto vale un punto, ogni colpo in più ne toglie uno. " +
+                "Chi crea il ritmo prende un bonus se gli altri lo copiano bene, ma non troppo bene: né troppo facile, né impossibile. " +
+                "Ogni giocatore ha il suo suono. Si fa un giro completo.")) return;
             await preload;
             if (gone()) return;
 
@@ -6528,40 +6665,35 @@
         // === INPUT ===
         g.onInput = e => {
             if (e.type !== "down" || !ids().includes(e.button) || g.finished) return;
-
             const id = e.button;
-            const now = performance.now();
 
-            // Solo durante le battute vere (beat >= 0)
-            if (beat < 0) return;
-
-            if (phase === "create" && id === currentCreator && beat < BEATS) {
-                if (now - beatStart < BEAT_MS + TOL) {
-                    sequence[beat] = true;
-                    playDrum(KITS[id].type, KITS[id].file);
-                }
+            if (phase === "create" && id === currentCreator) {
+                const b = nearestBeat();
+                if (b < 0 || b >= BEATS) return;
+                sequence[b] = true;
+                playDrum(KITS[id].type, KITS[id].file);
                 return;
             }
 
-            if (phase === "copy" && id !== currentCreator && beat < BEATS) {
-                if (now - beatStart < BEAT_MS + TOL) {
-                    hits[id][beat] = true;
-                    playDrum(KITS[id].type, KITS[id].file);
-                }
+            if (phase === "copy" && id !== currentCreator) {
+                const b = nearestBeat();
+                if (b < 0 || b >= BEATS) return;
+                hits[id][b] = true;
+                playDrum(KITS[id].type, KITS[id].file);
             }
+        };
+
+        g.pause = () => {
+            pausedAt = performance.now();
         };
 
         g.resume = () => {
-            if (phase === "create") {
-                setArena("🥁 " + COLORS[currentCreator] + " crea il ritmo", "Continua…");
-            } else if (phase === "copy") {
-                setArena("🥁 Copiate il ritmo!", "Continua…");
-            } else {
-                setArena("🥁 Si riparte!", "");
-            }
+            beatStart += performance.now() - pausedAt;   // il tempo della pausa non conta per le battute
+            showBeat();
         };
 
         g.dispose = () => {
+            barSerial++;
             stopTimer();
             speechSynthesis?.cancel();
         };
@@ -6576,17 +6708,53 @@
             JUMP = DIR + "salto.mp3",
             TURN = DIR + "cambio-verso.mp3",
             VIA = DIR + "via.mp3";
+
+        // === Parametri ===
+        const START_MS = 3500;        // tempo per agire all'inizio (ms)
+        const MIN_MS = 600;           // tempo minimo raggiungibile (ms)
+        const SPEEDUP = .94;          // ogni passaggio riduce il tempo del 6%
+        const SPEEDUP_ELIM = .91;     // ogni eliminazione lo riduce ancora di più
         const DOUBLE_MS = 280, HOLD_MS = 420;
-        let order = [], current = 0, direction = 1, deadlineMs = 10000,
+
+        let order = [], current = 0, direction = 1, deadlineMs = START_MS,
             lastTap = {}, downAt = {}, round = 0, turnSerial = 0,
             inputReady = false, holdTimer = null, heldAction = {},
-            needsFullAnnounce = true;
+            needsFullAnnounce = true, rearmOnResume = false, armedFor = null;
 
         const active = () => order.filter(p => playerIds().includes(p));
         const currentPlayer = () => {
             const list = active();
             return list.length ? list[((current % list.length) + list.length) % list.length] : null;
         };
+
+        // Avvia il tempo massimo per agire: se scade, il giocatore è eliminato
+        function armDeadline(p, serial) {
+            armedFor = {p, serial};
+            later(() => {
+                if (g.finished || serial !== turnSerial || currentPlayer() !== p) return;
+                stopTimer();
+                inputReady = false;
+
+                if (holdTimer !== null) {
+                    clearTimeout(holdTimer);
+                    holdTimer = null;
+                }
+                delete downAt[p];
+                delete heldAction[p];
+
+                toast(COLORS[p] + " perde ed è eliminato!");
+                sayAsync(COLORS[p] + " perde ed è eliminato.").then(() => {
+                    if (g.finished || serial !== turnSerial) return;
+                    order = order.filter(x => x !== p);
+                    const stillThere = active().indexOf(p);
+                    current = stillThere >= 0 ? stillThere : Math.max(0, Math.min(current, active().length - 1));
+                    deadlineMs = Math.max(MIN_MS, deadlineMs * SPEEDUP_ELIM);
+                    round++;
+                    needsFullAnnounce = true;
+                    announceTurn();
+                });
+            }, deadlineMs);
+        }
 
         function announceTurn() {
             if (g.finished) return;
@@ -6602,6 +6770,7 @@
             holdTimer = null;
             heldAction = {};
             inputReady = false;
+            rearmOnResume = false;
             Object.keys(downAt).forEach(k => delete downAt[k]);
             lastTap = {};
 
@@ -6613,44 +6782,19 @@
             const enableAndStartTimer = () => {
                 if (g.finished || serial !== turnSerial || currentPlayer() !== p) return;
                 inputReady = true;
-
-                later(() => {
-                    if (g.finished || serial !== turnSerial || currentPlayer() !== p) return;
-                    stopTimer();
-                    inputReady = false;
-
-                    // pulizia di sicurezza
-                    if (holdTimer !== null) {
-                        clearTimeout(holdTimer);
-                        holdTimer = null;
-                    }
-                    delete downAt[p];
-                    delete heldAction[p];
-
-                    toast(COLORS[p] + " perde ed è eliminato!");
-                    sayAsync(COLORS[p] + " perde ed è eliminato.").then(() => {
-                        if (g.finished || serial !== turnSerial) return;
-                        order = order.filter(x => x !== p);
-                        const stillThere = active().indexOf(p);
-                        current = stillThere >= 0 ? stillThere : Math.max(0, Math.min(current, active().length - 1));
-                        deadlineMs = Math.max(420, deadlineMs * .91);
-                        round++;
-                        needsFullAnnounce = true;
-                        announceTurn();
-                    });
-                }, deadlineMs);
+                armDeadline(p, serial);
             };
 
             if (needsFullAnnounce) {
                 needsFullAnnounce = false;
-                // Voce + suono di via solo all’inizio e dopo eliminazione
+                // Voce + suono di via solo all'inizio e dopo un'eliminazione
                 sayAsync("Tocca a " + COLORS[p] + ". Attendi il segnale.").then(() => {
                     if (g.finished || serial !== turnSerial || currentPlayer() !== p) return;
-                    playSample(VIA);               // suono di via
-                    enableAndStartTimer();         // abilita appena inizia il suono
+                    playSample(VIA, () => tone(1046, .14, "square", .14));   // suono di via (con ripiego)
+                    enableAndStartTimer();
                 });
             } else {
-                // Turno normale: nessun annuncio e nessun suono di via
+                // Turno normale: nessun annuncio. Si capisce a chi tocca dal suono del tasto di chi ti precede
                 enableAndStartTimer();
             }
         }
@@ -6659,7 +6803,7 @@
             const len = active().length;
             if (!len) return;
             current = ((current + direction * steps) % len + len) % len;
-            deadlineMs = Math.max(420, deadlineMs * .96);
+            deadlineMs = Math.max(MIN_MS, deadlineMs * SPEEDUP);
             round++;
             announceTurn();
         }
@@ -6668,7 +6812,7 @@
             order = [...playerIds()];
             current = 0;
             direction = 1;
-            deadlineMs = 10000;
+            deadlineMs = START_MS;
             round = 0;
             lastTap = {};
             downAt = {};
@@ -6677,10 +6821,19 @@
             heldAction = {};
             holdTimer = null;
             needsFullAnnounce = true;
+            rearmOnResume = false;
 
             scores = Object.fromEntries(order.map(p => [p, 0]));
             renderScores();
             [GALLOP, JUMP, TURN, VIA].forEach(loadSample);
+
+            window.BPDebug?.watch(() => ({
+                inGioco: active().map(p => COLORS[p]),
+                tocca: currentPlayer() ? COLORS[currentPlayer()] : "—",
+                verso: direction > 0 ? "orario" : "antiorario",
+                tempoPerAgire_ms: Math.round(deadlineMs),
+                pronto: inputReady
+            }));
 
             if (!await narrate(g,
                 "Cavallino. Ascolta: la voce dirà a chi tocca e poi dirà «Attendi il segnale». " +
@@ -6706,8 +6859,7 @@
 
             if (!inputReady) return;
 
-// Fuori turno: elimina SOLO se è un nuovo "down".
-// Gli "up" residui vengono ignorati (non devono eliminare).
+            // Fuori turno: elimina SOLO se è un nuovo "down". Gli "up" residui vengono ignorati.
             if (id !== currentPlayer()) {
                 if (e.type === "down") {
                     stopTimer();
@@ -6726,13 +6878,13 @@
                         order = order.filter(x => x !== id);
                         const idx = active().indexOf(prevCurrent);
                         current = idx >= 0 ? idx : Math.max(0, Math.min(current, active().length - 1));
-                        deadlineMs = Math.max(420, deadlineMs * .91);
+                        deadlineMs = Math.max(MIN_MS, deadlineMs * SPEEDUP_ELIM);
                         round++;
                         needsFullAnnounce = true;
                         announceTurn();
                     });
                 }
-                return;   // up o qualsiasi altro evento da non-current → ignora
+                return;
             }
 
             // Solo il giocatore di turno
@@ -6744,7 +6896,7 @@
                 if (holdTimer !== null) clearTimeout(holdTimer);
                 holdTimer = setTimeout(() => {
                     holdTimer = null;
-                    if (g.finished || !inputReady || downAt[id] === undefined || id !== currentPlayer()) return;
+                    if (paused || g.finished || !inputReady || downAt[id] === undefined || id !== currentPlayer()) return;
                     delete downAt[id];
                     heldAction[id] = true;
                     stopTimer();
@@ -6800,12 +6952,35 @@
             }, DOUBLE_MS);
         };
 
+        // Pausa: la pressione in corso viene annullata. Il timer del turno era già stato fermato
+        // alla pressione, quindi va riarmato alla ripresa (altrimenti il giocatore resterebbe bloccato).
+        g.pause = () => {
+            if (holdTimer !== null) {
+                clearTimeout(holdTimer);
+                holdTimer = null;
+            }
+            const p = currentPlayer();
+            rearmOnResume = inputReady && p !== null && downAt[p] !== undefined;
+            downAt = {};
+            heldAction = {};
+        };
+
+        g.resume = () => {
+            if (rearmOnResume && inputReady && armedFor && armedFor.serial === turnSerial) {
+                armDeadline(armedFor.p, armedFor.serial);
+            }
+            rearmOnResume = false;
+            const p = currentPlayer();
+            setArena("🐎 Si riparte!", p ? "Tocca a " + COLORS[p] : "");
+        };
+
         g.dispose = () => {
             turnSerial++;
             inputReady = false;
             if (holdTimer !== null) clearTimeout(holdTimer);
             holdTimer = null;
             stopTimer();
+            speechSynthesis?.cancel();
         };
 
         return g;
