@@ -23,7 +23,7 @@
         grinder: "Tieni premuto per spingere il legno contro la mola. Quando il suono finisce, lascia subito il tasto o perdi la mano! Vince chi tiene premuto più a lungo in totale.",
         bomb: "La bomba passa da un giocatore all'altro: premi solo quando senti il tuo colore. Se premi fuori turno o non fai in tempo, sei eliminato. Il ritmo accelera sempre di più.",
         rope: "La corda batte a terra a ritmo regolare: premi il tuo tasto nello stesso istante del colpo. I primi tre colpi sono di prova. Chi non salta o salta fuori tempo è eliminato. Il ritmo accelera. Vince l'ultimo rimasto.",        tennis: "Senti il rimbalzo della palla: quando rimbalza verso di te, premi per rispondere. Poi tocca al giocatore successivo in senso orario. Se premi prima del tuo rimbalzo resti fermo 2 secondi. Se manchi la palla perdi una vita.",
-        sushi: "A turno, ascolta il percorso e ripetilo con i tasti. Le direzioni sono relative a te. Un chilometro è una pressione. Se sbagli sei licenziato.",
+        tapas: "A turno, ascolta il percorso e ripetilo con i tasti. Le direzioni sono relative a te. Un chilometro è una pressione. Se sbagli sei licenziato.",
         rally: "Quando tocca a te la macchina parte: il navigatore dice comandi come «3 destra» o «2 accelera» e tu premi subito, senza aspettare. I comandi arrivano sempre più veloci e ravvicinati. Un errore o un ritardo e fai incidente. Vince chi completa più comandi.",
         beeper: "Ogni giocatore ha un parlatore diverso, assegnato a voce. Tieni premuto per bippare tutta la parolaccia: più la copri, più punti prendi (fino a 3). Più tieni premuto su parole normali, più punti perdi (1,5 al secondo). Se bippi un parlatore che non è il tuo perdi punti allo stesso modo. Ogni parlatore dice lo stesso numero di parolacce.",
         beat: "Ogni giocatore ha una percussione: cassa, rullante, charleston o battimani. Premi il tuo tasto a tempo quando senti la tua. Se premi nel momento sbagliato perdi un punto. Dopo tre loop la partita finisce.",
@@ -43,7 +43,7 @@
         bomb: "Palla esplosiva",
         rope: "Saltare la corda",
         tennis: "Tennis",
-        sushi: "Consegna sushi",
+        tapas: "Consegna tapas",
         rally: "Rally",
         beeper: "Il bippatore",
         beat: "Tieni il tempo",
@@ -213,7 +213,7 @@
         ...["bambini", "corda", "salto", "inciampo"].map(DIR_("corda")),
         ...["rimbalzo", "racchetta", "fallo", "mancata"].map(DIR_("tennis")),
         ...["consegna", "licenziato", "motorino", "motorino-loop", "frenata", "consegnata",
-            "avanti", "destra", "indietro", "sinistra", "km-1", "km-2", "km-3", "km-4"].map(DIR_("sushi")),
+            "avanti", "destra", "indietro", "sinistra", "km-1", "km-2", "km-3", "km-4"].map(DIR_("tapas")),
         ...["incidente", "ok", "accelera"].map(DIR_("rally")),
         ...["stappa", "bevi", "finita", "bicchiere-rotto", "rutto"].map(DIR_("assetato")),
         ...["sparo", "ricercato-corsa", "inizio-premi"].map(DIR_("taglia")),
@@ -485,7 +485,7 @@
         });
     }
 
-// Voce giapponese condivisa (Ristorante e Consegna sushi): legge testo italiano
+// Voce giapponese condivisa (Consegna tapas): legge testo italiano
     const JA_VOICE_PREFER = ["Google 日本語"];
     let jaVoice = null;
 
@@ -503,6 +503,47 @@
         return new Promise(resolve => {
             const u = new SpeechSynthesisUtterance(text);
             const v = getJaVoice();
+            if (v) {
+                u.voice = v;
+                u.lang = v.lang;
+            } else u.lang = "it-IT";
+            u.rate = rate;
+            u.pitch = pitch;
+            u.volume = soundEnabled ? 1 : 0;
+            let done = false;
+            const end = () => {
+                if (done) return;
+                done = true;
+                clearTimeout(safety);
+                spokenKeep.delete(u);
+                resolve();
+            };
+            const safety = setTimeout(end, 8000);
+            u.onend = end;
+            u.onerror = end;
+            spokenKeep.add(u);
+            speechSynthesis.speak(u);
+        });
+    }
+
+    // Voce spagnola condivisa (Consegna tapas): legge testo italiano
+    const ES_VOICE_PREFER = ["Google español"];
+    let esVoice = null;
+
+    function getEsVoice() {
+        if (esVoice) return esVoice;
+        const voices = speechSynthesis.getVoices();
+        const found = ES_VOICE_PREFER.map(n => voices.find(v => v.name === n)).find(Boolean)
+            || voices.find(v => (v.lang || "").toLowerCase().startsWith("es"));
+        if (found) esVoice = found;                 // non memorizzare "null": le voci possono arrivare dopo
+        return found || null;
+    }
+
+    function sayEs(text, rate = 1.0, pitch = 1.1) {
+        if (!("speechSynthesis" in window)) return Promise.resolve();
+        return new Promise(resolve => {
+            const u = new SpeechSynthesisUtterance(text);
+            const v = getEsVoice();
             if (v) {
                 u.voice = v;
                 u.lang = v.lang;
@@ -927,7 +968,7 @@
             bomb: makeBomb,
             rope: makeRope,
             tennis: makeTennis,
-            sushi: makeSushi,
+            tapas: makeTapas,
             rally: makeRally,
             beeper: makeBeeper,
             beat: makeBeat,
@@ -3992,11 +4033,11 @@
         return g;
     }
 
-    function makeSushi() {
-        const g = baseGame("sushi");
+    function makeTapas() {
+        const g = baseGame("tapas");
 
         // === File audio ===
-        const DIR = "assets/sounds/sushi/";
+        const DIR = "assets/sounds/tapas/";
         const INTRO = DIR + "consegna.mp3";
         const FIRED = DIR + "licenziato.mp3";
         const SCOOTER = DIR + "motorino.mp3";
@@ -4004,7 +4045,7 @@
         const BRAKE = DIR + "frenata.mp3";
         const DELIVERED = DIR + "consegnata.mp3";
         const kmFile = n => DIR + "km-" + n + ".mp3";
-        const FORCE_JA = true;   // true: voce giapponese anche se ci sono i file italiani
+        const FORCE_ES = true;   // true: voce spagnola anche se ci sono i file italiani
 
         // Direzioni: testo per la voce sintetica, file audio, freccia
         const DIRECTIONS = {
@@ -4171,17 +4212,17 @@
         }
 
         async function voice(path, text) {
-            if (!FORCE_JA && await loadSample(path)) return playSampleWait(path, () => {});
-            return sayJa(text);
+            if (!FORCE_ES && await loadSample(path)) return playSampleWait(path, () => {});
+            return sayEs(text);
         }
 
         async function sayLeg(leg) {
             const n = kmFile(leg.km), d = DIRECTIONS[leg.dir].file;
-            if (!FORCE_JA && await loadSample(n) && await loadSample(d)) {
+            if (!FORCE_ES && await loadSample(n) && await loadSample(d)) {
                 await playSampleWait(n, () => {});
                 await playSampleWait(d, () => {});
             } else {
-                await sayJa(legText(leg));
+                await sayEs(legText(leg));
             }
         }
 
@@ -4270,7 +4311,7 @@
 
             if (gone()) return;
 
-            await voice(INTRO, "Consegna il sushi qui vicino.");
+            await voice(INTRO, "Consegna le tapas qui vicino.");
 
             for (const leg of legs) {
                 if (gone()) return;
@@ -4345,7 +4386,7 @@
                         });
 
                         toast("🍕 " + COLORS[p] +
-                            " ha consegnato il sushi!");
+                            " ha consegnato le tapas!");
 
                     } else {
                         failed.push(p);
@@ -4477,7 +4518,7 @@
             );
 
             await sayIntro(
-                "Consegna sushi. Ascolta il percorso e ripetilo. " +
+                "Consegna tapas. Ascolta il percorso e ripetilo. " +
                 "Le direzioni sono relative a te: indietro è il tuo tasto, " +
                 "avanti è quello di fronte, destra e sinistra sono ai tuoi lati. " +
                 "Un chilometro è una pressione. Se sbagli, sei licenziato!"
@@ -4561,10 +4602,9 @@
             sinistra: {text: "sinistra", arrow: "←"},
             avanti: {text: "avanti", arrow: "↑"},
             indietro: {text: "indietro", arrow: "↓"},
-            accelera: {text: "accelera", arrow: "⚡"}
         };
         const ORDER = ["P1", "P2", "P3", "P4"];
-        const OFFSET = {indietro: 0, sinistra: 1, avanti: 2, destra: 3, accelera: 0};
+        const OFFSET = {indietro: 0, sinistra: 1, avanti: 2, destra: 3};
         const buttonFor = (player, action) => ORDER[(ORDER.indexOf(player) + OFFSET[action]) % ORDER.length];
         const legendFor = player => Object.entries(ACTIONS)
             .map(([key, a]) => a.arrow + " " + COLORS[buttonFor(player, key)]).join(" · ");
