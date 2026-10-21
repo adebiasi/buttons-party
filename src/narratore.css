@@ -1,0 +1,25 @@
+/* Pagina narratore: pochi elementi grandi, leggibili da chi assiste alla partita. */
+.narrator-panel { margin-bottom: 18px; }
+.narrator-text { font-size: clamp(1.1rem, 2.6vw, 1.45rem); font-weight: 700; line-height: 1.4; margin: 22px 0; }
+.narrator-content { display: grid; gap: 16px; }
+.narrator-actions { margin-top: 16px; }
+.nar-players { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+.nar-player { border: 1px solid var(--line); border-radius: 16px; padding: 14px; text-align: center; background: #222a3a; opacity: .45; }
+.nar-player.ready { opacity: 1; }
+.nar-player.p1.ready { border-color: var(--red); }
+.nar-player.p2.ready { border-color: var(--blue); }
+.nar-player.p3.ready { border-color: var(--yellow); }
+.nar-player.p4.ready { border-color: var(--green); }
+.nar-player strong, .nar-player span { display: block; }
+.nar-player span:last-child { margin-top: 6px; color: var(--muted); font-size: .9rem; }
+.nar-emoji { font-size: 1.8rem; margin-bottom: 6px; }
+.nar-games, .nar-rank { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.nar-games li, .nar-rank li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 12px; background: #222a3a; }
+.nar-games li.current { outline: 2px solid var(--yellow); }
+.nar-games li.done { opacity: .6; }
+.nar-pts { color: var(--muted); font-variant-numeric: tabular-nums; }
+.nar-rank li { font-size: 1.15rem; }
+.nar-rank li:first-child { border: 1px solid var(--yellow); }
+footer a { color: var(--muted); }
+/* Si gioca solo con l'audio: app.js mostra il pannello a ogni partita, qui resta sempre nascosto. */
+#game-panel { display: none !important; }

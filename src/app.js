@@ -64,6 +64,10 @@
     let audio = null, soundEnabled = true, game = null, timer = null, paused = false;
     let natureSource = null, natureGain = null, natureVolume = 0.08;
     let held = new Set(), players = 4, scores = {}, toastTimer = null;
+    // Tasti scelti dai giocatori (es. ["P2","P3"]); null = i primi `players` tasti.
+    let activeButtons = null;
+    // Se false, il tasto centrale senza partita in corso non avvia un gioco (usato da narratore.html).
+    let menuStartEnabled = true;
     let fallSource = null, fallGain = null;
     let ground = 0, start = 0;
 
@@ -687,7 +691,7 @@
     }
 
     function playerIds() {
-        return PLAYER_BUTTONS.slice(0, players);
+        return activeButtons ? [...activeButtons] : PLAYER_BUTTONS.slice(0, players);
     }
 
     function renderScores(extra = {}) {
@@ -714,7 +718,7 @@
         if (type === "down") {
             if (!game) {
                 window.BPDebug?.input(event, id === "C" ? "→ avvio partita" : "ignorato (nessuna partita)");
-                if (id === "C") startGame();
+                if (id === "C" && menuStartEnabled) startGame();
                 return;
             }
             if (paused) {
@@ -8519,15 +8523,27 @@
         }));
     }
     window.BPArcade = {
-        start: (id, count) => {
+        // `who` può essere un numero di giocatori (2–4) o l'elenco dei tasti usati, es. ["P2","P3"].
+        start: (id, who) => {
             if (!GAME_NAMES[id]) throw new Error("Minigioco sconosciuto: " + id);
+            activeButtons = Array.isArray(who)
+                ? PLAYER_BUTTONS.filter(b => who.includes(b))
+                : null;
+            const count = activeButtons ? activeButtons.length : Number(who);
             $("#player-count").value = String(count);
             $("#game-select").value = id;
             updateSetup();
             startGame();
         },
         end: endGame,
-        games: () => ({...GAME_NAMES})
+        games: () => ({...GAME_NAMES}),
+        colors: () => ({...COLORS}),
+        speak: (text, maxMs) => sayAsync(text, maxMs),
+        unlockAudio: () => ensureAudio(),
+        setMenuStart: enabled => {
+            menuStartEnabled = !!enabled;
+        },
+        ble: bleController
     };
 
     updateSetup();

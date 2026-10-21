@@ -1,8 +1,8 @@
-const CACHE = "buttons-party-v0.2";   // cambialo a ogni rilascio
+const CACHE = "buttons-party-v0.3";   // cambialo a ogni rilascio
 const ASSETS = [
-    "./", "./index.html", "./manifest.webmanifest", "./assets/icon.svg",
-    "./src/style.css", "./src/debug.css",
-    "./src/app.js", "./src/debug.js", "./src/controller-ble.js",
+    "./", "./index.html", "./narratore.html", "./manifest.webmanifest", "./assets/icon.svg",
+    "./src/style.css", "./src/debug.css", "./src/narratore.css",
+    "./src/app.js", "./src/debug.js", "./src/controller-ble.js", "./src/narratore.js",
     // ...qui gli mp3 di ALL_SOUNDS (generabili con uno script)
 ];
 

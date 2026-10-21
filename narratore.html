@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#10131d">
+  <meta name="description" content="Buttons-party: partita guidata dal narratore, giocabile senza guardare lo schermo.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./src/style.css">
+  <link rel="stylesheet" href="./src/narratore.css">
+  <title>Buttons-party · Narratore</title>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div><p class="eyebrow">PARTITA GUIDATA DAL NARRATORE</p><h1>Buttons<span>-</span>party</h1></div>
+    </header>
+
+    <section id="narrator-panel" class="panel narrator-panel">
+      <div class="section-heading">
+        <div><p class="eyebrow" id="narrator-phase">BENVENUTI</p><h2 id="narrator-title">Tocca lo schermo o premi un tasto per iniziare</h2></div>
+        <span class="pill" id="narrator-input">Controller: —</span>
+      </div>
+      <p id="narrator-text" class="narrator-text" aria-live="polite">Il narratore ti guiderà a voce in ogni fase: non serve guardare lo schermo.</p>
+      <div id="narrator-content" class="narrator-content"></div>
+      <div class="narrator-actions">
+        <button id="narrator-retry-ble" class="secondary-button" hidden>🔵 Riprova controller Bluetooth</button>
+      </div>
+      <p class="hint">Tastiera: <kbd>1</kbd> rosso · <kbd>2</kbd> blu · <kbd>3</kbd> giallo · <kbd>4</kbd> verde · <kbd>Spazio</kbd>/<kbd>Invio</kbd> tasto centrale.</p>
+    </section>
+
+    <!-- Pannello del gioco usato da app.js: sempre nascosto, si gioca solo con l'audio -->
+    <section id="game-panel" class="panel game-panel" hidden aria-hidden="true">
+      <div class="game-top"><div><p id="game-status" class="eyebrow">PRONTI</p><h2 id="game-title">Minigioco</h2></div><div class="game-actions"><button id="pause-button" class="secondary-button">Ⅱ Pausa</button><button id="exit-button" class="quiet-button" hidden>✕ Esci</button></div></div>
+      <div id="arena" class="arena"><div id="arena-message" class="arena-message"></div><div id="live-info" class="live-info"></div></div>
+      <div id="scores" class="scores"></div>
+      <div id="simon-feedback" class="simon-feedback" aria-live="polite"></div>
+    </section>
+
+    <section class="controller-wrap" aria-label="Controller virtuale a cinque pulsanti">
+      <div class="cross-controller">
+        <span class="cross-spacer"></span><button class="pad pad-p1" data-button="P1" aria-label="Rosso"><span class="pad-number">1</span><small>ROSSO</small></button><span class="cross-spacer"></span>
+        <button class="pad pad-p4" data-button="P4" aria-label="Verde"><span class="pad-number">4</span><small>VERDE</small></button>
+        <button class="pad pad-c" data-button="C" aria-label="Tasto centrale"><span class="pad-number">●</span><small>CENTRO</small></button>
+        <button class="pad pad-p2" data-button="P2" aria-label="Blu"><span class="pad-number">2</span><small>BLU</small></button>
+        <span class="cross-spacer"></span><button class="pad pad-p3" data-button="P3" aria-label="Giallo"><span class="pad-number">3</span><small>GIALLO</small></button><span class="cross-spacer"></span>
+      </div>
+    </section>
+
+    <!-- Elementi richiesti da app.js, non usati in questa pagina -->
+    <div hidden>
+      <button id="sound-toggle" aria-pressed="true"></button>
+      <section id="setup-panel">
+        <select id="player-count"><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option></select>
+        <select id="game-select">
+          <option value="pig">pig</option><option value="duel">duel</option><option value="parachute">parachute</option>
+          <option value="disturber">disturber</option><option value="pot">pot</option><option value="simon">simon</option>
+          <option value="mosquito">mosquito</option><option value="mine">mine</option><option value="freeze">freeze</option>
+          <option value="lesson">lesson</option><option value="door">door</option><option value="restaurant">restaurant</option>
+          <option value="grinder">grinder</option><option value="bomb">bomb</option><option value="rope">rope</option>
+          <option value="tennis">tennis</option><option value="tapas">tapas</option><option value="rally">rally</option>
+          <option value="beeper">beeper</option><option value="beat">beat</option><option value="thirsty">thirsty</option>
+          <option value="tug">tug</option><option value="bounty">bounty</option><option value="copyrhythm">copyrhythm</option>
+          <option value="horse">horse</option>
+        </select>
+        <p id="game-description"></p>
+        <input type="checkbox" id="ble-enabled">
+        <button type="button" id="ble-connect"></button>
+        <button type="button" id="ble-disconnect"></button>
+        <p id="ble-status"></p>
+        <button id="start-button"></button>
+        <button id="random-button"></button>
+      </section>
+    </div>
+    <footer><span>Buttons-party · narratore</span><a href="./index.html">Torna al prototipo</a></footer>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./src/controller-ble.js"></script>
+  <script src="./src/app.js"></script>
+  <script src="./src/narratore.js"></script>
+</body>
+</html>

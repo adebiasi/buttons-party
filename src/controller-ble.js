@@ -55,6 +55,35 @@
         optionalServices: [SERVICE_UUID]
       });
 
+      await this.attach(device);
+    }
+
+    // Ricollega senza finestra di scelta un controller già autorizzato in passato
+    // (richiede navigator.bluetooth.getDevices). Restituisce true se collegato.
+    async reconnectKnown(timeoutMs = 5000) {
+      if (!navigator.bluetooth?.getDevices) return false;
+      const devices = await navigator.bluetooth.getDevices();
+      const device = devices.find(d => d.name === "ESP32-Pulsantiera");
+      if (!device) return false;
+      let timer;
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Timeout")), timeoutMs);
+      });
+      try {
+        await Promise.race([this.attach(device), timeout]);
+        return this.isConnected();
+      } catch {
+        return false;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    isConnected() {
+      return Boolean(this.device?.gatt?.connected && this.characteristic);
+    }
+
+    async attach(device) {
       this.device = device;
       device.addEventListener(
           "gattserverdisconnected",
