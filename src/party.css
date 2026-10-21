@@ -1,0 +1,28 @@
+/* Interfaccia partita: usa la grafica principale del prototipo, senza strumenti debug. */
+.party-wizard { max-width: 760px; margin: clamp(24px, 7vh, 72px) auto; padding: clamp(22px, 4vw, 42px); }
+.party-wizard h2 { margin: .2rem 0; }
+.party-wizard #wizard-content { display: grid; gap: 18px; margin-top: 28px; }
+.party-wizard .primary-button { min-height: 58px; font-size: 1.05rem; }
+.party-wizard .hint { margin: 0; }
+.wizard-footer { display:flex; justify-content:space-between; gap:12px; border-top:1px solid rgba(128,140,170,.22); margin-top:28px; padding-top:16px; color:var(--muted,#9aa3b8); font-size:.9rem; }
+.party-players { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin:10px 0; }
+.party-player { border:1px solid rgba(128,140,170,.28); border-radius:16px; padding:16px; text-align:center; background:rgba(255,255,255,.03); }
+.party-player strong { display:block; font-size:1.05rem; }
+.party-player span { display:block; margin-top:8px; color:var(--muted,#9aa3b8); font-size:.9rem; }
+.party-player.ready { border-color:#49d7a4; box-shadow:0 0 0 1px #49d7a4 inset; }
+.party-player .player-color { font-size:2rem; margin-bottom:8px; }
+.party-big-message { font-size:clamp(1.2rem,3vw,1.8rem); font-weight:800; line-height:1.25; }
+.party-game-list { display:grid; gap:10px; padding:0; list-style:none; }
+.party-game-list li { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:12px; background:rgba(255,255,255,.04); }
+.party-game-list li.current { outline:2px solid var(--accent,#7c8cff); }
+.party-game-list li.done { opacity:.6; }
+.party-rank { display:grid; gap:10px; list-style:none; padding:0; counter-reset:rank; }
+.party-rank li { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:15px 18px; border-radius:14px; background:rgba(255,255,255,.045); }
+.party-rank li:first-child { border:1px solid #e9c46a; }
+.party-rank .rank-name { font-weight:800; }
+.party-rank .rank-score { font-variant-numeric:tabular-nums; font-weight:800; }
+#setup-panel, #debug-panel, .controller-wrap { display:none !important; }
+@media (max-width:520px) { .party-wizard { margin:16px auto; } .wizard-footer { flex-direction:column; } }
+
+/* Nel torneo la progressione è automatica; la pausa resta sul tasto centrale del controller. */
+.game-actions { display:none !important; }

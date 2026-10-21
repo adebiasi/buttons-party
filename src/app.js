@@ -701,6 +701,7 @@
 
     function emit(id, type, source = "touch") {
         const event = {button: id, type, timestamp: performance.now(), source};
+        window.dispatchEvent(new CustomEvent("bp:input", {detail: event}));
         if (type === "down") {
             if (held.has(id)) return;
             held.add(id);
@@ -931,6 +932,9 @@
             return;
         }
         game.finished = true;
+        window.dispatchEvent(new CustomEvent("bp:game-finished", {
+            detail: {id: game.id, scores: {...scores}, ranking: ranking ? [...ranking] : null, message}
+        }));
         window.BPDebug?.gameFinish(message, ranking, announce);
         stopTimer();
         stopFallSound();
@@ -8514,6 +8518,18 @@
         window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {
         }));
     }
+    window.BPArcade = {
+        start: (id, count) => {
+            if (!GAME_NAMES[id]) throw new Error("Minigioco sconosciuto: " + id);
+            $("#player-count").value = String(count);
+            $("#game-select").value = id;
+            updateSetup();
+            startGame();
+        },
+        end: endGame,
+        games: () => ({...GAME_NAMES})
+    };
+
     updateSetup();
 })
 ();

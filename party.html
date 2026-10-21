@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#10131d">
+  <meta name="description" content="Buttons-party: prototipo provvisorio di minigiochi audio per 2–4 giocatori.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./src/style.css">
+  <title>Buttons-party · Partita</title>
+  <link rel="stylesheet" href="./src/party.css">
+</head>
+<body>
+<main class="app-shell">
+  <header class="topbar">
+    <div><p class="eyebrow">PROTOTIPO · FASE PROVVISORIA</p><h1>Buttons<span>-</span>party</h1></div>
+    <button id="sound-toggle" class="quiet-button" aria-pressed="true">🔊 Audio attivo</button>
+  </header>
+
+  <section id="party-wizard" class="panel party-wizard" aria-live="polite">
+    <div class="section-heading"><div><p class="eyebrow">BUTTONS-PARTY · PARTITA</p><h2 id="wizard-title">Collega il controller o usa la tastiera</h2></div><span class="pill" id="wizard-step">FASE 1 / 3</span></div>
+    <p id="wizard-copy" class="muted">Collega il dispositivo Bluetooth dei tasti per continuare oppure seleziona la modalità tastiera.</p>
+    <div id="wizard-content">
+      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button id="wizard-connect" class="primary-button">🔵 Cerca e collega controller</button>
+        <button id="wizard-use-keyboard" class="secondary-button">⌨️ Usa la tastiera / Tasti a schermo</button>
+      </div>
+      <p id="wizard-ble-status" class="hint" role="status">In attesa del controller Bluetooth o della tastiera…</p>
+    </div>
+    <div class="wizard-footer"><span id="wizard-progress">Controller non collegato</span></div>
+  </section>
+  <section id="setup-panel" class="panel setup-panel" hidden>
+    <div class="section-heading"><div><p class="eyebrow">SIAMO PRONTI?</p><h2>Prepara la partita</h2></div><span class="pill">2–4 giocatori</span></div>
+    <div class="setup-row">
+      <label for="player-count">Giocatori</label>
+      <select id="player-count"><option value="2">2 giocatori</option><option value="3">3 giocatori</option><option value="4" selected>4 giocatori</option></select>
+      <label for="game-select">Minigioco</label>
+      <select id="game-select">
+        <option value="pig">🐷 Cattura il maiale</option>
+        <option value="duel">🤠 Duello</option>
+        <option value="parachute">🪂 Paracadutisti</option>
+        <option value="disturber">📣 Disturbatore</option>
+        <option value="pot">🪙 Piglia tutto</option>
+        <option value="simon">🎵 Simon</option>
+        <option value="mosquito">🦟 Prendi la zanzara</option>
+        <option value="mine">⛏️ In miniera</option>
+        <option value="freeze">🚦 Uno, due, tre, stai là!</option>
+        <option value="lesson">📚 A lezione</option>
+        <option value="door">🚪 Chi bussa alla porta</option>
+        <option value="restaurant">🍽️ Ristorante</option>
+        <option value="grinder">⚙️ Mola a disco</option>
+        <option value="bomb">💣 Palla esplosiva</option>
+        <option value="rope">➰ Saltare la corda</option>
+        <option value="tennis">🎾 Tennis</option>
+        <option value="tapas">🍣Consegna tapas</option>
+        <option value="rally">🏎️ Rally</option>
+        <option value="beeper">🤬 Il bippatore</option>
+        <option value="beat">🥁 Tieni il tempo</option>
+        <option value="thirsty">🍺 Assetato</option>
+        <option value="tug">🤼 Tiro alla fune</option>
+        <option value="bounty">🎯 Taglia</option>
+        <option value="copyrhythm">🥁 Copia il ritmo</option>
+        <option value="horse">🐎 Cavallino</option>
+      </select>
+    </div>
+    <p id="game-description" class="muted">Ascolta i versi: premi quando senti il maiale, non gli altri animali.</p>
+    <div class="controller-settings">
+      <h3>Controller di gioco</h3>
+
+      <label class="controller-option" for="ble-enabled">
+        <input type="checkbox" id="ble-enabled">
+        Usa il controller Bluetooth a 2 tasti
+      </label>
+
+      <div class="controller-actions">
+        <button type="button" id="ble-connect" disabled>
+          🔵 Collega controller
+        </button>
+        <button type="button" id="ble-disconnect" disabled>
+          Scollega
+        </button>
+      </div>
+
+      <p id="ble-status" class="muted" role="status">
+        Controller disabilitato
+      </p>
+    </div>
+    <div class="setup-actions"><button id="start-button" class="primary-button">▶ Inizia partita</button><button id="random-button" class="secondary-button">🎲 Gioco casuale</button></div>
+    <p class="hint">Primo tocco: abilita l'audio. Puoi usare i pulsanti sullo schermo o i tasti <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> e <kbd>Spazio</kbd>.</p>
+  </section>
+
+  <section id="game-panel" class="panel game-panel" hidden>
+    <div class="game-top"><div><p id="game-status" class="eyebrow">PRONTI</p><h2 id="game-title">Minigioco</h2></div><div class="game-actions"><button id="pause-button" class="secondary-button">Ⅱ Pausa</button><button id="exit-button" class="quiet-button">✕ Esci</button></div></div>
+    <div id="arena" class="arena"><div id="arena-message" class="arena-message">Premi Inizia</div><div id="live-info" class="live-info"></div></div>
+    <div id="scores" class="scores"></div>
+    <div id="simon-feedback" class="simon-feedback" aria-live="polite"></div>
+  </section>
+
+  <section class="controller-wrap" aria-label="Controller virtuale a cinque pulsanti" hidden>
+    <div class="controller-label"><span class="live-dot"></span> CONTROLLER VIRTUALE <span id="input-source">TOCCO / TASTIERA</span></div>
+    <div class="cross-controller">
+      <span class="cross-spacer"></span><button class="pad pad-p1" data-button="P1" aria-label="Giocatore 1, rosso"><span class="pad-number">1</span><small>ROSSO</small></button><span class="cross-spacer"></span>
+      <button class="pad pad-p4" data-button="P4" aria-label="Giocatore 4, verde"><span class="pad-number">4</span><small>VERDE</small></button>
+      <button class="pad pad-c" data-button="C" aria-label="Tasto centrale, conferma o pausa"><span class="pad-number">●</span><small>CENTRO</small></button>
+      <button class="pad pad-p2" data-button="P2" aria-label="Giocatore 2, blu"><span class="pad-number">2</span><small>BLU</small></button>
+      <span class="cross-spacer"></span><button class="pad pad-p3" data-button="P3" aria-label="Giocatore 3, giallo"><span class="pad-number">3</span><small>GIALLO</small></button><span class="cross-spacer"></span>
+    </div>
+    <p class="hint controller-hint">Il tasto centrale conferma nei menu, mette in pausa durante i giochi in tempo reale (anche in Simon).</p>
+  </section>
+
+  <section id="debug-panel" class="panel debug-panel" aria-label="Pannello di debug dei minigiochi" hidden>
+    <div class="section-heading debug-heading">
+      <div><p class="eyebrow">STRUMENTI DI SVILUPPO</p><h2>Debug minigiochi</h2></div>
+      <div class="debug-head-actions">
+        <button type="button" id="debug-health" class="pill dbg-health" data-act="health" title="Mostra solo errori e avvisi">…</button>
+        <button type="button" id="debug-toggle" class="quiet-button" data-act="toggle" aria-expanded="true" aria-controls="debug-body">Comprimi</button>
+      </div>
+    </div>
+    <p id="debug-fallback" class="muted">Caricamento del debug… se questo messaggio resta, <code>src/debug.js</code> non è stato caricato.</p>
+    <div id="debug-body" class="debug-body">
+      <div class="debug-toolbar">
+        <button type="button" data-act="bot" aria-pressed="false" title="Preme tasti a caso nel gioco in corso">🤖 Bot input</button>
+        <button type="button" data-act="hud" aria-pressed="true" title="Mostra o nasconde l'indicatore in alto a sinistra">🐞 HUD</button>
+        <button type="button" data-act="copy" title="Copia un riepilogo testuale da incollare in una chat o in una issue">📋 Copia report</button>
+        <button type="button" data-act="json">⬇ Scarica JSON</button>
+        <button type="button" data-act="clear">🗑 Svuota log</button>
+      </div>
+      <div class="debug-tabs" role="tablist" aria-label="Sezioni del debug">
+        <button type="button" role="tab" data-tab="live" aria-selected="true">Live</button>
+        <button type="button" role="tab" data-tab="games" aria-selected="false">Minigiochi</button>
+        <button type="button" role="tab" data-tab="log" aria-selected="false">Log</button>
+        <button type="button" role="tab" data-tab="audio" aria-selected="false">Audio e file</button>
+        <button type="button" role="tab" data-tab="collaudo" aria-selected="false">Collaudo</button>
+        <button type="button" role="tab" data-tab="system" aria-selected="false">Sistema</button>
+      </div>
+      <div class="debug-views">
+        <div id="debug-view-live" data-view="live" role="tabpanel"></div>
+        <div id="debug-view-games" data-view="games" role="tabpanel" hidden></div>
+        <div id="debug-view-log" data-view="log" role="tabpanel" hidden></div>
+        <div id="debug-view-audio" data-view="audio" role="tabpanel" hidden></div>
+        <div id="debug-view-collaudo" data-view="collaudo" role="tabpanel" hidden></div>
+        <div id="debug-view-system" data-view="system" role="tabpanel" hidden></div>
+      </div>
+    </div>
+  </section>
+  <footer><span>Buttons-party · v0.1</span><span>Offline-first · nessun account</span></footer>
+</main>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="./src/controller-ble.js"></script>
+<script src="./src/app.js"></script>
+<script src="./src/party.js"></script>
+</body>
+</html>

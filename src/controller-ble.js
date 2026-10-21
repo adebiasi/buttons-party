@@ -1,17 +1,21 @@
-
 (() => {
   "use strict";
 
   const SERVICE_UUID =
-    "7b100001-7b10-4b10-8b10-7b1000000001";
+      "7b100001-7b10-4b10-8b10-7b1000000001";
   const CHARACTERISTIC_UUID =
-    "7b100002-7b10-4b10-8b10-7b1000000001";
+      "7b100002-7b10-4b10-8b10-7b1000000001";
 
   const EVENTS = {
     P1_DOWN: ["P1", "down"],
     P1_UP:   ["P1", "up"],
     P2_DOWN: ["P2", "down"],
-    P2_UP:   ["P2", "up"]
+    P2_UP:   ["P2", "up"],
+    P3_DOWN: ["P3", "down"],
+    P3_UP:   ["P3", "up"],
+    P4_DOWN: ["P4", "down"],
+    P4_UP:   ["P4", "up"],
+    C:       ["C",  "down"]   // evento singolo "C"
   };
 
   class ArcadeBLEController {
@@ -40,7 +44,7 @@
     async connect() {
       if (!navigator.bluetooth) {
         throw new Error(
-          "Web Bluetooth non disponibile. Usa Chrome su localhost."
+            "Web Bluetooth non disponibile. Usa Chrome su localhost."
         );
       }
 
@@ -53,8 +57,8 @@
 
       this.device = device;
       device.addEventListener(
-        "gattserverdisconnected",
-        this.handleDisconnect
+          "gattserverdisconnected",
+          this.handleDisconnect
       );
 
       try {
@@ -62,20 +66,20 @@
         const service = await server.getPrimaryService(SERVICE_UUID);
 
         this.characteristic = await service.getCharacteristic(
-          CHARACTERISTIC_UUID
+            CHARACTERISTIC_UUID
         );
 
         await this.characteristic.startNotifications();
         this.characteristic.addEventListener(
-          "characteristicvaluechanged",
-          this.handleNotification
+            "characteristicvaluechanged",
+            this.handleNotification
         );
 
         this.updateStatus();
       } catch (error) {
         this.device.removeEventListener(
-          "gattserverdisconnected",
-          this.handleDisconnect
+            "gattserverdisconnected",
+            this.handleDisconnect
         );
         this.device = null;
         this.characteristic = null;
@@ -86,8 +90,8 @@
 
     handleNotification(event) {
       const message = new TextDecoder()
-        .decode(event.target.value)
-        .trim();
+          .decode(event.target.value)
+          .trim();
 
       const input = EVENTS[message];
       if (!input || !this.enabled) return;
@@ -130,15 +134,15 @@
 
     updateStatus() {
       const connected = Boolean(
-        this.device?.gatt?.connected && this.characteristic
+          this.device?.gatt?.connected && this.characteristic
       );
 
       this.onStatus(
-        !this.enabled
-          ? "Controller disabilitato"
-          : connected
-            ? "Controller connesso"
-            : "Controller non connesso"
+          !this.enabled
+              ? "Controller disabilitato"
+              : connected
+                  ? "Controller connesso"
+                  : "Controller non connesso"
       );
     }
   }
