@@ -223,7 +223,7 @@
             "avanti", "destra", "indietro", "sinistra", "km-1", "km-2", "km-3", "km-4"].map(DIR_("tapas")),
         ...["incidente", "ok", "accelera"].map(DIR_("rally")),
         ...["stappa", "bevi", "finita", "bicchiere-rotto", "rutto"].map(DIR_("assetato")),
-        ...["tifo", "sforzo-a", "sforzo-b"].map(DIR_("fune")),
+        ...["tifo", "sforzo-a", "sforzo-b", "partenza"].map(DIR_("fune")),
         ...["sparo", "ricercato-corsa", "inizio-premi", "tardi", "ricercato-tardi"].map(DIR_("taglia")),
         ...["kick", "snare", "hat", "clap", "click"].map(DIR_("batteria")),
         ...["galoppo", "salto", "cambio-verso", "via"].map(DIR_("cavallino")),
@@ -3092,38 +3092,45 @@
             // Precarica tutti i suoni mentre parla la voce
             const preload = Promise.all([DOOR_OPEN, ...crowd.map(personFile), ...crowd.map(p => p.slot.file)].map(loadSample));
 
-            // Introduzione: regole e presentazione delle persone. Pausa/tasto centrale la saltano.
-            let skipped = false, playing = null;
+            // Introduzione: regole e presentazione delle persone.
+            // Pausa/tasto centrale saltano solo la voce del narratore: i suoni di chi vuole entrare
+            // (voce della persona, bussata o campanello) si sentono sempre, così si imparano.
+            let skipped = false;
             const skip = () => {
                 skipped = true;
-                speechSynthesis?.cancel();
-                try {
-                    playing?.stop();
-                } catch (e) {
-                }
+                speechSynthesis?.cancel();     // interrompe la frase in corso, i suoni continuano
             };
             introSkip = skip;
-            const alive = () => !skipped && game === g;
+            const narrate = async text => {
+                if (!skipped && game === g) await sayAsync(text);
+            };
             try {
-                await sayAsync("Chi bussa alla porta. Qualcuno bussa o suona il campanello. Se è una persona che vuoi vedere, " +
+                await narrate("Chi bussa alla porta. Qualcuno bussa o suona il campanello. Se è una persona che vuoi vedere, " +
                     "premi il più in fretta possibile per aprire. Ma se non la vuoi, non aprire! Il primo che preme apre la porta. " +
                     "Ascolta chi potrebbe presentarsi, e come si annuncia.");
                 for (const p of crowd) {
-                    if (!alive()) break;
+                    console.log("Presenting person:", p);
+                    if (game !== g) break;
+                    console.log("Narrating intro for person:", p);
                     await sayAsync(p.intro);
-                    // if (!alive()) break;
+                    console.log("Finished narrating intro for person:", p);
+                    if (game !== g) break;
+                    // console.log("Playing person:", p);
                     // const v = await playPerson(p);
-                    // playing = v.source;
+                    // console.log("Finished playing person:", p);
                     // await v.ended;
-                    if (!alive()) break;
+                    console.log("Finished waiting for person to end:", p);
                     await sayAsync(p.slot.kind === "knock" ? "Bussa così." : "Suona il campanello così.");
-                    if (!alive()) break;
+                    console.log("Finished narrating slot for person:", p);
+                    if (game !== g) break;
+                    console.log("Playing slot for person:", p);
                     const s = await playSlot(p.slot);
-                    playing = s.source;
+                    console.log("Finished playing slot for person:", p);
                     await s.ended;
-                    await wait(300);
+                    console.log("Finished waiting for slot to end for person:", p);
+                    await wait(skipped ? 500 : 300);
                 }
-                if (alive()) await sayAsync("Si comincia!");
+                await narrate("Si comincia!");
             } finally {
                 if (introSkip === skip) introSkip = null;
             }
@@ -6755,6 +6762,7 @@
         // === File audio (facoltativi: se mancano si usano suoni sintetici) ===
         const DIR = "assets/sounds/fune/";
         const CHEER = DIR + "tifo.mp3";                                   // tifo di sottofondo, in loop
+        const START_SOUND = DIR + "partenza.mp3";                         // via della gara (fischio / sparo / campana)
         const EFFORT_FILES = {A: DIR + "sforzo-a.mp3", B: DIR + "sforzo-b.mp3"};   // sforzo di tirare, uno per squadra, in loop
         const CHEER_VOLUME = .14;
         const EFFORT_VOLUME = .45;
@@ -6923,6 +6931,7 @@
             if (!await narrate(g, "Tiro alla fune. Premi il tuo tasto più veloce che puoi per tirare la corda dalla tua parte. " +
                 "Vince il round chi ha più pressioni allo scadere, o chi arriva per primo a venti di vantaggio. " + modeText +
                 "Aspetta il via: le pressioni prima del via non contano.")) return;
+            loadSample(START_SOUND);                                     // precarica il suono di partenza
             startNatureAmbience(CHEER, CHEER_VOLUME, makeCrowdBuffer);   // tifo di sottofondo
             startEffort();
             startMatch();
@@ -6966,7 +6975,7 @@
             if (g.finished) return;
             phase = "fight";
             halfDone = false;
-            tone(988, .22, "square", .14);
+            playSample(START_SOUND, () => tone(988, .22, "square", .14));   // suono di partenza
             left = ROUND_SECONDS * 1000;
             lastTick = performance.now();
             stopInterval();
