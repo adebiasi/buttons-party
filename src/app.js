@@ -121,6 +121,29 @@
         return ms;
     }
 
+// Fine percepita del suono (ms): l'ultimo punto in cui il volume (finestre da 10 ms) supera una quota del picco.
+// Ignora le code lunghe e debolissime che fanno sembrare il suono più lungo di quanto si senta.
+    const perceivedCache = new WeakMap();
+
+    function perceivedDurationMs(buffer, rel = .15) {
+        if (perceivedCache.has(buffer)) return perceivedCache.get(buffer);
+        const d = buffer.getChannelData(0), win = Math.max(1, Math.round(buffer.sampleRate * .01));
+        const rms = [];
+        let peak = 0;
+        for (let i = 0; i + win <= d.length; i += win) {
+            let sum = 0;
+            for (let j = i; j < i + win; j++) sum += d[j] * d[j];
+            const v = Math.sqrt(sum / win);
+            rms.push(v);
+            if (v > peak) peak = v;
+        }
+        let k = rms.length - 1;
+        while (k > 0 && rms[k] < peak * rel) k--;
+        const ms = (k + 1) * 10;
+        perceivedCache.set(buffer, ms);
+        return ms;
+    }
+
     /**
      * HELPER UNICO. Riproduce un file e restituisce i tempi reali:
      *   audibleAt : istante (performance.now) in cui il suono si SENTE (latenza compensata)
@@ -783,7 +806,6 @@
     function emit(id, type, source = "touch") {
         const event = {button: id, type, timestamp: performance.now(), source};
         window.dispatchEvent(new CustomEvent("bp:input", {detail: event}));
-        console.log("emit", event);
         if (type === "down") {
             if (held.has(id)) return;
             held.add(id);
@@ -1929,31 +1951,75 @@
         return g;
     }
 
+
+
     function makeMosquito() {
         const g = baseGame("mosquito");
 
         // === File audio ===
-        const BUZZ = "assets/sounds/zanzara/ronzio.mp3";       // ronzio a volume costante, in loop
-        const CATCH_SOUND = "assets/sounds/zanzara/presa.mp3"; // zanzara catturata
-        const MISS_SOUND = "assets/sounds/zanzara/mancata.mp3"; // premuto troppo presto
+        const BUZZ = "assets/sounds/zanzara/ronzio.mp3";
+        const FLY_BUZZ = "assets/sounds/zanzara/mosca.mp3";
+        const BEE_BUZZ = "assets/sounds/zanzara/ape.mp3";
+        const CATCH_SOUND = "assets/sounds/zanzara/presa.mp3";
+        const MISS_SOUND = "assets/sounds/zanzara/mancata.mp3";
 
-        // === Parametri di gioco ===
-        const THRESHOLD = 0.7;     // livello (0-1) oltre il quale si può catturare
-        const MAX_GAIN = 0.6;      // volume massimo reale del ronzio
-        const WIN_POINTS = 3;      // punti per vincere
-        const DURATION = 90000;    // durata massima partita (ms)
-        const HIDE_TIME = 1500;    // dopo una cattura la zanzara si allontana per un po'
+        // === Parametri comuni ===
+        const THRESHOLD = 0.7;
+        const MAX_GAIN = 0.6;
+        const WIN_POINTS = 3;
+        const DURATION = 90000;
+        const HIDE_TIME = 1500;
 
-        let level = 0, target = 0, nextChange = 0;
-        let started = 0, graceUntil = 0, hideUntil = 0;
-        let blocked = {}, interval = null;
-        let src = null, gain = null;
+        // === Parametri mosca ===
+        const FLY_SPEED = 3.2;
+        const FLY_BOUNDARY = 5;
+        const FLY_TURN_MIN = 400;
+        const FLY_TURN_MAX = 1600;
 
-        async function startBuzz() {
-            const buffer = await loadSample(BUZZ);
-            if (game !== g) return false; // uscito nel frattempo
+        // === Parametri ape ===
+        const BEE_SPEED = 1.5;
+        const BEE_BOUNDARY = 5;
+        const BEE_TURN_MIN = 700;
+        const BEE_TURN_MAX = 1800;
+
+        let insect = "mosquito";
+
+        let level = 0;
+        let target = 0;
+        let nextChange = 0;
+
+        let started = 0;
+        let graceUntil = 0;
+        let hideUntil = 0;
+
+        let blocked = {};
+        let interval = null;
+
+        let src = null;
+        let gain = null;
+
+        // === Posizione e direzione mosca ===
+        let flyX = 3;
+        let flyY = 2;
+        let flyAngle = 0;
+        let flyNextTurn = 0;
+        let lastFlyTick = 0;
+
+        // === Posizione e direzione ape ===
+        let beeX = 2;
+        let beeY = 2;
+        let beeAngle = 0;
+        let beeNextTurn = 0;
+        let lastBeeTick = 0;
+
+        // === Audio ===
+        async function startBuzz(file) {
+            const buffer = await loadSample(file);
+
+            if (game !== g) return false;
 
             const ctx = ensureAudio();
+
             gain = ctx.createGain();
             gain.gain.value = 0;
 
@@ -1971,6 +2037,7 @@
             src.connect(gain);
             gain.connect(ctx.destination);
             src.start();
+
             return true;
         }
 
@@ -1978,28 +2045,164 @@
             if (src) {
                 try {
                     src.stop();
-                } catch (e) {
-                }
+                } catch (e) {}
+
                 src.disconnect();
                 src = null;
             }
+
             if (gain) {
                 gain.disconnect();
                 gain = null;
             }
         }
 
-        // Sceglie il prossimo livello: spesso lontana, ogni tanto vicinissima
+        // === Zanzara: comportamento originale ===
         function pickTarget() {
-            return Math.random() < .4
-                ? .75 + Math.random() * .25   // vicina (sopra soglia)
-                : Math.random() * .5;         // lontana
+            return Math.random() < 0.4
+                ? 0.75 + Math.random() * 0.25
+                : Math.random() * 0.5;
         }
 
+        // === Movimento mosca ===
+        function resetFly(now) {
+            const a = Math.random() * Math.PI * 2;
+            const r = 1.5 + Math.random() * 1.5;
+
+            flyX = Math.cos(a) * r;
+            flyY = Math.sin(a) * r;
+            flyAngle = Math.random() * Math.PI * 2;
+
+            flyNextTurn = now + 400 + Math.random() * 600;
+            lastFlyTick = now;
+        }
+
+        function moveFly(now) {
+            const dt = Math.min(
+                Math.max((now - lastFlyTick) / 1000, 0),
+                0.1
+            );
+
+            lastFlyTick = now;
+
+            if (now >= flyNextTurn) {
+                const turn =
+                    (Math.PI / 4 + Math.random() * Math.PI / 2) *
+                    (Math.random() < 0.5 ? -1 : 1);
+
+                flyAngle += turn;
+
+                flyNextTurn = now +
+                    FLY_TURN_MIN +
+                    Math.random() * (FLY_TURN_MAX - FLY_TURN_MIN);
+            }
+
+            flyX += Math.cos(flyAngle) * FLY_SPEED * dt;
+            flyY += Math.sin(flyAngle) * FLY_SPEED * dt;
+
+            if (Math.abs(flyX) > FLY_BOUNDARY) {
+                flyAngle = Math.PI - flyAngle;
+                flyX = Math.max(
+                    -FLY_BOUNDARY,
+                    Math.min(FLY_BOUNDARY, flyX)
+                );
+                flyNextTurn = now + 300 + Math.random() * 500;
+            }
+
+            if (Math.abs(flyY) > FLY_BOUNDARY) {
+                flyAngle = -flyAngle;
+                flyY = Math.max(
+                    -FLY_BOUNDARY,
+                    Math.min(FLY_BOUNDARY, flyY)
+                );
+                flyNextTurn = now + 300 + Math.random() * 500;
+            }
+
+            return Math.hypot(flyX, flyY);
+        }
+
+        function flyVolume(distance) {
+            const proximity = Math.max(
+                0,
+                Math.min(1, 1 - distance / FLY_BOUNDARY)
+            );
+
+            return Math.pow(proximity, 1.2);
+        }
+
+        // === Movimento ape: lento e regolare ===
+        function resetBee(now) {
+            const a = Math.random() * Math.PI * 2;
+
+            // L'ape parte più vicina al giocatore
+            const r = 0.5 + Math.random() * 1.2;
+
+            beeX = Math.cos(a) * r;
+            beeY = Math.sin(a) * r;
+            beeAngle = Math.random() * Math.PI * 2;
+
+            beeNextTurn = now +
+                BEE_TURN_MIN +
+                Math.random() * (BEE_TURN_MAX - BEE_TURN_MIN);
+
+            lastBeeTick = now;
+        }
+
+        function moveBee(now) {
+            const dt = Math.min(
+                Math.max((now - lastBeeTick) / 1000, 0),
+                0.1
+            );
+
+            lastBeeTick = now;
+
+            if (now >= beeNextTurn) {
+                // Curve ampie e dolci, niente sterzate brusche
+                const turn = (Math.random() - 0.5) * (Math.PI / 3);
+                beeAngle += turn;
+
+                beeNextTurn = now +
+                    BEE_TURN_MIN +
+                    Math.random() * (BEE_TURN_MAX - BEE_TURN_MIN);
+            }
+
+            beeX += Math.cos(beeAngle) * BEE_SPEED * dt;
+            beeY += Math.sin(beeAngle) * BEE_SPEED * dt;
+
+            if (Math.abs(beeX) > BEE_BOUNDARY) {
+                beeAngle = Math.PI - beeAngle;
+                beeX = Math.max(
+                    -BEE_BOUNDARY,
+                    Math.min(BEE_BOUNDARY, beeX)
+                );
+                beeNextTurn = now + 500;
+            }
+
+            if (Math.abs(beeY) > BEE_BOUNDARY) {
+                beeAngle = -beeAngle;
+                beeY = Math.max(
+                    -BEE_BOUNDARY,
+                    Math.min(BEE_BOUNDARY, beeY)
+                );
+                beeNextTurn = now + 500;
+            }
+
+            return Math.hypot(beeX, beeY);
+        }
+
+        function beeVolume(distance) {
+            const proximity = Math.max(
+                0,
+                Math.min(1, 1 - distance / BEE_BOUNDARY)
+            );
+
+            return Math.pow(proximity, 1.5);
+        }
+
+        // === Tick del gioco ===
         function tick() {
             if (!gain) return;
 
-            // In pausa o a fine partita: silenzio
             if (paused || g.finished) {
                 gain.gain.value = 0;
                 return;
@@ -2013,30 +2216,56 @@
             }
 
             if (now < hideUntil) {
-                target = .05;               // zanzara scappata
+                target = insect === "mosquito" ? 0.05 : 0.01;
+            } else if (insect === "fly") {
+                target = flyVolume(moveFly(now));
+            } else if (insect === "bee") {
+                target = beeVolume(moveBee(now));
             } else if (now >= nextChange) {
                 target = pickTarget();
                 nextChange = now + 500 + Math.random() * 1500;
             }
 
-            // Movimento morbido verso il livello obiettivo
-            level += (target - level) * .12;
+            const smoothing = insect === "fly" ? 0.18 : 0.12;
+            level += (target - level) * smoothing;
 
-            // Curva quadratica: la differenza vicino/lontano si sente di più
-            const volume = soundEnabled ? MAX_GAIN * level * level : 0;
-            gain.gain.setTargetAtTime(volume, ensureAudio().currentTime, .03);
+            // Volume generale della mosca +50%.
+            // Zanzara e ape mantengono il volume standard.
+            const insectGain = (insect === "fly") || (insect === "bee") ? 2.5 : 1;
+
+            const volume = soundEnabled
+                ? Math.min(1, MAX_GAIN * insectGain * level * level)
+                : 0;
+
+            gain.gain.setTargetAtTime(
+                volume,
+                ensureAudio().currentTime,
+                0.03
+            );
         }
 
         function ranking() {
-            return playerIds().sort((a, b) => scores[b] - scores[a]);
+            return playerIds().sort(
+                (a, b) => scores[b] - scores[a]
+            );
         }
 
         function endByTime() {
             const order = ranking();
+
             stopBuzz();
             stopInterval();
-            const tie = order.length > 1 && scores[order[0]] === scores[order[1]];
-            finish(tie ? "Tempo scaduto! Pareggio" : "Tempo scaduto! Vince " + COLORS[order[0]], tie ? null : order);
+
+            const tie =
+                order.length > 1 &&
+                scores[order[0]] === scores[order[1]];
+
+            finish(
+                tie
+                    ? "Tempo scaduto! Pareggio"
+                    : "Tempo scaduto! Vince " + COLORS[order[0]],
+                tie ? null : order
+            );
         }
 
         function stopInterval() {
@@ -2046,72 +2275,169 @@
             }
         }
 
+        // === Avvio round ===
         g.start = async () => {
+            stopInterval();
+            stopBuzz();
+
             blocked = {};
             level = 0;
             target = 0;
             nextChange = 0;
             hideUntil = 0;
             graceUntil = 0;
+            started = 0;
 
-            // Precarica i suoni
-            [BUZZ, CATCH_SOUND, MISS_SOUND].forEach(loadSample);
+            // Scelta casuale: un insetto per round
+            const choices = ["mosquito", "fly", "bee"];
+            insect = choices[Math.floor(Math.random() * choices.length)];
+
+            const buzzFile = {
+                mosquito: BUZZ,
+                fly: FLY_BUZZ,
+                bee: BEE_BUZZ
+            }[insect];
+
+            [BUZZ, FLY_BUZZ, BEE_BUZZ, CATCH_SOUND, MISS_SOUND]
+                .forEach(loadSample);
+
+            const icon = insect === "bee"
+                ? "🐝"
+                : insect === "fly"
+                    ? "🪰"
+                    : "🦟";
+
+            const insectName = insect === "bee"
+                ? "l'ape"
+                : insect === "fly"
+                    ? "la mosca"
+                    : "la zanzara";
 
             $("#game-status").textContent = "ASCOLTA IL RONZIO";
-            setArena("🦟 Ascolta…", "Premi quando il ronzio è fortissimo");
-            if (!await narrate(g, "Prendi la zanzara. Una zanzara vola intorno a te: premi quando il ronzio è fortissimo, " +
-                "perché vuol dire che è vicina. Se premi troppo presto, perdi un punto. Vince chi ne prende tre. Si giocano tre round.")) return;
 
-            const ok = await startBuzz();
+            setArena(
+                icon + " Ascolta…",
+                "Premi quando il ronzio è fortissimo"
+            );
+
+            let intro;
+
+            if (insect === "bee") {
+                intro =
+                    "Cattura l'ape. Vola lentamente e cambia direzione in modo graduale. " +
+                    "Ascolta il ronzio e premi quando è fortissimo, perché è vicina. " +
+                    "Se premi troppo presto perdi un punto. Vince chi ne prende tre.";
+            } else if (insect === "fly") {
+                intro =
+                    "Cattura la mosca. Vola in linea retta e cambia bruscamente direzione. " +
+                    "Ascolta il ronzio e premi quando è fortissimo, perché è vicina. " +
+                    "Se premi troppo presto perdi un punto. Vince chi ne prende tre.";
+            } else {
+                intro =
+                    "Prendi la zanzara. Una zanzara vola intorno a te: premi quando " +
+                    "il ronzio è fortissimo, perché vuol dire che è vicina. " +
+                    "Se premi troppo presto perdi un punto. Vince chi ne prende tre.";
+            }
+
+            if (!await narrate(g, intro + " Si giocano tre round.")) return;
+            if (game !== g || g.finished) return;
+
+            const ok = await startBuzz(buzzFile);
             if (!ok) return;
+
+            const now = performance.now();
+
+            if (insect === "fly") resetFly(now);
+            if (insect === "bee") resetBee(now);
 
             started = activeNow();
             interval = setInterval(tick, 50);
         };
 
+        // === Input giocatore ===
         g.onInput = e => {
-            if (e.type !== "down" || !playerIds().includes(e.button) || g.finished) return;
+            if (
+                e.type !== "down" ||
+                !playerIds().includes(e.button) ||
+                g.finished
+            ) return;
 
             const id = e.button;
             const now = performance.now();
 
-            if (!started || blocked[id] > now) return;   // started = 0 finché parla il narratore
-
-            // Poco dopo una cattura: chi arriva tardi non viene punito
+            if (!started || blocked[id] > now) return;
             if (now < graceUntil) return;
 
+            const insectName = insect === "bee"
+                ? "l'ape"
+                : insect === "fly"
+                    ? "la mosca"
+                    : "la zanzara";
+
             if (level >= THRESHOLD && now >= hideUntil) {
-                // Catturata!
                 scores[id]++;
                 renderScores();
 
-                playSample(CATCH_SOUND, () => tone(880, .14, "sine", .1));
-                toast(COLORS[id] + " prende la zanzara!");
-                if (scores[id] < WIN_POINTS) say(COLORS[id] + " prende la zanzara!");
+                playSample(
+                    CATCH_SOUND,
+                    () => tone(880, 0.14, "sine", 0.1)
+                );
 
-                // La zanzara scappa
-                level = .05;
+                toast(COLORS[id] + " prende " + insectName + "!");
+
+                if (scores[id] < WIN_POINTS) {
+                    say(COLORS[id] + " prende " + insectName + "!");
+                }
+
+                level = 0;
+                target = 0;
                 hideUntil = now + HIDE_TIME;
                 graceUntil = now + 400;
 
                 if (scores[id] >= WIN_POINTS) {
                     stopBuzz();
                     stopInterval();
-                    finish("🦟 " + COLORS[id] + " vince!", ranking());
+
+                    const icon = insect === "bee"
+                        ? "🐝 "
+                        : insect === "fly"
+                            ? "🪰 "
+                            : "🦟 ";
+
+                    finish(
+                        icon + COLORS[id] + " vince!",
+                        ranking()
+                    );
                 }
             } else {
-                // Troppo presto: la zanzara era lontana
                 scores[id]--;
                 renderScores();
+
                 blocked[id] = now + 1000;
 
-                playSample(MISS_SOUND, () => tone(110, .22, "square", .08));
-                toast("Troppo presto! " + COLORS[id] + " perde un punto");
+                playSample(
+                    MISS_SOUND,
+                    () => tone(110, 0.22, "square", 0.08)
+                );
+
+                toast(
+                    "Troppo presto! " +
+                    COLORS[id] + " perde un punto"
+                );
             }
         };
 
         g.resume = () => {
-            setArena("🦟 Ascolta…", "Premi quando il ronzio è fortissimo");
+            const icon = insect === "bee"
+                ? "🐝"
+                : insect === "fly"
+                    ? "🪰"
+                    : "🦟";
+
+            setArena(
+                icon + " Ascolta…",
+                "Premi quando il ronzio è fortissimo"
+            );
         };
 
         g.dispose = () => {
@@ -2389,14 +2715,15 @@
         const STAI = DIR + "stai-la.mp3";      // solo "stai là!"
 
         // === Parametri ===
-        const PRE_STAI = [0, 700];             // pausa casuale tra "tre" e "stai là" (ms)
+        const PRE_STAI = [0, 300];             // pausa casuale tra "tre" e "stai là" (ms)
         const TARGET = 30;              // passi necessari per vincere
         const RATE_START = [0.8, 1.05]; // velocità a inizio frase (casuale in questo intervallo)
         const RATE_END = [1.6, 2.4];    // velocità a fine frase: la frase accelera mentre viene riprodotta
         const VOICE_RATE = [1.0, 1.9];  // con la voce sintetica non si può accelerare a metà frase: velocità casuale per frase
         const VOICE_GRACE = 450;        // tolleranza extra: la voce sintetica parte con un po' di ritardo
         const BLOCK_GAP = [1500, 4000]; // pausa casuale dopo "stai là!", prima di ricominciare (ms)
-        const GRACE = 0;              // dopo l'inizio di "stai là!" il tempo di reazione è tollerato (ms)
+        const GRACE = 0;              // dopo la fine di "tre" il tempo di reazione è tollerato (ms)
+        const LATENCY_COMP = 0;       // 0 = nessuna compensazione della latenza audio (più severo), 1 = completa
         const MIN_VOL = 0.08;           // volume dei passi al primo passo
         const MAX_VOL = 1.0;            // volume dei passi al traguardo
         const PITCH = {P1: 1.0, P2: 0.88, P3: 1.12, P4: 0.78}; // passi diversi per giocatore
@@ -2556,14 +2883,21 @@
                 s2.start(tStai);
                 current2 = s2;
 
-                const untilStai = (tStai - ctx.currentTime) * 1000;
-                const freezeAt = performance.now() + untilStai + latencyMs();   // quando si SENTE "stai"
-                dbg(`uno-due-tre ${(total / 1000).toFixed(2)}s (${r0.toFixed(2)}×→${r1.toFixed(2)}×), pausa ${Math.round(gap)} ms`);
+                // Si deve fermare appena FINISCE "tre" (parte udibile, senza il silenzio in coda al file):
+                // non si aspetta più "stai là"
+                // Istante esatto in cui la registrazione, che accelera in modo lineare, arriva alla fine percepita di "tre"
+                const P = perceivedDurationMs(bUno) / 1000, T = total / 1000, a = (r1 - r0) / (2 * T);
+                const tTre = Math.abs(a) < 1e-9 ? P / r0 : (-r0 + Math.sqrt(r0 * r0 + 4 * a * P)) / (2 * a);
+                const treMs = Math.min(T, tTre) * 1000;
+                const untilTre = (t + treMs / 1000 - ctx.currentTime) * 1000;
+                const freezeAt = performance.now() + untilTre + LATENCY_COMP * latencyMs();   // fine di "tre"
+                const afterTre = gap + bStai.duration * 1000 + rand(BLOCK_GAP);
+                dbg(`uno-due-tre ${(treMs / 1000).toFixed(2)}s (${r0.toFixed(2)}×→${r1.toFixed(2)}×), stop alla fine di "tre", "stai là" dopo ${Math.round(gap)} ms`);
                 later(() => {
                     if (id !== phraseId) return;
                     startFreeze(freezeAt);
-                    later(playStep, bStai.duration * 1000 + rand(BLOCK_GAP));
-                }, untilStai);
+                    later(playStep, afterTre);
+                }, untilTre);
             } else if ("speechSynthesis" in window && soundEnabled) {
                 // File mancante: la voce dice tutta la frase, a velocità casuale
                 voicePhrase = true;
@@ -3754,7 +4088,8 @@
         // === Parametri ===
         const WOODS = 5;
         const WOOD_LENGTH = [4000, 8000];
-        const REACTION = 700;
+        const REACTION = 0;             // tempo concesso dopo la fine udibile del suono (ms)
+        const LATENCY_COMP = 0;         // 0 = nessuna compensazione della latenza audio (più severo), 1 = completa
         const GRINDER_VOLUME = 0.5;
 
         // Velocità di taglio per giocatore aggiuntivo
@@ -4024,7 +4359,7 @@
 
             newWood();
 
-            interval = setInterval(tick, 50);
+            interval = setInterval(tick, 25);
         };
 
         // === Ciclo di gioco ===
@@ -4070,7 +4405,7 @@
             } else if (phase === "ending") {
                 if (woodSoundDone) {
                     endClock += dt;
-                    if (endClock >= REACTION + latencyMs()) judge();
+                    if (endClock >= REACTION) judge();
                 }
             }
 
@@ -4090,14 +4425,26 @@
 
             // Il segnale è la FINE del suono: la mola continua finché legno-finito.mp3 non termina,
             // solo da lì parte il tempo di reazione
-            playSampleWait(WOOD_END, () => {
-                noise(0.2, 0.1);
-                tone(120, 0.2, "triangle", 0.1);
+            // Il segnale è la fine UDIBILE del suono (senza il silenzio in coda al file, latenza compresa)
+            playTimed(WOOD_END, {
+                fallback: () => {
+                    noise(0.2, 0.1);
+                    tone(120, 0.2, "triangle", 0.1);
+                }
+            }).then(async t => {
+                // fine percepita del suono = inizio + durata percepita (con la compensazione di latenza scelta)
+                let endAt = t.endsAt;
+                if (!t.synthetic) {
+                    const buf = await loadSample(WOOD_END);
+                    endAt = t.audibleAt - (1 - LATENCY_COMP) * latencyMs() + perceivedDurationMs(buf);
+                }
+                await new Promise(r => setTimeout(r, Math.max(0, endAt - performance.now())));
             }).then(() => {
                 if (game !== g || g.finished) return;
                 stopGrinder();
                 endClock = 0;
                 woodSoundDone = true;
+                if (REACTION <= 0 && !paused) judge();     // niente attesa del prossimo tick
             });
 
             setArena("🪵 Legno finito!", "Lascia il tasto quando il suono finisce!", "signal");
@@ -5650,6 +5997,7 @@
         const DIR = "assets/sounds/rally/";
         const CRASH = DIR + "incidente.mp3";
         const REV = DIR + "accelera.mp3";
+        const OK = DIR + "ok.mp3";          // suono di ogni pressione giusta
 
         const ACTIONS = {
             destra: {text: "destra", arrow: "→"},
@@ -5704,6 +6052,15 @@
                 osc.connect(gain); gain.connect(ctx.destination);
                 osc.start(t); osc.stop(t + .5);
                 noise(.25, .04);
+            });
+        }
+
+        // Pressione giusta: suono "ok" che sale leggermente di tono col procedere dei comandi
+        function playOk() {
+            const rate = 1 + Math.min(presses, 30) * 0.012;
+            playTimed(OK, {
+                rate, volume: .8,
+                fallback: () => tone(400 + Math.min(presses, 30) * 15, 0.08, "sine", 0.1)
             });
         }
 
@@ -5848,7 +6205,7 @@
             presses++;
             lastProgress = clock;
             if (exp.action === "accelera") playRev();
-            else tone(400 + Math.min(presses, 30) * 15, 0.05, "sine", 0.05);
+            else playOk();
 
             if (--exp.cmd.left === 0) {
                 done++;

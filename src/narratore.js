@@ -158,7 +158,6 @@
   }
 
   function onRegisterInput(id) {
-    console.log("onRegisterInput", id);
     if (id === "C") {
       if (state.players.length >= 2) {
         registerDone?.();
@@ -334,7 +333,6 @@
 
   window.addEventListener("bp:input", e => {
     const {button, type} = e.detail || {};
-    console.log("bp:input", button, type);
     if (type !== "down") return;
     if (state.phase === "register") {
       onRegisterInput(button);

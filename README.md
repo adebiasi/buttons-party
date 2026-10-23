@@ -1,89 +1,148 @@
 # Buttons-party
 
-Prototipo web provvisorio di minigiochi per 2–4 giocatori, basato sulla specifica `Buttons-party` v0.1.
+Prototipo web di party game audio per 2–4 giocatori. I minigiochi si basano
+soprattutto su ascolto e tempi di reazione; si può giocare con i pulsanti
+virtuali, la tastiera o un controller Bluetooth basato su ESP32.
 
-## Avvio locale
+## Avvio
 
-Non serve un build step né un backend. Avvia un server statico nella cartella del progetto:
+Il progetto è composto da file statici: non richiede installazione di
+dipendenze né una fase di compilazione. Dalla cartella principale avvia un
+server locale:
+
+```powershell
+py -m http.server 8000
+```
+
+In alternativa, su macOS o Linux:
 
 ```bash
 python3 -m http.server 8000
 ```
 
-Apri `http://localhost:8000` nel browser. Su smartphone, per testare il multitouch, telefono e computer devono essere sulla stessa rete e bisogna aprire l'indirizzo LAN del computer. Per Web Bluetooth/GitHub Pages è necessario HTTPS.
+Apri quindi [http://localhost:8000](http://localhost:8000). È preferibile
+usare un browser basato su Chromium aggiornato. Il Bluetooth Web richiede un
+contesto sicuro: `localhost` per lo sviluppo oppure HTTPS per un sito
+pubblicato; l'accesso da un altro dispositivo richiede quindi un server HTTPS.
 
-## Controlli
+## Pagine
 
-- Pulsanti virtuali disposti a croce.
-- Tastiera: `1` = P1/rosso, `2` = P2/blu, `3` = P3/giallo, `4` = P4/verde, `Spazio` o `Invio` = centro.
-- Il primo tocco abilita Web Audio; volume e sintesi vocale dipendono dal browser.
-- Il pulsante centrale conferma nel menu; nei giochi in tempo reale il pulsante Pausa gestisce la pausa. In Simon il centro è il quinto input.
+- **`index.html`** — schermata principale: scegli da 2 a 4 giocatori e un
+  minigioco, oppure lascia che venga scelto casualmente. Include comandi audio,
+  controller virtuale e strumenti di debug.
+- **`narratore.html`** — partita guidata dalla sintesi vocale del browser,
+  progettata per giocare senza dover guardare lo schermo. Il narratore prepara
+  una partita con cinque minigiochi estratti casualmente e guida i giocatori
+  tra le fasi.
+- **`testController.html`** — pagina tecnica per verificare la connessione
+  Bluetooth e visualizzare gli eventi dei pulsanti.
+- **`voci.html`** — pagina di prova delle voci TTS disponibili nel browser.
 
-## Partita con il narratore (`narratore.html`)
+## Minigiochi
 
-Pagina pensata per giocare senza guardare lo schermo: un narratore vocale guida ogni fase.
+La schermata principale permette di selezionare:
 
-1. Tocca lo schermo o premi un tasto: il narratore parte e prova a collegare il controller Bluetooth (se il browser lo ricorda, si ricollega da solo). Se non riesce, si gioca con la tastiera.
-2. Ogni giocatore preme il tasto colorato che vuole usare (anche solo giallo e blu, per esempio); il tasto centrale conferma.
-3. Vengono estratti 5 minigiochi a caso: il tasto centrale li avvia e partono uno dopo l'altro in automatico.
-4. In ogni gioco il primo prende tanti punti quanti sono i giocatori, poi uno in meno per posizione (pari merito = stessi punti).
-5. Alla fine il narratore legge la classifica dall'ultimo al primo.
+1. Cattura il maiale
+2. Duello
+3. Paracadutisti
+4. Disturbatore
+5. Piglia tutto
+6. Simon
+7. Prendi la zanzara
+8. In miniera
+9. Uno, due, tre, stai là!
+10. A lezione
+11. Chi bussa alla porta
+12. Ristorante
+13. Mola a disco
+14. Palla esplosiva
+15. Saltare la corda
+16. Tennis
+17. Consegna tapas
+18. Rally
+19. Il bippatore
+20. Tieni il tempo
+21. Assetato
+22. Tiro alla fune
+23. Taglia
+24. Copia il ritmo
+25. Cavallino
 
-## Minigiochi inclusi
+Regole e interazioni variano da un gioco all'altro. Il progetto è un prototipo:
+bilanciamento e comportamento sono ancora soggetti a modifiche.
 
-- **Cattura il maiale** — versi sintetici, finestra di cattura, penalità per pressioni errate.
-- **Duello** — preparazione, attesa casuale, falsa partenza e round.
-- **Paracadutisti** — soglia di sicurezza e impatto nascosti; risultato mostrato alla fine.
-- **Disturbatore** — bersaglio vocale simulato con toni sintetici (asset audio originali da sostituire).
-- **Piglia tutto** — piatto crescente e limite segreto.
-- **Simon a 5 tasti** — sequenza sonora progressiva a turni.
+## Comandi
 
-## Stato e limiti della fase provvisoria
+Il controller virtuale è disponibile sullo schermo; in alternativa, usa:
 
-- Gli effetti audio sono sintetizzati via Web Audio API: non sono ancora presenti campioni vocali o versi realistici.
-- Il livello d'input normalizza pressione/rilascio in eventi `{ button, type, timestamp, source }`.
-- Il controller BLE non è ancora implementato; l'architettura è predisposta per aggiungerlo come sorgente d'input separata.
-- Il prototipo è una base giocabile da provare, non una build certificata: alcune regole e bilanciamenti richiedono playtest.
-- La PWA usa service worker e cache per l'accesso offline dopo il primo caricamento via HTTP(S).
+| Tasto | Giocatore |
+| --- | --- |
+| `1` | P1, rosso |
+| `2` | P2, blu |
+| `3` | P3, giallo |
+| `4` | P4, verde |
+| `Spazio` o `Invio` | Tasto centrale |
 
-## Pubblicare su GitHub Pages
+Il tasto centrale conferma le scelte nelle schermate guidate e può avere una
+funzione specifica durante un minigioco. Il primo tocco o tasto può essere
+necessario per abilitare la riproduzione audio, secondo le restrizioni del
+browser.
 
-1. Crea un repository GitHub vuoto chiamato `buttons-party`.
-2. Carica tutti i file di questa cartella nella root del repository.
-3. Vai in **Settings → Pages**.
-4. In **Build and deployment**, scegli **Deploy from a branch**, branch `main`, cartella `/(root)`, quindi **Save**.
-5. Attendi il completamento del deployment nella scheda **Actions**. Il sito sarà pubblicato all'URL mostrato in Settings → Pages.
+## Controller Bluetooth ESP32
 
-### Con Git da terminale
+Il firmware di riferimento si trova in `firmware/esp32/controller.ino`.
+Caricalo su una scheda ESP32 con supporto BLE e collega i pulsanti ai pin
+indicati nel file:
 
-Dopo aver creato il repository vuoto su GitHub, esegui nella cartella del progetto:
+| Pulsante | GPIO |
+| --- | --- |
+| P1 | 18 |
+| P2 | 19 |
+| P3 | 21 |
+| P4 | 22 |
+| Centro | 23 |
 
-```bash
-git init
-git add .
-git commit -m "feat: prototipo Buttons-party con sei minigiochi"
-git branch -M main
-git remote add origin https://github.com/TUO-UTENTE/buttons-party.git
-git push -u origin main
-```
+Nella schermata principale abilita **Usa il controller Bluetooth a 5 tasti**
+e seleziona **Collega controller**. Il firmware espone il dispositivo
+`ESP32-Controller`; concedi al browser l'autorizzazione alla connessione.
+Il firmware e l'app gestiscono quattro pulsanti giocatore e un tasto centrale.
 
-Sostituisci `TUO-UTENTE` con il tuo username GitHub. Il repository remoto non viene creato automaticamente da questi comandi.
+## Audio e modalità offline
 
-## Struttura
+Gli effetti sonori sono in `assets/sounds/`; il narratore usa le voci fornite
+dal browser e dal sistema operativo. La disponibilità e la qualità delle voci
+TTS dipendono dal dispositivo.
+
+Il progetto include un manifest PWA e un service worker. La cache viene
+popolata durante l'installazione per i file elencati in `sw.js` e, durante
+l'uso online, per le risorse richieste con successo. Non tutti i file audio
+vengono precaricati all'installazione: per l'uso offline, visita prima le
+pagine e riproduci gli effetti necessari mentre sei connesso.
+
+## Struttura del progetto
 
 ```text
-buttons-party/
-├── index.html
-├── manifest.webmanifest
-├── sw.js
-├── README.md
+.
 ├── assets/
-│   └── icon.svg
-└── src/
-    ├── app.js
-    └── style.css
+│   ├── icon.svg
+│   └── sounds/
+├── firmware/
+│   └── esp32/
+│       └── controller.ino
+├── src/
+│   ├── app.js
+│   ├── controller-ble.js
+│   ├── debug.js
+│   ├── narratore.js
+│   └── *.css
+├── index.html
+├── narratore.html
+├── testController.html
+├── voci.html
+├── manifest.webmanifest
+└── sw.js
 ```
 
-## Licenza
-
-Prototipo fornito senza garanzie. Prima di distribuire pubblicamente, scegliere e aggiungere una licenza esplicita (ad esempio MIT) dopo aver confermato i diritti sul progetto.
+Non è presente un file di licenza: prima di redistribuire il progetto o i suoi
+asset, verifica i relativi diritti e aggiungi una licenza esplicita, se
+appropriato.
