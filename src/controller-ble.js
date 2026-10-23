@@ -16,7 +16,7 @@
     P4_DOWN: ["P4", "down"],
     P4_UP:   ["P4", "up"],
     C_DOWN: ["C", "down"],
-     _UP:   ["C", "up"]
+    C_UP:   ["C", "up"]
   };
 
   class ArcadeBLEController {
