@@ -7,24 +7,24 @@
     const KEY_MAP = {"1": "P1", "2": "P2", "3": "P3", "4": "P4", " ": "C", "Enter": "C"};
     const DESCRIPTIONS = {
         tug: "Premi il tuo tasto più veloce che puoi per tirare la corda dalla tua parte. In due: al meglio di tre round. In tre: tre sfide uno contro uno. In quattro: due squadre, le pressioni dei compagni si sommano.",
-        bounty: "Il narratore dice chi è il ricercato, poi dà il via. Tutti premono: se arrivi prima tu prendi un punto e il ricercato ne perde uno. Se il ricercato è più veloce, si salva e prende un punto. Se premi prima del via perdi un punto.",
+        bounty: "Il narratore dice chi è il ricercato, poi dà il via, e alla fine di ogni round dice chi ha vinto. Tutti premono: se arrivi prima tu prendi un punto e il ricercato ne perde uno. Se il ricercato è più veloce, si salva e prende un punto. Se premi prima del via perdi un punto.",
         copyrhythm: "Un giocatore crea un ritmo di 8 battute premendo il suo tasto. Gli altri lo copiano tutti insieme seguendo la base. Poi cambia il creatore. Si fa un giro completo.",
-        horse: "Cavallino: premi per galoppare e passare al prossimo, doppio tocco per saltare un giocatore, tieni premuto per invertire il verso. Il tempo per agire diminuisce continuamente.",
+        horse: "Cavallino: premi per galoppare e passare al prossimo, doppio tocco per saltare un giocatore, tieni premuto per invertire il verso. Il tempo per agire diminuisce continuamente. Si giocano tre round.",
         thirsty: "Quante birre riesci a bere? Per ogni birra: premi per stappare, tieni premuto per bere, premi per buttare il bicchiere, tieni premuto per il rutto. Se lasci il tasto il suono riparte da dove eri. Conta solo la sequenza completa. In due: turni singoli. In tre: tre sfide uno contro uno. In quattro: due squadre, uno stappa e butta, l'altro beve e rutta.",
-        pig: "Ascolta i versi: premi quando senti il maiale, non gli altri animali.",
-        duel: "Conferma con il tuo tasto, poi premi appena senti il segnale. Anticipare significa falsa partenza.",
-        parachute: "Apri il paracadute il più tardi possibile, ma prima dell'impatto. L'esito è rivelato alla fine.",
-        disturber: "Premi il più possibile mentre parla Topo Gigio: ogni pressione è un punto. Quando non parla, ogni pressione toglie un punto. Ogni giocatore ha un suono diverso.",        pot: "Il piatto cresce: incassa quando vuoi, ma se aspetti troppo rischi di perdere tutto.",
+        pig: "Ascolta i versi: premi quando senti il maiale, non gli altri animali. Vince chi ne cattura cinque.",
+        duel: "Aspetta il segnale e premi appena lo senti. Anticipare significa falsa partenza. Il narratore dice chi vince ogni round.",
+        parachute: "Apri il paracadute il più tardi possibile, ma prima dell'impatto. L'esito è rivelato alla fine. Si giocano tre round.",
+        disturber: "Premi il più possibile mentre parla Topo Gigio: ogni pressione è un punto. Quando non parla, ogni pressione toglie un punto. Ogni giocatore ha un suono diverso.",        pot: "Il piatto cresce: incassa quando vuoi, ma se aspetti troppo rischi di perdere tutto. Si giocano tre round.",
         simon: "Simon a catena: il primo sceglie una nota, poi in senso orario ognuno ripete tutta la sequenza e ne aggiunge una. Hai 3 secondi tra una nota e l'altra. Chi sbaglia è eliminato. Il tasto centrale mette in pausa.",
-        mosquito: "Una zanzara vola intorno a te: premi quando il ronzio è fortissimo, cioè quando è vicina. Se premi troppo presto perdi un punto.",
-        mine: "Ascolta il canarino: se smette di cantare per più di 10 secondi è morto. Allora premi entro 2 secondi. Se premi prima scappi, se premi dopo è troppo tardi. Vince l'ultimo a uscire in tempo.",
+        mosquito: "Una zanzara vola intorno a te: premi quando il ronzio è fortissimo, cioè quando è vicina. Se premi troppo presto perdi un punto. Si giocano tre round.",
+        mine: "Ascolta il canarino: se smette di cantare per più di 10 secondi è morto. Allora premi entro 2 secondi. Se premi prima scappi, se premi dopo è troppo tardi. Vince l'ultimo a uscire in tempo. Si giocano tre round.",
         freeze: "Premi il più possibile mentre senti uno, due, tre. Appena senti «stai là!» fermati: chi preme è squalificato. Vince chi arriva per primo al numero di passi stabilito.",
         lesson: "Il prof di inglese spiega: finché parla (e il gesso scrive) premi il più possibile, e sentirai il tuo suono sempre più forte. Quando si ferma, fermati anche tu: chi preme viene scoperto e sospeso. Vince chi arriva per primo al numero di pressioni stabilito, o l'ultimo rimasto in classe.",
         door: "Qualcuno bussa o suona il campanello. Se è una persona che vuoi vedere, premi il più in fretta possibile per aprire; se non la vuoi, non aprire! Il primo che preme apre la porta. Ogni partita cambia il modo di bussare di ogni persona: all'inizio vengono presentate. Apri alla persona giusta e prendi un punto, apri a quella sbagliata e lo perdi.",
         restaurant: "Il ristoratore annuncia i piatti: prenota premendo per primo quelli buoni. Se prenoti un piatto immangiabile, paghi la penitenza e perdi un punto.",
         grinder: "Tieni premuto per spingere il legno contro la mola. Quando il suono finisce, lascia subito il tasto o perdi la mano! Vince chi tiene premuto più a lungo in totale.",
-        bomb: "La bomba passa da un giocatore all'altro: premi solo quando senti il tuo colore. Se premi fuori turno o non fai in tempo, sei eliminato. Il ritmo accelera sempre di più.",
-        rope: "La corda batte a terra a ritmo regolare: premi il tuo tasto nello stesso istante del colpo. I primi tre colpi sono di prova. Chi non salta o salta fuori tempo è eliminato. Il ritmo accelera. Vince l'ultimo rimasto.",        tennis: "Senti il rimbalzo della palla: quando rimbalza verso di te, premi per rispondere. Poi tocca al giocatore successivo in senso orario. Se premi prima del tuo rimbalzo resti fermo 2 secondi. Se manchi la palla perdi una vita.",
+        bomb: "La bomba passa da un giocatore all'altro: premi solo quando senti il tuo colore. Se premi fuori turno o non fai in tempo, sei eliminato. Il ritmo accelera sempre di più, soprattutto quando restano in due. Si giocano tre round.",
+        rope: "La corda batte a terra a ritmo regolare: premi il tuo tasto nello stesso istante del colpo. I primi tre colpi sono di prova. Chi non salta o salta fuori tempo è eliminato. Il ritmo accelera. Vince l'ultimo rimasto. Si giocano tre round.",        tennis: "Senti il rimbalzo della palla: quando rimbalza verso di te, premi per rispondere. Poi tocca al giocatore successivo in senso orario. Se premi prima del tuo rimbalzo resti fermo 2 secondi. Se manchi la palla sei eliminato. Si giocano tre round.",
         tapas: "A turno, ascolta il percorso e ripetilo con i tasti. Le direzioni sono relative a te. Un chilometro è una pressione. Se sbagli sei licenziato.",
         rally: "Quando tocca a te la macchina parte: il navigatore dice comandi come «3 destra» o «2 accelera» e tu premi subito, senza aspettare. I comandi arrivano sempre più veloci e ravvicinati. Un errore o un ritardo e fai incidente. Vince chi completa più comandi.",
         beeper: "Ogni giocatore ha un parlatore diverso, assegnato a voce. Tieni premuto per bippare tutta la parolaccia: più la copri, più punti prendi (fino a 3). Più tieni premuto su parole normali, più punti perdi (1,5 al secondo). Se bippi un parlatore che non è il tuo perdi punti allo stesso modo. Ogni parlatore dice lo stesso numero di parolacce.",
@@ -232,6 +232,7 @@
         ...["kick", "snare", "hat", "clap", "click"].map(DIR_("batteria")),
         ...["galoppo", "salto", "cambio-verso", "via"].map(DIR_("cavallino")),
         ...["rosso", "blu", "giallo", "verde"].map(DIR_("simon")),
+        ...["applausi", "buu"].map(DIR_("classifica")),
     ];
 
     async function preloadAll() {
@@ -409,6 +410,69 @@
         src.start();
     }
 
+    // === Suoni della classifica finale: applausi per il primo, buu per gli altri ===
+    function synthApplause() {
+        if (!soundEnabled) return;
+        const a = ensureAudio(), dur = 2.4, size = Math.floor(a.sampleRate * dur);
+        const buffer = a.createBuffer(1, size, a.sampleRate), d = buffer.getChannelData(0);
+        for (let i = 0; i < size; i++) {
+            const t = i / a.sampleRate;
+            const env = Math.min(1, t * 6) * Math.min(1, (dur - t) * 1.5);
+            d[i] = (Math.random() * 2 - 1) * env * (Math.random() < .002 ? 1 : .35);   // fruscio + battiti singoli
+        }
+        const src = a.createBufferSource(), band = a.createBiquadFilter(), gain = a.createGain();
+        src.buffer = buffer;
+        band.type = "bandpass";
+        band.frequency.value = 2200;
+        band.Q.value = .6;
+        gain.gain.value = .5;
+        src.connect(band);
+        band.connect(gain);
+        gain.connect(a.destination);
+        src.start();
+    }
+
+    function synthBoo(position = 2, total = 4) {
+        if (!soundEnabled) return;
+        const a = ensureAudio(), now = a.currentTime;
+        const base = 200 - (position - 2) * 25;                  // più si è in fondo, più il buu è grave
+        const osc = a.createOscillator(), lfo = a.createOscillator(), lfoGain = a.createGain();
+        const low = a.createBiquadFilter(), gain = a.createGain();
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(base, now);
+        osc.frequency.exponentialRampToValueAtTime(base * .7, now + 1.1);
+        lfo.frequency.value = 5;
+        lfoGain.gain.value = 6;
+        lfo.connect(lfoGain);
+        lfoGain.connect(osc.frequency);
+        low.type = "lowpass";
+        low.frequency.value = 500;
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(.22, now + .15);
+        gain.gain.linearRampToValueAtTime(0, now + 1.2);
+        osc.connect(low);
+        low.connect(gain);
+        gain.connect(a.destination);
+        osc.start(now);
+        lfo.start(now);
+        osc.stop(now + 1.25);
+        lfo.stop(now + 1.25);
+    }
+
+    // Suono di fine posizione: 1 = applausi, le altre = buu (più grave in fondo). Restituisce una Promise a fine suono.
+    async function positionSound(position, total = 4) {
+        const first = position === 1;
+        const t = await playTimed(
+            first ? "assets/sounds/classifica/applausi.mp3" : "assets/sounds/classifica/buu.mp3",
+            {
+                volume: first ? .9 : .7,
+                rate: first ? 1 : (position >= total ? .85 : 1),
+                fallback: () => first ? synthApplause() : synthBoo(position, total),
+                fallbackMs: first ? 2400 : 1300
+            });
+        return t.ended;
+    }
+
     function beepButton(id) {
         const freqs = {P1: 330, P2: 392, P3: 494, P4: 262, C: 587};
         tone(freqs[id] || 440, .07, "sine", .045);
@@ -469,7 +533,7 @@
     const spokenKeep = new Set();
 
 // Come sayAsync ma con velocità scelta e senza cancellare in anticipo (usata dal Rally)
-    function sayRate(text, rate = 1) {
+    function sayRate(text, rate = 1, maxMs = 4000) {
         return new Promise(resolve => {
             if (!("speechSynthesis" in window)) return resolve();
             const u = new SpeechSynthesisUtterance(text);
@@ -489,7 +553,7 @@
                 spokenKeep.delete(u);
                 resolve();
             };
-            const safety = setTimeout(end, 4000);
+            const safety = setTimeout(end, maxMs);
             u.onend = end;
             u.onerror = end;
             spokenKeep.add(u);
@@ -638,11 +702,24 @@
 // Narra un testo di introduzione e aspetta che finisca (e che finisca anche l'eventuale pausa).
 // Restituisce false se nel frattempo si è usciti dal gioco.
     async function narrate(g, text) {
+        if (g.match && g.match.round > 1) return game === g && !g.finished;   // dal 2° round niente spiegazione
         await sayIntro(text);
         while (paused && game === g) await new Promise(r => setTimeout(r, 150));
         return game === g && !g.finished;
     }
 
+
+// Come sayIntro, ma solo al primo round (usata dai giochi a più round)
+    function introOnce(g, text) {
+        return g.match && g.match.round > 1 ? Promise.resolve() : sayIntro(text);
+    }
+
+// Annuncia il vincitore a voce, ma solo nei giochi a round singolo
+// (in quelli a più round ci pensano la fine round e la classifica finale)
+    function sayWin(g, name) {
+        if (game !== g || g.match) return;
+        say("Vince " + name);
+    }
 
     function toast(message) {
         const el = $("#toast");
@@ -706,6 +783,7 @@
     function emit(id, type, source = "touch") {
         const event = {button: id, type, timestamp: performance.now(), source};
         window.dispatchEvent(new CustomEvent("bp:input", {detail: event}));
+        console.log("emit", event);
         if (type === "down") {
             if (held.has(id)) return;
             held.add(id);
@@ -878,10 +956,20 @@
         setArena("⏸ Partita in pausa", "Premi Riprendi per continuare");
         $("#pause-button").textContent = "▶ Riprendi";
         buttons.forEach(b => b.classList.remove("pressed"));
+        sayRate("Gioco in pausa.", 1, 3000);
     }
 
-    function resumeGame() {
-        if (!game || !paused) return;
+    // La ripresa è preceduta dal conto alla rovescia del narratore: nel frattempo il gioco resta fermo
+    let resuming = false;
+
+    async function resumeGame() {
+        if (!game || !paused || resuming) return;
+        resuming = true;
+        const current = game;
+        setArena("▶ Riprendo il gioco…", "3, 2, 1");
+        await sayRate("Riprendo il gioco in 3, 2, 1.", 1, 7000);
+        resuming = false;
+        if (game !== current || !paused) return;     // uscito dal gioco nel frattempo
         pausedTotal += performance.now() - pausedSince;
         paused = false;
         window.BPDebug?.pause(false);
@@ -908,6 +996,7 @@
         $("#simon-feedback").textContent = "";
         const id = $("#game-select").value;
         game = makeGame(id);
+        game.match = MULTI_ROUNDS[id] ? {round: 1, total: MULTI_ROUNDS[id], wins: {}, points: {}} : null;
         window.BPDebug?.gameStart(game, GAME_NAMES[id]);
         game.setup();
         game.start();
@@ -921,6 +1010,7 @@
         if (game?.dispose) game.dispose();
         game = null;
         paused = false;
+        resuming = false;
         held.clear();
         $("#game-panel").hidden = true;
         $("#setup-panel").hidden = false;
@@ -930,10 +1020,98 @@
         window.BPDebug?.gameEnd("uscita");
     }
 
+    // Giochi a più round: quanti round si giocano
+    const MULTI_ROUNDS = {horse: 3, parachute: 3, mosquito: 3, pot: 3, mine: 3, bomb: 3, rope: 3, tennis: 3};
+
+    function recordRound(m, ranking) {
+        if (!ranking || !ranking.length) return null;
+        const n = playerIds().length;
+        m.wins[ranking[0]] = (m.wins[ranking[0]] || 0) + 1;
+        ranking.forEach((p, i) => {
+            m.points[p] = (m.points[p] || 0) + (n - i);
+        });
+        return ranking[0];
+    }
+
+    // Classifica finale dopo l'ultimo round: più round vinti, poi più punti piazzamento
+    function matchResult(m) {
+        const sorted = playerIds().sort((a, b) =>
+            (m.wins[b] || 0) - (m.wins[a] || 0) || (m.points[b] || 0) - (m.points[a] || 0));
+        const [a, b] = sorted;
+        if (!(m.wins[a] > 0)) return {ranking: null, message: "Nessun vincitore"};
+        if (b && (m.wins[a] || 0) === (m.wins[b] || 0) && (m.points[a] || 0) === (m.points[b] || 0)) {
+            return {ranking: null, message: "Pareggio"};
+        }
+        return {ranking: sorted, message: "🏆 " + COLORS[a] + " vince con " + m.wins[a] + " round su " + m.total + "!"};
+    }
+
+    // Fine di un round che non è l'ultimo: il narratore dice chi ha vinto e parte il round dopo
+    async function advanceRound(message, ranking) {
+        const old = game, m = old.match;
+        const winner = recordRound(m, ranking);
+        const delay = old.endDelay ?? 900;      // lascia finire i suoni di fine round
+        const wait = ms => new Promise(r => setTimeout(r, ms));
+
+        old.finished = true;
+        stopTimer();
+        stopFallSound();
+        old.dispose?.();
+        const holder = {
+            id: old.id, mode: "turn", finished: true, match: m, silentButtons: true,
+            onInput() {
+            }, dispose() {
+                stopTimer();
+            }
+        };
+        game = holder;
+        window.dispatchEvent(new CustomEvent("bp:round-finished", {
+            detail: {id: old.id, round: m.round, total: m.total, winner}
+        }));
+        setArena(message, "Round " + m.round + " di " + m.total + " concluso", "signal");
+        $("#game-status").textContent = "FINE ROUND " + m.round;
+
+        await wait(delay);
+        if (game !== holder) return;
+        const next = m.round + 1;
+        await sayAsync((winner ? "Round " + m.round + ": punto a " + COLORS[winner] + "." : "Round " + m.round + ": nessun vincitore.")
+            + " Si parte con il round " + next + ".", 9000);
+        if (game !== holder) return;
+
+        m.round = next;
+        scores = Object.fromEntries(playerIds().map(p => [p, 0]));
+        const ng = makeGame(old.id);
+        ng.match = m;
+        game = ng;
+        $("#game-status").textContent = "ROUND " + m.round + " DI " + m.total;
+        window.BPDebug?.log("partita", "info", "round " + m.round + " di " + m.total);
+        ng.setup();
+        ng.start();
+        renderScores();
+    }
+
     function finish(message, ranking = null, announce = true) {
         if (!game || game.finished) {
             window.BPDebug?.finishIgnored(message, !game);
             return;
+        }
+        const m = game.match;
+        if (m) {
+            if (m.round < m.total) {
+                advanceRound(message, ranking);
+                return;
+            }
+            // Ultimo round: la classifica finale conta tutti i round
+            recordRound(m, ranking);
+            const result = matchResult(m);
+            message = result.message;
+            ranking = result.ranking;
+            scores = Object.fromEntries(playerIds().map(p => [p, m.wins[p] || 0]));
+            renderScores();
+            const gg = game;
+            setTimeout(() => {
+                if (game === gg) say(ranking ? "Vince " + COLORS[ranking[0]] : result.message);
+            }, game.endDelay ?? 600);
+            announce = false;
         }
         game.finished = true;
         window.dispatchEvent(new CustomEvent("bp:game-finished", {
@@ -1008,7 +1186,7 @@
             setArena("🐾 In ascolto…", "Premi solo quando senti il maiale");
 
             if (!await narrate(g, "Cattura il maiale. Ascolta i versi degli animali e premi solo quando senti il maiale. " +
-                "Se premi per un altro animale perdi un punto. Vince chi arriva a dieci punti.")) return;
+                "Se premi per un altro animale perdi un punto. Vince chi arriva a cinque punti.")) return;
 
             ready = true;
             started = performance.now();
@@ -1071,7 +1249,7 @@
 
                 toast(COLORS[id] + " cattura il maiale!");
 
-                if (scores[id] >= 10) {
+                if (scores[id] >= 5) {
                     finish("🐷 " + COLORS[id] + " vince!", winner());
                     return;
                 }
@@ -1099,7 +1277,7 @@
     function makeDuel() {
         const g = baseGame("duel");
         const FALSE_START_SOUND = "assets/sounds/duello/falsa-partenza.mp3";
-        let ready = new Set(), eligible = new Set(), round = 1, started = false, waiting = false, goAt = 0, wins = {};
+        let eligible = new Set(), round = 1, started = false, waiting = false, goAt = 0, wins = {};
         const total = 5;
         let introDone = false;
 
@@ -1110,8 +1288,8 @@
             $("#game-status").textContent = "DUELLO";
             setArena("🤠 Duello", "Ascolta le istruzioni");
             renderScores(wins);
-            if (!await narrate(g, "Duello. In ogni round premi il tuo tasto per prepararti. " +
-                "Quando senti il segnale, premi il più in fretta possibile. Se premi prima, è falsa partenza e perdi un punto. " +
+            if (!await narrate(g, "Duello. In ogni round aspetta il segnale, poi premi il tuo tasto il più in fretta possibile. " +
+                "Se premi prima, è falsa partenza e perdi un punto. Alla fine di ogni round ti dico chi ha vinto. " +
                 "Si giocano cinque round.")) return;
             introDone = true;
             beginRound();
@@ -1119,15 +1297,23 @@
 
         function beginRound() {
             if (g.finished) return;
-            ready.clear();
             eligible = new Set(playerIds());
             started = false;
             waiting = false;
             g.duelWinner = undefined;
-            setArena("Round " + round + " / " + total, "Premi il tuo tasto per prepararti");
+            setArena("Round " + round + " / " + total, "Ascolta…");
             $("#game-status").textContent = "DUELLO";
             renderScores(wins);
-            say("Round " + round + ". Premi il tuo tasto per prepararti");
+            // Il narratore annuncia il round, poi parte l'attesa del segnale (senza conferme dei giocatori)
+            sayAsync("Round " + round + ".", 4000).then(() => {
+                if (game !== g || g.finished) return;
+                waiting = true;
+                setArena("Non muoverti…", "Aspetta il segnale");
+                later(() => {
+                    if (g.finished) return;
+                    signal();
+                }, 3000 + Math.random() * 5000);
+            });
         }
 
         function signal() {
@@ -1146,7 +1332,8 @@
                 if (g.finished || g.duelWinner !== undefined) return;
                 g.duelWinner = null;                      // chiude il round: chi preme ora non vince
                 setArena("Nessuno ha risposto", "Il round si ripete");
-                later(beginRound, 1500);
+                say("Nessuno ha risposto. Il round si ripete.");
+                later(beginRound, 2800);
             }, 5000);
         }
 
@@ -1162,7 +1349,8 @@
             // Se sono tutti fuori, il round non ha senso: si ripete
             if (eligible.size === 0) {
                 setArena("Tutti hanno anticipato!", "Il round si ripete");
-                later(beginRound, 1500);
+                say("Tutti hanno anticipato. Il round si ripete.");
+                later(beginRound, 2800);
             }
         }
 
@@ -1186,14 +1374,15 @@
             setArena("🏆 " + COLORS[id] + " vince il round!", "Punteggio round: " + wins[id]);
 
             round++;
+            say(COLORS[id] + " vince il round.");       // il narratore dice chi ha vinto
 
             if (round <= total) {
-                later(beginRound, 1400);
+                later(beginRound, 2600);
             } else {
                 later(() => {
                     const order = playerIds().sort((a, b) => wins[b] - wins[a]);
                     finish("Partita terminata — " + COLORS[order[0]] + " vince!", order);
-                }, 1500);
+                }, 2600);
             }
         }
 
@@ -1203,23 +1392,8 @@
             const id = e.button;
             if (!playerIds().includes(id) || g.finished || !introDone) return;
 
-            // Fase di preparazione: ognuno conferma il proprio tasto
-            if (!started && !waiting) {
-                if (!ready.has(id)) {
-                    ready.add(id);
-                    tone(500, .08);
-                    toast(COLORS[id] + " pronto");
-                }
-                if (ready.size === players) {
-                    waiting = true;
-                    setArena("Non muoverti…", "Aspetta il segnale");
-                    later(() => {
-                        if (g.finished) return;
-                        signal();
-                    }, 3000 + Math.random() * 5000);
-                }
-                return;
-            }
+            // Mentre il narratore annuncia il round i tasti non fanno nulla
+            if (!started && !waiting) return;
 
             // Attesa del segnale: premere adesso è una falsa partenza
             if (waiting) {
@@ -1253,6 +1427,7 @@
 
     function makeParachute() {
         const g = baseGame("parachute");
+        g.endDelay = 2500;     // lascia finire lo splash
         let start = 0, ground = 0, safe = 0, opened = {}, results = {}, running = false;
 
         g.start = async () => {
@@ -1269,7 +1444,7 @@
             loadSample("assets/sounds/paracadute.mp3");
 
             // 1. La voce spiega il gioco e il gioco aspetta che finisca
-            await sayIntro("Caduta libera. Senti il suono e scegli quando aprire.");
+            await introOnce(g, "Caduta libera. Senti il suono e scegli quando aprire. Si giocano tre round.");
             if (game !== g) return; // uscito durante la spiegazione
 
             // 2. Ora parte la caduta
@@ -1298,7 +1473,7 @@
                 });
             }
             if (game !== g) return; // uscito nel frattempo
-            say("Vince " + COLORS[order[0]]);
+            sayWin(g, COLORS[order[0]]);
         }
 
         function tick() {
@@ -1489,7 +1664,7 @@
             setArena("🪙 0 gettoni", "Incassa quando vuoi… ma non aspettare troppo");
             renderScores();
             if (!await narrate(g, "Piglia tutto. Il piatto si riempie di gettoni, uno dopo l'altro. " +
-                "Premi per incassare quelli che ci sono. Ma se aspetti troppo il piatto esplode, e chi non ha incassato perde tutto.")) return;
+                "Premi per incassare quelli che ci sono. Ma se aspetti troppo il piatto esplode, e chi non ha incassato perde tutto. Si giocano tre round.")) return;
             ready = true;
             start = performance.now();
             tick();
@@ -1501,7 +1676,8 @@
             coinSound();
             if (pot > limit) {
                 const order = playerIds().sort((a, b) => scores[b] - scores[a]);
-                finish("💥 Limite superato! Vince " + COLORS[order[0]], order);
+                const tie = scores[order[0]] === scores[order[1]];
+                finish(tie ? "💥 Limite superato! Pareggio" : "💥 Limite superato! Vince " + COLORS[order[0]], tie ? null : order);
                 return;
             }
             setArena("🪙 " + pot + " gettoni", "Il limite segreto è nascosto…");
@@ -1550,21 +1726,40 @@
         const COLOR_RATE = {P1: 1, P2: 1.26, P3: 1.5, P4: 2};          // do · mi · sol · do' (velocità del file)
         const COLOR_PITCH = {P1: .7, P2: .95, P3: 1.25, P4: 1.6};      // se manca il file: voce sintetica
 
+        // Voce dei colori: una voce italiana DIVERSA da quella del narratore (se non c'è, stessa voce ma molto più acuta)
+        const FEMALE_HINTS = /alice|elsa|federica|paola|isabella|google italiano|female|donna/i;
+        let colorVoice;
+
+        function getColorVoice() {
+            if (colorVoice !== undefined) return colorVoice;
+            const narrator = getNarratorVoice();
+            const italian = speechSynthesis.getVoices().filter(v => (v.lang || "").toLowerCase().startsWith("it") && v !== narrator);
+            const found = italian.find(v => FEMALE_HINTS.test(v.name)) || italian[0] || null;
+            if (found || speechSynthesis.getVoices().length) colorVoice = found;   // se le voci non sono ancora arrivate, riprova
+            return found;
+        }
+
         function sayShort(text, pitch) {
             if (!soundEnabled || !("speechSynthesis" in window)) return;
             speechSynthesis.cancel();
             const u = new SpeechSynthesisUtterance(text);
-            const v = getNarratorVoice();
-            if (v) { u.voice = v; u.lang = v.lang; } else u.lang = "it-IT";
-            u.pitch = pitch; u.rate = 1.15; u.volume = 1;
+            const v = getColorVoice();
+            if (v) {
+                u.voice = v;
+                u.lang = v.lang;
+                u.pitch = pitch;
+            } else {                       // nessuna altra voce: stessa del narratore ma molto più acuta
+                const n = getNarratorVoice();
+                if (n) { u.voice = n; u.lang = n.lang; } else u.lang = "it-IT";
+                u.pitch = Math.min(2, pitch + .5);
+            }
+            u.rate = 1.15; u.volume = 1;
             speechSynthesis.speak(u);
         }
 
         function playColor(id) {
-            return playTimed(SIMON_DIR + colorName(id) + ".mp3", {
-                rate: COLOR_RATE[id],
-                fallback: () => sayShort(colorName(id), COLOR_PITCH[id])
-            });
+            sayShort(colorName(id), COLOR_PITCH[id]);
+            return Promise.resolve();
         }
 
         function showScores() {
@@ -1840,7 +2035,8 @@
             const order = ranking();
             stopBuzz();
             stopInterval();
-            finish("Tempo scaduto! Vince " + COLORS[order[0]], order);
+            const tie = order.length > 1 && scores[order[0]] === scores[order[1]];
+            finish(tie ? "Tempo scaduto! Pareggio" : "Tempo scaduto! Vince " + COLORS[order[0]], tie ? null : order);
         }
 
         function stopInterval() {
@@ -1864,7 +2060,7 @@
             $("#game-status").textContent = "ASCOLTA IL RONZIO";
             setArena("🦟 Ascolta…", "Premi quando il ronzio è fortissimo");
             if (!await narrate(g, "Prendi la zanzara. Una zanzara vola intorno a te: premi quando il ronzio è fortissimo, " +
-                "perché vuol dire che è vicina. Se premi troppo presto, perdi un punto. Vince chi ne prende tre.")) return;
+                "perché vuol dire che è vicina. Se premi troppo presto, perdi un punto. Vince chi ne prende tre. Si giocano tre round.")) return;
 
             const ok = await startBuzz();
             if (!ok) return;
@@ -1929,6 +2125,7 @@
 
     function makeMine() {
         const g = baseGame("mine");
+        g.endDelay = 2500;     // lascia finire il grido
 
         // === File audio ===
         const BACKGROUND = "assets/sounds/miniera/picconi.mp3";   // picconi, in loop
@@ -2019,7 +2216,7 @@
                 loadSample(PAIN_SOUND)
             ]);
 
-            await sayIntro("In miniera. Se il canarino smette di cantare, esci entro due secondi. Ma non scappare troppo presto!");
+            await introOnce(g, "In miniera. Se il canarino smette di cantare, esci entro due secondi. Ma non scappare troppo presto! Si giocano tre round.");
             await preload;
             if (game !== g) return;
 
@@ -2118,7 +2315,7 @@
                 });
             }
             if (game !== g) return;
-            if (order.length > late.length) say("Vince " + COLORS[order[0]]);
+            if (order.length > late.length) sayWin(g, COLORS[order[0]]);
         }
 
         g.onInput = e => {
@@ -4071,6 +4268,7 @@
 
     function makeBomb() {
         const g = baseGame("bomb");
+        g.endDelay = 1500;
 
         // === File audio ===
         const DIR = "assets/sounds/bomba/";
@@ -4093,6 +4291,8 @@
         const REACTION_END = 650;       // tempo per premere al massimo della velocità (ms)
         const RATE_END = 1.9;           // velocità finale del suono del salto (1 = normale)
         const RAMP_PASSES = 14;         // passaggi necessari per arrivare alla velocità massima
+        // Quando restano in due si accelera ancora, passaggio dopo passaggio, finché qualcuno sbaglia
+        const TICK_FINAL = 70, REACTION_FINAL = 380, RATE_FINAL = 2.6, ENDGAME_PASSES = 16;
         const ANNOUNCE_DELAY = 220;     // pausa tra il salto e il colore (ms)
         const DOUBLE_TAP_GRACE = 250;   // chi ha appena passato la bomba non viene punito se ripreme subito (ms)
         const BOMB_VOLUME = .5;
@@ -4106,6 +4306,11 @@
 
         const lerp = (a, b, t) => a + (b - a) * t;
         const progress = () => Math.min(1, passes / RAMP_PASSES);
+        const endgame = () => alive.length <= 2 ? Math.min(1, Math.max(0, passes - RAMP_PASSES) / ENDGAME_PASSES) : 0;
+        const tickGap = () => lerp(lerp(TICK_START, TICK_END, progress()), TICK_FINAL, endgame());
+        const reactionTime = () => lerp(lerp(REACTION_START, REACTION_END, progress()), REACTION_FINAL, endgame());
+        const jumpRate = () => lerp(lerp(1, RATE_END, progress()), RATE_FINAL, endgame());
+        const colorRate = () => 1 + progress() * .25 + endgame() * .2;
         const minAlive = () => (playerIds().length > 1 ? 1 : 0);
 
         function stopInterval() {
@@ -4136,7 +4341,7 @@
         }
 
         function playJump() {
-            const rate = lerp(1, RATE_END, progress());   // il salto si velocizza col gioco
+            const rate = jumpRate();   // il salto si velocizza col gioco
             const buffer = buffers.get(JUMP);
             if (buffer) playBuffer(buffer, .8, rate);
             else tone(500 * rate, .08 / rate, "triangle", .1);
@@ -4145,7 +4350,7 @@
         // Annuncia il colore del giocatore che ha la bomba
         function announceHolder() {
             const buffer = buffers.get(COLOR_FILES[holder]);
-            if (buffer) playBuffer(buffer, 1, 1 + progress() * .25);
+            if (buffer) playBuffer(buffer, 1, colorRate());
             else say(COLORS[holder]);
         }
 
@@ -4165,12 +4370,12 @@
             playJump();
             announceAt = clock + ANNOUNCE_DELAY;
             const cb = buffers.get(COLOR_FILES[holder]);
-            const colorMs = cb ? audibleDurationMs(cb) / (1 + progress() * .25) : 800;   // 800 ms stimati per la voce
-            deadline = clock + ANNOUNCE_DELAY + colorMs + lerp(REACTION_START, REACTION_END, progress());
+            const colorMs = cb ? audibleDurationMs(cb) / colorRate() : 800;   // 800 ms stimati per la voce
+            deadline = clock + ANNOUNCE_DELAY + colorMs + reactionTime();
         }
 
         function startRound() {
-            passes = 0;
+            if (alive.length > 2) passes = 0;     // con due soli giocatori la velocità non si azzera più
             holder = null;
             previous = null;
             phase = "live";
@@ -4183,6 +4388,7 @@
         g.start = async () => {
             phase = "intro";
             clock = 0;
+            passes = 0;
             alive = [...playerIds()];
             outOrder = [];
             status = Object.fromEntries(playerIds().map(p => [p, "—"]));
@@ -4197,7 +4403,7 @@
                     .map(async p => buffers.set(p, await loadSample(p)))
             );
 
-            await sayIntro("Palla esplosiva. Premi solo quando senti il tuo colore. Se premi fuori turno o sei lento, sei eliminato!");
+            await introOnce(g, "Palla esplosiva. Premi solo quando senti il tuo colore. Se premi fuori turno o sei lento, sei eliminato! Si giocano tre round.");
             await preload;
             if (game !== g) return;
 
@@ -4222,7 +4428,7 @@
 
             if (clock >= nextTickAt) {
                 playTickTock();
-                nextTickAt += lerp(TICK_START, TICK_END, progress());
+                nextTickAt += tickGap();
             }
 
             if (clock >= deadline) explode();
@@ -4252,7 +4458,7 @@
                 const order = [...alive, ...[...outOrder].reverse()];
                 if (alive.length) {
                     conclude(order);
-                    say("Vince " + COLORS[alive[0]]);
+                    sayWin(g, COLORS[alive[0]]);
                 } else {
                     finish("💥 Nessun sopravvissuto!", null);
                 }
@@ -4287,7 +4493,7 @@
                     conclude(order);
                     await sound;
                     if (game !== g) return;
-                    say("Vince " + COLORS[alive[0]]);
+                    sayWin(g, COLORS[alive[0]]);
                 } else {
                     finish("💥 Nessun sopravvissuto!", null);
                 }
@@ -4336,6 +4542,7 @@
 
     function makeRope() {
         const g = baseGame("rope");
+        g.endDelay = 1500;     // lascia finire il suono dell'inciampo
 
         // === File audio ===
         const DIR = "assets/sounds/corda/";
@@ -4433,8 +4640,8 @@
                 [BACKGROUND, ROPE, JUMP, TRIP].map(async p => buffers.set(p, await loadSample(p)))
             );
 
-            await sayIntro("Saltare la corda. La corda batte a terra a ritmo regolare: premi il tuo tasto nello stesso istante del colpo, a tempo con il suono. " +
-                "I primi tre colpi sono di prova. Chi non salta o salta fuori tempo è eliminato, e si va sempre più veloci!");
+            await introOnce(g, "Saltare la corda. La corda batte a terra a ritmo regolare: premi il tuo tasto nello stesso istante del colpo, a tempo con il suono. " +
+                "I primi tre colpi sono di prova. Chi non salta o salta fuori tempo è eliminato, e si va sempre più veloci! Si giocano tre round.");
             await preload;
             if (game !== g) return;
 
@@ -4513,7 +4720,7 @@
                 finish("🪢 " + COLORS[alive[0]] + " è l'ultimo a saltare: vince!", order, false);
                 await sound;
                 if (game !== g) return;
-                say("Vince " + COLORS[alive[0]]);
+                sayWin(g, COLORS[alive[0]]);
             } else {
                 finish("🪢 Tutti eliminati! Nessun vincitore", null, false);
             }
@@ -4568,6 +4775,7 @@
 
     function makeTennis() {
         const g = baseGame("tennis");
+        g.endDelay = 1200;
 
         // === File audio ===
         const DIR = "assets/sounds/tennis/";
@@ -4577,7 +4785,7 @@
         const MISSED = DIR + "mancata.mp3";       // palla mancata
 
         // === Parametri ===
-        const LIVES = 3;                // vite per giocatore
+        const LIVES = 1;                // niente vite: chi manca la palla è eliminato dal round
         const FREEZE = 2000;            // blocco per chi preme troppo presto (ms)
         const FLIGHT_START = 1500;      // tempo tra colpo e rimbalzo all'inizio (ms)
         const FLIGHT_END = 450;         // tempo alla massima velocità (ms)
@@ -4655,7 +4863,7 @@
                 p,
                 lives[p] <= 0
                     ? "OUT"
-                    : (frozenUntil[p] > now ? "❄ " : "") + "♥".repeat(lives[p])
+                    : (frozenUntil[p] > now ? "❄ " : "") + "🎾"
             ])));
         }
 
@@ -4684,17 +4892,21 @@
             bounceAt = Infinity;
             deadline = Infinity;
             $("#game-status").textContent = "SERVIZIO";
-            setArena("🎾 Serve " + COLORS[server], COLORS[server] + ": premi per lanciare la palla");
+            setArena("🎾 Serve " + COLORS[server], COLORS[server] + ": premi per servire");
             render();
         }
 
-        // Chi serve lancia la palla: parte il primo rimbalzo
+        // Chi serve preme UNA sola volta: il servizio è già il suo colpo e la palla passa al giocatore successivo
         function launch(t) {
             serving = false;
             playRacket(holder);
+            prevHolder = holder;
+            hitAt = t;
+            holder = nextAlive(holder);
             bounced = false;
-            bounceAt = t + 1200 + Math.random() * 1200;
+            bounceAt = t + flight();
             deadline = bounceAt + reaction();
+            $("#game-status").textContent = "SCAMBIO";
             setArena("🎾 Ascolta il rimbalzo…", "Premi dopo il rimbalzo, non prima");
         }
 
@@ -4715,9 +4927,9 @@
                 [BOUNCE, RACKET, FAULT, MISSED].map(async p => buffers.set(p, await loadSample(p)))
             );
 
-            await sayIntro("Tennis. Premi quando senti la palla rimbalzare verso di te. Si gioca in senso orario: " +
-                playerIds().map(p => COLORS[p]).join(", ") + ". Chi serve preme il suo tasto per lanciare la palla. Se premi troppo presto resti fermo due secondi. " +
-                "Hai tre vite: se manchi la palla ne perdi una, io ti dico chi è stato colpito e chi serve.");
+            await introOnce(g, "Tennis. Premi quando senti la palla rimbalzare verso di te. Si gioca in senso orario: " +
+                playerIds().map(p => COLORS[p]).join(", ") + ". Chi serve preme il suo tasto una volta per servire. Se premi troppo presto resti fermo due secondi. " +
+                "Se manchi la palla sei eliminato dal round, io ti dico chi è stato eliminato e chi serve. Si giocano tre round.");
             await preload;
             if (game !== g) return;
 
@@ -4802,14 +5014,11 @@
                 return;
             }
 
-            setArena("🎾 Palla persa!", COLORS[loser] + " perde una vita", "signal");
-            nextServer = lives[loser] > 0 ? loser : nextAlive(loser);
-            const left = lives[loser];
-            const text = COLORS[loser] + (left > 1 ? " ha perso una vita, ne restano " + left + "."
-                    : left === 1 ? " ha perso una vita, gli resta l'ultima." : " è eliminato.") +
-                " Inizia " + COLORS[nextServer] + ".";
-            sound.then(() => announceThenServe(text, nextServer));
-            nextServer = lives[loser] > 0 ? loser : nextAlive(loser);
+            setArena("🎾 Palla persa!", COLORS[loser] + " è eliminato", "signal");
+            nextServer = nextAlive(loser);
+            const text = COLORS[loser] + " è eliminato. Inizia " + COLORS[nextServer] + ".";
+            const server = nextServer;
+            sound.then(() => announceThenServe(text, server));
         }
 
         async function conclude(sound) {
@@ -4824,7 +5033,7 @@
                 finish("🎾 " + COLORS[alive[0]] + " è l'ultimo in campo: vince!", order, false);
                 await sound;
                 if (game !== g) return;
-                say("Vince " + COLORS[alive[0]]);
+                sayWin(g, COLORS[alive[0]]);
             } else {
                 finish("🎾 Vite finite! Fine della partita", null, false);
             }
@@ -7165,7 +7374,7 @@
 
             if (!await narrate(g, "Taglia. In ogni round il narratore dice chi è il ricercato, poi spara. Tutti premono il più in fretta possibile. " +
                 "Se arrivi prima tu, prendi un punto e il ricercato ne perde uno. Se il più veloce è il ricercato, si salva e prende un punto. " +
-                "Se premi prima dello sparo, perdi un punto. Si giocano dieci round.")) return;
+                "Se premi prima dello sparo, perdi un punto. Alla fine di ogni round ti dico chi ha vinto. Si giocano dieci round.")) return;
             nextRound();
         };
 
@@ -7275,7 +7484,14 @@
             }
             renderScores();
             setArena("🎯 " + msg, "Round " + round + " di " + ROUNDS);
-            later(nextRound, 2000);
+            // Il narratore dice chi ha vinto il round (dopo il suono dello sparo)
+            const spoken = id === null ? "Nessuno vince il round."
+                : id === target ? COLORS[id] + " si salva e prende un punto."
+                    : COLORS[id] + " vince il round: prende la taglia su " + COLORS[target] + ".";
+            setTimeout(() => {
+                if (game === g && !g.finished) say(spoken);
+            }, 700);
+            later(nextRound, 3600);
         }
 
         function conclude() {
@@ -7862,7 +8078,7 @@
                 "Un tocco fa galoppare e passa al successivo; doppio tocco salta il prossimo giocatore senza eliminarlo; " +
                 "tieni premuto per cambiare verso. " +
                 "Se non fai nessuna mossa in tempo, sei eliminato. " +
-                "Se premi quando non è il tuo turno, sei eliminato.")) return;
+                "Se premi quando non è il tuo turno, sei eliminato. Si giocano tre round.")) return;
 
             announceTurn();
         };
@@ -8539,6 +8755,13 @@
         games: () => ({...GAME_NAMES}),
         colors: () => ({...COLORS}),
         speak: (text, maxMs) => sayAsync(text, maxMs),
+        // Suono di una posizione della classifica finale (1 = applausi, altre = buu). Si può aspettare con await.
+        positionSound: (position, total) => positionSound(position, total),
+        // Dice il testo (es. «Secondo posto: Blu») e poi fa partire il suono della posizione
+        announcePosition: async (text, position, total, maxMs) => {
+            await sayAsync(text, maxMs);
+            await positionSound(position, total);
+        },
         unlockAudio: () => ensureAudio(),
         setMenuStart: enabled => {
             menuStartEnabled = !!enabled;

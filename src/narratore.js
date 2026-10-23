@@ -158,6 +158,7 @@
   }
 
   function onRegisterInput(id) {
+    console.log("onRegisterInput", id);
     if (id === "C") {
       if (state.players.length >= 2) {
         registerDone?.();
@@ -317,8 +318,10 @@
         await speak(
           `E al primo posto${tie} ${g.ids.length > 1 ? "i vincitori sono" : "il vincitore è"} ${who}, con ${pts} punti! Complimenti!`
         );
+        await BP.positionSound(1, state.players.length);        // applausi
       } else {
         await speak(`Al ${ORDINALS[g.pos]} posto${tie} ${who}, con ${pts} punti.`);
+        await BP.positionSound(g.pos + 1, state.players.length);   // buu
       }
       await sleep(500);
     }
@@ -331,6 +334,7 @@
 
   window.addEventListener("bp:input", e => {
     const {button, type} = e.detail || {};
+    console.log("bp:input", button, type);
     if (type !== "down") return;
     if (state.phase === "register") {
       onRegisterInput(button);

@@ -2,9 +2,9 @@
   "use strict";
 
   const SERVICE_UUID =
-      "7b100001-7b10-4b10-8b10-7b1000000001";
+      "7b7a1000-1234-4567-890a-bcdef0123456";
   const CHARACTERISTIC_UUID =
-      "7b100002-7b10-4b10-8b10-7b1000000001";
+      "7b7a1001-1234-4567-890a-bcdef0123456";
 
   const EVENTS = {
     P1_DOWN: ["P1", "down"],
@@ -15,7 +15,8 @@
     P3_UP:   ["P3", "up"],
     P4_DOWN: ["P4", "down"],
     P4_UP:   ["P4", "up"],
-    C:       ["C",  "down"]   // evento singolo "C"
+    C_DOWN: ["C", "down"],
+     _UP:   ["C", "up"]
   };
 
   class ArcadeBLEController {
@@ -51,7 +52,7 @@
       this.onStatus("Ricerca controller…");
 
       const device = await navigator.bluetooth.requestDevice({
-        filters: [{ name: "ESP32-Pulsantiera" }],
+        filters: [{ name: "ESP32-Controller" }],
         optionalServices: [SERVICE_UUID]
       });
 
@@ -63,7 +64,7 @@
     async reconnectKnown(timeoutMs = 5000) {
       if (!navigator.bluetooth?.getDevices) return false;
       const devices = await navigator.bluetooth.getDevices();
-      const device = devices.find(d => d.name === "ESP32-Pulsantiera");
+      const device = devices.find(d => d.name === "ESP32-Controller");
       if (!device) return false;
       let timer;
       const timeout = new Promise((_, reject) => {
@@ -122,11 +123,16 @@
           .decode(event.target.value)
           .trim();
 
+      console.log("handleNotification", message);
+
       const input = EVENTS[message];
+
+      console.log("handleNotification", input);
+
       if (!input || !this.enabled) return;
 
       const [button, type] = input;
-
+      console.log("handleNotification", button, type);
       // Ignora notifiche duplicate dello stesso stato.
       if (type === "down") {
         if (this.held.has(button)) return;

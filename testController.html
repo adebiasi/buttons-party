@@ -1,0 +1,190 @@
+
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ESP32 Bluetooth Controller</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            max-width: 750px;
+            margin: 35px auto;
+            padding: 0 18px;
+            background: #f3f4f6;
+            color: #111827;
+        }
+
+        button {
+            padding: 11px 16px;
+            margin: 5px 5px 12px 0;
+            border: 0;
+            border-radius: 8px;
+            background: #2563eb;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:disabled { opacity: 0.5; }
+
+        #status {
+            padding: 12px;
+            border-radius: 8px;
+            background: #e5e7eb;
+            margin: 10px 0 18px;
+        }
+
+        #events {
+            background: #111827;
+            color: #d1fae5;
+            padding: 14px;
+            min-height: 280px;
+            max-height: 450px;
+            overflow-y: auto;
+            border-radius: 8px;
+            font-family: monospace;
+        }
+
+        .event {
+            padding: 7px 0;
+            border-bottom: 1px solid #374151;
+        }
+
+        .down { color: #34d399; }
+        .up { color: #60a5fa; }
+    </style>
+</head>
+<body>
+<h1>ESP32 Controller</h1>
+<p>Eventi Bluetooth dei 4 giocatori e della pausa.</p>
+
+<div id="status">Disconnesso</div>
+
+<button id="connect">Connetti Bluetooth</button>
+<button id="disconnect" disabled>Disconnetti</button>
+<button id="clear">Pulisci eventi</button>
+
+<h2>Eventi ricevuti</h2>
+<div id="events"></div>
+
+<script>
+    const SERVICE_UUID =
+        "7b7a1000-1234-4567-890a-bcdef0123456";
+
+    const CHARACTERISTIC_UUID =
+        "7b7a1001-1234-4567-890a-bcdef0123456";
+
+    const statusEl = document.getElementById("status");
+    const eventsEl = document.getElementById("events");
+    const connectBtn = document.getElementById("connect");
+    const disconnectBtn = document.getElementById("disconnect");
+
+    let device = null;
+    let characteristic = null;
+
+    function setStatus(message, connected = false) {
+        statusEl.textContent = message;
+        statusEl.style.background =
+            connected ? "#d1fae5" : "#e5e7eb";
+    }
+
+    function printEvent(message) {
+        const line = document.createElement("div");
+        line.className = "event";
+
+        const time = document.createElement("span");
+        time.textContent =
+            "[" + new Date().toLocaleTimeString() + "] ";
+
+        const value = document.createElement("span");
+        value.textContent = message;
+
+        if (message.endsWith("_DOWN")) {
+            value.className = "down";
+        } else if (message.endsWith("_UP")) {
+            value.className = "up";
+        }
+
+        line.append(time, value);
+        eventsEl.appendChild(line);
+        eventsEl.scrollTop = eventsEl.scrollHeight;
+    }
+
+    function onEvent(event) {
+        const value = event.target.value;
+        const message = new TextDecoder()
+            .decode(value)
+            .trim();
+
+        if (message) {
+            printEvent(message);
+        }
+    }
+
+    function onDisconnected() {
+        characteristic = null;
+        connectBtn.disabled = false;
+        disconnectBtn.disabled = true;
+        setStatus("Bluetooth disconnesso");
+        printEvent("BLE_DISCONNECTED");
+    }
+
+    async function connect() {
+        if (!navigator.bluetooth) {
+            setStatus(
+                "Web Bluetooth non supportato. Usa Chrome o Edge compatibili."
+            );
+            return;
+        }
+
+        connectBtn.disabled = true;
+
+        try {
+            device = await navigator.bluetooth.requestDevice({
+                filters: [{ name: "ESP32-Controller" }],
+                optionalServices: [SERVICE_UUID]
+            });
+
+            device.addEventListener(
+                "gattserverdisconnected",
+                onDisconnected
+            );
+
+            const server = await device.gatt.connect();
+            const service = await server.getPrimaryService(SERVICE_UUID);
+
+            characteristic =
+                await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+            await characteristic.startNotifications();
+            characteristic.addEventListener(
+                "characteristicvaluechanged",
+                onEvent
+            );
+
+            setStatus("Connesso a " + device.name, true);
+            printEvent("BLE_CONNECTED");
+            disconnectBtn.disabled = false;
+        } catch (error) {
+            setStatus("Connessione fallita: " + error.message);
+            connectBtn.disabled = false;
+        }
+    }
+
+    function disconnect() {
+        if (device && device.gatt.connected) {
+            device.gatt.disconnect();
+        } else {
+            onDisconnected();
+        }
+    }
+
+    connectBtn.addEventListener("click", connect);
+    disconnectBtn.addEventListener("click", disconnect);
+
+    document.getElementById("clear").addEventListener("click", () => {
+        eventsEl.replaceChildren();
+    });
+</script>
+</body>
+</html>

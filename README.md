@@ -19,6 +19,16 @@ Apri `http://localhost:8000` nel browser. Su smartphone, per testare il multitou
 - Il primo tocco abilita Web Audio; volume e sintesi vocale dipendono dal browser.
 - Il pulsante centrale conferma nel menu; nei giochi in tempo reale il pulsante Pausa gestisce la pausa. In Simon il centro è il quinto input.
 
+## Partita con il narratore (`narratore.html`)
+
+Pagina pensata per giocare senza guardare lo schermo: un narratore vocale guida ogni fase.
+
+1. Tocca lo schermo o premi un tasto: il narratore parte e prova a collegare il controller Bluetooth (se il browser lo ricorda, si ricollega da solo). Se non riesce, si gioca con la tastiera.
+2. Ogni giocatore preme il tasto colorato che vuole usare (anche solo giallo e blu, per esempio); il tasto centrale conferma.
+3. Vengono estratti 5 minigiochi a caso: il tasto centrale li avvia e partono uno dopo l'altro in automatico.
+4. In ogni gioco il primo prende tanti punti quanti sono i giocatori, poi uno in meno per posizione (pari merito = stessi punti).
+5. Alla fine il narratore legge la classifica dall'ultimo al primo.
+
 ## Minigiochi inclusi
 
 - **Cattura il maiale** — versi sintetici, finestra di cattura, penalità per pressioni errate.
