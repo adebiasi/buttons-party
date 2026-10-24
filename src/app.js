@@ -3836,6 +3836,9 @@
         function getRestaurantVoice() {
             if (restaurantVoice) return restaurantVoice;
             const voices = speechSynthesis.getVoices();
+
+            console.log("Available voices:", voices.map(v => ({name: v.name, lang: v.lang, localService: v.localService})));
+
             for (const name of RESTAURANT_VOICE_PREFER) {
                 const found = voices.find(v => v.name === name);
                 if (found) {
