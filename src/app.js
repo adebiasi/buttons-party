@@ -3830,6 +3830,9 @@
 
         let restaurantVoice = null;
 
+        const isJa = v => /^(ja|jpn)/i.test((v.lang || "").replace(/_/g, "-"))
+            || /japan|日本|ja-jp/i.test(v.name);
+
         function getRestaurantVoice() {
             if (restaurantVoice) return restaurantVoice;
             const voices = speechSynthesis.getVoices();
@@ -3845,6 +3848,15 @@
                 v.localService
             ) || null;
             if (restaurantVoice) return restaurantVoice;
+
+            // giapponese locale (offline)
+            restaurantVoice = voices.find(v => isJa(v) && v.localService) || null;
+            if (restaurantVoice) return restaurantVoice;
+
+            // qualsiasi giapponese (anche di rete)
+            restaurantVoice = voices.find(isJa) || null;
+            if (restaurantVoice) return restaurantVoice;
+
             // Fallback: qualsiasi voce italiana diversa da quella del narratore
             const itVoices = voices.filter(v => (v.lang || "").toLowerCase().startsWith("it"));
             restaurantVoice = itVoices.find(v => v.name !== NARRATOR_VOICE_NAME) || itVoices[0] || null;
