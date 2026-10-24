@@ -1,5 +1,6 @@
 /* Pagina narratore: pochi elementi grandi, leggibili da chi assiste alla partita. */
 .narrator-panel { margin-bottom: 18px; }
+body, body * { -webkit-user-select: none; user-select: none; }
 .narrator-text { font-size: clamp(1.1rem, 2.6vw, 1.45rem); font-weight: 700; line-height: 1.4; margin: 22px 0; }
 .narrator-content { display: grid; gap: 16px; }
 .narrator-actions { margin-top: 16px; }

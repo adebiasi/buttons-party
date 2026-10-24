@@ -64,9 +64,12 @@
   }
 
   function updateInputPill() {
-    $("#narrator-input").textContent = BP.ble.isConnected() ? "Controller: Bluetooth 🔵" : "Controller: tastiera ⌨️";
+    const bluetoothConnected = BP.ble.isConnected();
+    $("#narrator-input").textContent = bluetoothConnected ? "Controller: Bluetooth 🔵" : "Controller: tastiera ⌨️";
+    $("#virtual-controller").hidden = bluetoothConnected;
   }
 
+  updateInputPill();
   setInterval(updateInputPill, 1000);
 
   // --- Fase 1: connessione ---

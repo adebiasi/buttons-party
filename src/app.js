@@ -1045,14 +1045,18 @@
     // Giochi a più round: quanti round si giocano
     const MULTI_ROUNDS = {horse: 3, parachute: 3, mosquito: 3, pot: 3, mine: 3, bomb: 3, rope: 3, tennis: 3};
 
-    function recordRound(m, ranking) {
-        if (!ranking || !ranking.length) return null;
-        const n = playerIds().length;
-        m.wins[ranking[0]] = (m.wins[ranking[0]] || 0) + 1;
-        ranking.forEach((p, i) => {
-            m.points[p] = (m.points[p] || 0) + (n - i);
-        });
-        return ranking[0];
+    function recordRound(m, ranking, pointAdjustments = {}) {
+        if (ranking && ranking.length) {
+            const n = playerIds().length;
+            m.wins[ranking[0]] = (m.wins[ranking[0]] || 0) + 1;
+            ranking.forEach((p, i) => {
+                m.points[p] = (m.points[p] || 0) + (n - i);
+            });
+        }
+        for (const [player, adjustment] of Object.entries(pointAdjustments)) {
+            m.points[player] = (m.points[player] || 0) + adjustment;
+        }
+        return ranking?.[0] || null;
     }
 
     // Classifica finale dopo l'ultimo round: più round vinti, poi più punti piazzamento
@@ -1068,9 +1072,9 @@
     }
 
     // Fine di un round che non è l'ultimo: il narratore dice chi ha vinto e parte il round dopo
-    async function advanceRound(message, ranking) {
+    async function advanceRound(message, ranking, pointAdjustments) {
         const old = game, m = old.match;
-        const winner = recordRound(m, ranking);
+        const winner = recordRound(m, ranking, pointAdjustments);
         const delay = old.endDelay ?? 900;      // lascia finire i suoni di fine round
         const wait = ms => new Promise(r => setTimeout(r, ms));
 
@@ -1111,7 +1115,7 @@
         renderScores();
     }
 
-    function finish(message, ranking = null, announce = true) {
+    function finish(message, ranking = null, announce = true, pointAdjustments = {}) {
         if (!game || game.finished) {
             window.BPDebug?.finishIgnored(message, !game);
             return;
@@ -1119,11 +1123,11 @@
         const m = game.match;
         if (m) {
             if (m.round < m.total) {
-                advanceRound(message, ranking);
+                advanceRound(message, ranking, pointAdjustments);
                 return;
             }
             // Ultimo round: la classifica finale conta tutti i round
-            recordRound(m, ranking);
+            recordRound(m, ranking, pointAdjustments);
             const result = matchResult(m);
             message = result.message;
             ranking = result.ranking;
@@ -1450,6 +1454,8 @@
     function makeParachute() {
         const g = baseGame("parachute");
         g.endDelay = 2500;     // lascia finire lo splash
+        const EARLY_PENALTY = -1;
+        const DEATH_PENALTY = -3;
         let start = 0, ground = 0, safe = 0, opened = {}, results = {}, running = false;
 
         g.start = async () => {
@@ -1519,9 +1525,14 @@
                 });
 
                 const order = playerIds().sort((a, b) => rank(results, a, b));
+                const pointAdjustments = Object.fromEntries(playerIds().flatMap(p => {
+                    if (!opened[p]) return [[p, DEATH_PENALTY]];
+                    if (!results[p].valid) return [[p, EARLY_PENALTY]];
+                    return [];
+                }));
 
                 // announce = false: la voce la gestisce announceWinner dopo lo splash
-                finish("💥 Impatto! " + COLORS[order[0]] + " in testa", order, false);
+                finish("💥 Impatto! " + COLORS[order[0]] + " in testa", order, false, pointAdjustments);
                 announceWinner(missed, order);
                 return;
             }
@@ -2452,6 +2463,8 @@
     function makeMine() {
         const g = baseGame("mine");
         g.endDelay = 2500;     // lascia finire il grido
+        const EARLY_PENALTY = -1;
+        const DEATH_PENALTY = -3;
 
         // === File audio ===
         const BACKGROUND = "assets/sounds/miniera/picconi.mp3";   // picconi, in loop
@@ -2621,16 +2634,20 @@
             renderScores(status);
 
             const order = [...safe, ...early, ...late];
+            const pointAdjustments = Object.fromEntries([
+                ...early.map(p => [p, EARLY_PENALTY]),
+                ...late.map(p => [p, DEATH_PENALTY])
+            ]);
 
             // announce = false: la voce parla dopo il grido
             if (order.length === late.length) {
                 // nessuno salvo (né nella finestra né fuggendo)
-                finish("💀 Nessuno si è salvato!", null, false);
+                finish("💀 Nessuno si è salvato!", null, false, pointAdjustments);
             } else if (safe.length) {
-                finish("⛏ " + COLORS[order[0]] + " è l'ultimo a uscire: vince!", order, false);
+                finish("⛏ " + COLORS[order[0]] + " è l'ultimo a uscire: vince!", order, false, pointAdjustments);
             } else {
                 // nessuno ha aspettato: vince chi è fuggito più tardi
-                finish("🏃 " + COLORS[order[0]] + " è fuggito per ultimo: vince!", order, false);
+                finish("🏃 " + COLORS[order[0]] + " è fuggito per ultimo: vince!", order, false, pointAdjustments);
             }
 
             // Prima il grido di dolore, poi la voce
@@ -3823,6 +3840,11 @@
                     return found;
                 }
             }
+            restaurantVoice = voices.find(v =>
+                (v.lang || "").replace(/_/g, "-").toLowerCase() === "ja-jp" &&
+                v.localService
+            ) || null;
+            if (restaurantVoice) return restaurantVoice;
             // Fallback: qualsiasi voce italiana diversa da quella del narratore
             const itVoices = voices.filter(v => (v.lang || "").toLowerCase().startsWith("it"));
             restaurantVoice = itVoices.find(v => v.name !== NARRATOR_VOICE_NAME) || itVoices[0] || null;
