@@ -12,14 +12,14 @@
 
   // Nella stessa partita si estrae al massimo un gioco per gruppo.
   const GAME_GROUPS = [
-    ["bomb", "horse", "tennis", "rope"],           // palla esplosiva, cavallino, tennis, saltare la corda
+    ["bomb", "horse", "tennis"],                   // palla esplosiva, cavallino, tennis (si passa il turno)
     ["disturber", "beeper"],                       // disturbatore, bippatore
     ["duel", "bounty"],                            // duello, taglia
     ["tug", "lesson", "grinder", "freeze"],        // fune, lezione, mola a disco, uno due tre stai là
     ["pig", "door", "restaurant"],                 // maiale, porta, ristorante
-    ["mine", "parachute"],                         // miniera, paracadute
-    ["tapas", "rally"],                            // tapas, rally
-    ["beat", "simon", "copyrhythm"]               // tieni il tempo, simon, copia il ritmo
+    ["mine", "parachute", "pot", "mosquito"],      // miniera, paracadute, piglia tutto, zanzara (scegliere il momento giusto)
+    ["tapas", "rally", "simon"],                   // tapas, rally, simon (sequenze da ripetere)
+    ["beat", "copyrhythm", "rope"]                 // tieni il tempo, copia il ritmo, saltare la corda (ritmo)
   ];
   const GROUP_OF = Object.fromEntries(GAME_GROUPS.flatMap((g, i) => g.map(id => [id, i])));
 
