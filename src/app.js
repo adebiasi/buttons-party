@@ -25,7 +25,7 @@
         grinder: "Tieni premuto per spingere il legno contro la mola. Quando il suono finisce, lascia subito il tasto o perdi la mano! Vince chi tiene premuto più a lungo in totale.",
         bomb: "La bomba passa da un giocatore all'altro: premi solo quando senti il tuo colore. Se premi fuori turno o non fai in tempo, sei eliminato. Il ritmo accelera sempre di più, soprattutto quando restano in due. Si giocano tre round.",
         rope: "La corda batte a terra a ritmo regolare: premi il tuo tasto nello stesso istante del colpo. I primi tre colpi sono di prova. Chi non salta o salta fuori tempo è eliminato. Il ritmo accelera. Vince l'ultimo rimasto. Si giocano tre round.",        tennis: "Senti il rimbalzo della palla: quando rimbalza verso di te, premi per rispondere. Poi tocca al giocatore successivo in senso orario. Se premi prima del tuo rimbalzo resti fermo 2 secondi. Se manchi la palla sei eliminato. Si giocano tre round.",
-        tapas: "A turno, ascolta il percorso e ripetilo con i tasti. Le direzioni sono relative a te. Un chilometro è una pressione. Se sbagli sei licenziato.",
+        tapas: "A turno, ascolta il percorso e ripetilo con i tasti. Aspetta di aver sentito tutte le istruzioni prima di eseguirle. Le direzioni sono relative a te. Un chilometro è una pressione. Se sbagli sei licenziato.",
         rally: "Quando tocca a te la macchina parte: il navigatore dice comandi come «3 destra» o «2 accelera» e tu premi subito, senza aspettare. I comandi arrivano sempre più veloci e ravvicinati. Un errore o un ritardo e fai incidente. Vince chi completa più comandi.",
         beeper: "Ogni giocatore ha un parlatore diverso, assegnato a voce. Tieni premuto per bippare tutta la parolaccia: più la copri, più punti prendi (fino a 3). Più tieni premuto su parole normali, più punti perdi (1,5 al secondo). Se bippi un parlatore che non è il tuo perdi punti allo stesso modo. Ogni parlatore dice lo stesso numero di parolacce.",
         beat: "Ogni giocatore ha una percussione: cassa, rullante, charleston o battimani. Premi il tuo tasto a tempo quando senti la tua. Se premi nel momento sbagliato perdi un punto. Dopo tre loop la partita finisce.",
@@ -1599,6 +1599,28 @@
         const TARGET_GRACE = 350;     // tolleranza dopo la fine della voce (ms)
         const DURATION = 60000;
         let active = false, start = 0, points = {}, ready = false, lastTarget = null;
+        const MAX_SOUNDS_PER_PLAYER = 2;   // al massimo due suoni (colpo/errore) in contemporanea per giocatore
+        let playing = {};                  // giocatore -> sorgenti audio ancora in riproduzione
+
+        // Riproduce il suono del giocatore; se ce ne sono già due in corso, interrompe il più vecchio
+        async function playLimited(id, path, fallback) {
+            const list = playing[id] = playing[id] || [];
+            while (list.length >= MAX_SOUNDS_PER_PLAYER) {
+                const old = list.shift();
+                try { old.stop(); } catch (e) {}
+            }
+            const t = await playTimed(path, {fallback});
+            if (!t.source) return;
+            list.push(t.source);
+            t.ended.then(() => {
+                const i = list.indexOf(t.source);
+                if (i >= 0) list.splice(i, 1);
+            });
+            while (list.length > MAX_SOUNDS_PER_PLAYER) {   // più pressioni ravvicinate mentre il file si caricava
+                const old = list.shift();
+                try { old.stop(); } catch (e) {}
+            }
+        }
 
         function pickRandom(list, last) {
             if (list.length === 1) return list[0];
@@ -1609,6 +1631,7 @@
 
         g.start = async () => {
             ready = false;
+            playing = {};
             points = Object.fromEntries(playerIds().map(p => [p, 0]));
             $("#game-status").textContent = "ASCOLTA " + TARGET_NAME.toUpperCase();
             setArena("🗣 Brusio…", "Premi quando senti " + TARGET_NAME);
@@ -1654,9 +1677,9 @@
             scores[id] = points[id];
             renderScores();
             if (active) {
-                playSample(HIT_SOUNDS[id], () => tone(HIT_TONE[id], .09, "triangle", .07));
+                playLimited(id, HIT_SOUNDS[id], () => tone(HIT_TONE[id], .09, "triangle", .07));
             } else {
-                playSample(MISS_SOUNDS[id], () => tone(MISS_TONE[id], .09, "square", .07));
+                playLimited(id, MISS_SOUNDS[id], () => tone(MISS_TONE[id], .09, "square", .07));
                 toast("Fuori bersaglio: " + COLORS[id] + " −1");
             }
         };
@@ -3909,7 +3932,13 @@
             {name: "Tiramisù", file: DIR + "tiramisu.mp3"},
             {name: "Spaghetti al pomodoro", file: DIR + "spaghetti-pomodoro.mp3"},
             {name: "Cotoletta con patatine", file: DIR + "cotoletta.mp3"},
-            {name: "Gelato al cioccolato", file: DIR + "gelato-cioccolato.mp3"}
+            {name: "Gelato al cioccolato", file: DIR + "gelato-cioccolato.mp3"},
+            {name: "Risotto ai funghi", file: DIR + "risotto-funghi.mp3"},
+            {name: "Tagliatelle al ragù", file: DIR + "tagliatelle-ragu.mp3"},
+            {name: "Parmigiana di melanzane", file: DIR + "parmigiana.mp3"},
+            {name: "Fritto misto di pesce", file: DIR + "fritto-misto.mp3"},
+            {name: "Panna cotta ai frutti di bosco", file: DIR + "panna-cotta.mp3"},
+            {name: "Polpette al sugo", file: DIR + "polpette-sugo.mp3"}
         ];
         const INEDIBLE = [
             {name: "Riso alla cacca", file: DIR + "riso-cacca.mp3"},
@@ -3917,7 +3946,13 @@
             {name: "Zuppa di calzini sporchi", file: DIR + "zuppa-calzini.mp3"},
             {name: "Spaghetti ai capelli", file: DIR + "spaghetti-capelli.mp3"},
             {name: "Bistecca di scarpa", file: DIR + "bistecca-scarpa.mp3"},
-            {name: "Gelato al moccio", file: DIR + "gelato-moccio.mp3"}
+            {name: "Gelato al moccio", file: DIR + "gelato-moccio.mp3"},
+            {name: "Pizza ai vermi", file: DIR + "pizza-vermi.mp3"},
+            {name: "Lasagne di pannolini", file: DIR + "lasagne-pannolini.mp3"},
+            {name: "Frittata di scarafaggi", file: DIR + "frittata-scarafaggi.mp3"},
+            {name: "Torta di fango", file: DIR + "torta-fango.mp3"},
+            {name: "Insalata di calzini", file: DIR + "insalata-calzini.mp3"},
+            {name: "Cotoletta di spazzolino", file: DIR + "cotoletta-spazzolino.mp3"}
         ];
         const BACKGROUND = DIR + "background-ristorante.mp3";   // gente che mangia, in loop (se manca: sottofondo sintetico)
         const BACKGROUND_VOLUME = .1;
@@ -5957,6 +5992,7 @@
 
             await sayIntro(
                 "Consegna tapas. Ascolta il percorso e ripetilo. " +
+                "Aspetta di aver sentito tutte le istruzioni prima di eseguirle. " +
                 "Le direzioni sono relative a te: indietro è il tuo tasto, " +
                 "avanti è quello di fronte, destra e sinistra sono ai tuoi lati. " +
                 "Un chilometro è una pressione. Se sbagli, sei licenziato!"
@@ -7387,6 +7423,8 @@
         let pressA = 0, pressB = 0, left = 0, lastTick = 0, lastShow = 0, interval = null;
         let points = {}, totalPresses = {};
         let effort = {A: null, B: null}, effortToken = 0, lastPress = {A: 0, B: 0}, halfDone = false;
+        let ducked = false;                 // true mentre parla la voce: gli altri suoni si abbassano
+        const DUCK_FACTOR = .15;            // quota di volume che resta agli altri suoni mentre parla la voce
         const dbg = (lvl, msg) => window.BPDebug?.log("fune", lvl, msg);
 
         // --- Suoni di sforzo: uno a testa per squadra, in loop finché i suoi tasti vengono premuti ---
@@ -7452,8 +7490,17 @@
                 const e = effort[t];
                 if (!e) continue;
                 const on = phase === "fight" && !paused && !g.finished && soundEnabled && teamActive(t);
-                e.gain.gain.setTargetAtTime(on ? e.vol : 0, ctx.currentTime, .03);
+                e.gain.gain.setTargetAtTime(on ? e.vol * (ducked ? DUCK_FACTOR : 1) : 0, ctx.currentTime, .03);
             }
+        }
+
+        // Abbassa (o ripristina) il tifo e i suoni di sforzo
+        function duck(on) {
+            ducked = on;
+            if (natureGain && audio) {
+                natureGain.gain.setTargetAtTime(soundEnabled && !paused ? natureVolume * (on ? DUCK_FACTOR : 1) : 0, audio.currentTime, .05);
+            }
+            updateEffort();
         }
 
         // A metà round la voce dice chi sta vincendo
@@ -7465,7 +7512,8 @@
                 text = names(lead) + (lead.length === 2 ? " stanno vincendo!" : " sta vincendo!");
             }
             dbg("info", "📢 metà round: " + text + " (" + pressA + "–" + pressB + ")");
-            say(text);
+            duck(true);
+            sayAsync(text, 6000).then(() => { if (game === g) duck(false); });
         }
         const names = ids => ids.map(p => COLORS[p]).join(" e ");
         const rand = ([min, max]) => min + Math.random() * (max - min);
@@ -7543,8 +7591,7 @@
                 "Vince il round chi ha più pressioni allo scadere, o chi arriva per primo a venti di vantaggio. " + modeText +
                 "Aspetta il via: le pressioni prima del via non contano.")) return;
             loadSample(START_SOUND);                                     // precarica il suono di partenza
-            startNatureAmbience(CHEER, CHEER_VOLUME, makeCrowdBuffer);   // tifo di sottofondo
-            startEffort();
+            startEffort();       // il tifo parte al via di ogni round
             startMatch();
         };
 
@@ -7586,6 +7633,7 @@
             if (g.finished) return;
             phase = "fight";
             halfDone = false;
+            if (!natureSource) startNatureAmbience(CHEER, CHEER_VOLUME, makeCrowdBuffer);   // il pubblico torna al via
             playSample(START_SOUND, () => tone(988, .22, "square", .14));   // suono di partenza
             left = ROUND_SECONDS * 1000;
             lastTick = performance.now();
@@ -7639,6 +7687,8 @@
         function endRound() {
             stopInterval();
             phase = "between";
+            ducked = false;
+            stopNatureAmbience();   // tempo finito: il pubblico smette di tifare
             updateEffort();   // fine round: i suoni di sforzo si spengono
             const aWon = pressA > pressB;
             if (aWon) winsA++;

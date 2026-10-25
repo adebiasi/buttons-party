@@ -10,6 +10,19 @@
   // Nei giochi a squadre (4 giocatori) la classifica elenca prima i due vincitori, poi i due sconfitti.
   const TEAM_GAMES = new Set(["tug", "thirsty"]);
 
+  // Nella stessa partita si estrae al massimo un gioco per gruppo.
+  const GAME_GROUPS = [
+    ["bomb", "horse", "tennis", "rope"],           // palla esplosiva, cavallino, tennis, saltare la corda
+    ["disturber", "beeper"],                       // disturbatore, bippatore
+    ["duel", "bounty"],                            // duello, taglia
+    ["tug", "lesson", "grinder", "freeze"],        // fune, lezione, mola a disco, uno due tre stai là
+    ["pig", "door", "restaurant"],                 // maiale, porta, ristorante
+    ["mine", "parachute"],                         // miniera, paracadute
+    ["tapas", "rally"],                            // tapas, rally
+    ["beat", "simon", "copyrhythm"]               // tieni il tempo, simon, copia il ritmo
+  ];
+  const GROUP_OF = Object.fromEntries(GAME_GROUPS.flatMap((g, i) => g.map(id => [id, i])));
+
   const state = {
     phase: "start",          // start | connect | register | lineup | playing | final
     players: [],
@@ -74,40 +87,37 @@
 
   // --- Fase 1: connessione ---
 
+  let btBusy = false;        // true mentre è aperto il popup (o è in corso una riconnessione)
+  let flowStarted = false;   // true quando si passa alla registrazione dei giocatori
+
   async function tryBluetooth() {
     if (BP.ble.isConnected()) return true;
     if (!navigator.bluetooth) return false;
+    btBusy = true;
     try {
       await BP.ble.connect();
       return BP.ble.isConnected();
     } catch (error) {
       console.warn("Connessione BLE non riuscita:", error);
       return false;
+    } finally {
+      btBusy = false;
     }
   }
 
-  function onFirstGesture(e) {
-    if (state.phase !== "start") return;
-    if (e.type === "keydown" && e.key === "Escape") return;
+  async function beginFlow(withBluetooth) {
+    if (flowStarted) return;
+    flowStarted = true;
     state.phase = "connect";
     BP.unlockAudio();
-    setPhase("FASE 1 · CONTROLLER", "Collegamento del controller");
-    const welcome = speak("Benvenuti a Buttons party! Provo a collegare il controller Bluetooth.");
-    // requestDevice va chiamato subito, dentro il gesto dell'utente.
-    const connected = tryBluetooth();
-    afterConnect(welcome, connected);
-  }
-
-  async function afterConnect(welcome, connected) {
-    const ok = await connected;
-    await welcome;
+    $("#narrator-retry-ble").hidden = true;
     updateInputPill();
-    if (ok) {
-      await speak("Controller collegato.");
+    setPhase("FASE 1 · CONTROLLER", withBluetooth ? "Controller collegato" : "Controller: tastiera");
+    if (withBluetooth) {
+      await speak("Benvenuti a Buttons party! Controller collegato.");
     } else {
-      $("#narrator-retry-ble").hidden = false;
       await speak(
-        "Non sono riuscito a collegare il controller. Potete usare la tastiera: " +
+        "Benvenuti a Buttons party! Il Bluetooth non è disponibile, quindi usate la tastiera: " +
         "i tasti uno, due, tre e quattro sono rosso, blu, giallo e verde. " +
         "La barra spaziatrice è il tasto centrale."
       );
@@ -115,23 +125,54 @@
     registerPlayers();
   }
 
-  $("#narrator-retry-ble").addEventListener("click", async () => {
+  // Finché il controller non è collegato, ogni gesto riapre il popup di scelta del dispositivo.
+  async function onGesture(e) {
+    if (flowStarted || btBusy) return;
+    if (e.type === "keydown" && e.key === "Escape") return;
     BP.unlockAudio();
+    if (BP.ble.isConnected()) return beginFlow(true);
+    if (!navigator.bluetooth) return beginFlow(false);
+    // requestDevice va chiamato subito, dentro il gesto dell'utente.
     const ok = await tryBluetooth();
     updateInputPill();
-    if (ok) $("#narrator-retry-ble").hidden = true;
-    speak(ok ? "Controller collegato." : "Controller non collegato. Continuate con la tastiera.");
-  });
+    if (ok) beginFlow(true);
+    else {
+      setPhase("FASE 1 · CONTROLLER", "Scegli il controller Bluetooth");
+      $("#narrator-text").textContent = "Nessun controller scelto. Tocca lo schermo o premi un tasto per riaprire la scelta.";
+    }
+  }
 
   document.addEventListener("pointerdown", e => {
-    if (e.target.closest("button, a, select")) return;
-    onFirstGesture(e);
+    if (e.target.closest("a, select")) return;
+    onGesture(e);
   });
-  document.addEventListener("keydown", onFirstGesture);
-  document.querySelectorAll("[data-button]").forEach(b => b.addEventListener("pointerdown", onFirstGesture));
+  document.addEventListener("keydown", onGesture);
 
-  // Se il browser ricorda un controller già autorizzato, prova a collegarlo senza chiedere nulla.
-  BP.ble.reconnectKnown().then(updateInputPill, () => {});
+  // All'apertura: prima si prova un controller già autorizzato, poi si apre subito il popup di scelta.
+  // Il browser può rifiutare il popup senza un gesto: in quel caso si apre al primo tocco o tasto.
+  (async () => {
+    if (navigator.bluetooth) {
+      setPhase("FASE 1 · CONTROLLER", "Scegli il controller Bluetooth");
+      $("#narrator-text").textContent = "Scegli il controller Bluetooth nella finestra. Se non compare, tocca lo schermo o premi un tasto.";
+      btBusy = true;
+      try {
+        await BP.ble.reconnectKnown();
+      } catch {
+      } finally {
+        btBusy = false;
+      }
+      updateInputPill();
+      if (BP.ble.isConnected()) {
+        setPhase("FASE 1 · CONTROLLER", "Controller collegato");
+        $("#narrator-text").textContent = "Controller collegato. Tocca lo schermo o premi un tasto per iniziare.";
+        return;
+      }
+      if (await tryBluetooth()) {
+        updateInputPill();
+        beginFlow(true);
+      }
+    }
+  })();
 
   // --- Fase 2: registrazione dei giocatori ---
 
@@ -189,6 +230,19 @@
     return a;
   }
 
+  // Estrae `count` giochi a caso, al massimo uno per gruppo di giochi simili.
+  function pickGames(ids, count) {
+    const picked = [], usedGroups = new Set();
+    for (const id of shuffle([...ids])) {
+      const group = GROUP_OF[id];
+      if (group !== undefined && usedGroups.has(group)) continue;
+      if (group !== undefined) usedGroups.add(group);
+      picked.push(id);
+      if (picked.length === count) break;
+    }
+    return picked;
+  }
+
   function renderGames() {
     const names = BP.games();
     $("#narrator-content").innerHTML = `<ol class="nar-games">${state.games.map((id, i) => {
@@ -208,7 +262,7 @@
   async function lineup() {
     state.phase = "lineup";
     const names = BP.games();
-    state.games = shuffle(Object.keys(names)).slice(0, GAMES_PER_MATCH);
+    state.games = pickGames(Object.keys(names), GAMES_PER_MATCH);
     state.gameIndex = 0;
     state.lastPoints = {};
     state.totals = Object.fromEntries(state.players.map(id => [id, 0]));
@@ -277,7 +331,7 @@
       const i = state.gameIndex, id = state.games[i];
       setPhase(`GIOCO ${i + 1} DI ${state.games.length}`, names[id]);
       renderGames();
-      await speak(`Gioco ${i + 1} di ${state.games.length}: ${names[id]}.`);
+      await speak(`Gioco ${i + 1} di ${state.games.length}.`);   // il titolo lo dice poi l'introduzione del gioco
       const finished = waitFinish();
       BP.start(id, state.players);
       const detail = await finished;
