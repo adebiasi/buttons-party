@@ -1224,8 +1224,12 @@
             next();
         };
 
+        // I versi si fanno sempre più ravvicinati: il ritmo passa dai valori "inizio" a quelli "fine" in RAMP_MS.
+        const RAMP_MS = 60000;
+        const lerp = (a, b, p) => a + (b - a) * p;
+        const progress = () => Math.min(1, (performance.now() - started) / RAMP_MS);
+
         function next() {
-            const THINK_MS = 700;     // dopo la fine del verso si può ancora rispondere (in cima a makePig)
             if (g.finished) return;
             if (performance.now() - started >= duration) {
                 finish("Tempo scaduto!", winner());
@@ -1235,6 +1239,9 @@
             claimed = false;
             current = "";
             setArena("Ascolta…", "Prossimo verso in arrivo");
+            const p = progress();
+            const thinkMs = lerp(1200, 700, p);                                  // dopo la fine del verso si può ancora rispondere
+            const waitMs = lerp(1000, 300, p) + Math.random() * lerp(800, 400, p); // pausa prima del verso successivo
             later(async () => {
                 if (g.finished) return;
                 count++;
@@ -1249,8 +1256,8 @@
                 if (game !== g || g.finished) return;
                 // Finestra uguale per tutti gli animali: fine del verso + tempo per pensare.
                 // La durata non rivela più se è il maiale.
-                later(() => { active = false; next(); }, Math.max(0, t.endsAt - performance.now()) + THINK_MS);
-            }, 300  + Math.random() * 500);
+                later(() => { active = false; next(); }, Math.max(0, t.endsAt - performance.now()) + thinkMs);
+            }, waitMs);
         }
 
 
