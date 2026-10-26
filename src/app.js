@@ -3716,10 +3716,13 @@
         // === Parametri ===
         const ROUNDS = 12;
         const PER_SIDE = 3;               // persone gradite e sgradite in ogni partita
-        const GAP = [1500, 3500];         // attesa casuale prima che qualcuno bussi (ms)
-        const MIN_WINDOW = 1500;          // tempo minimo per aprire dall'inizio del suono (ms)
-        const REACT_AFTER = 1000;         // tempo extra dopo la fine del suono (ms)
-        const REVEAL_PAUSE = 1200;        // pausa dopo la rivelazione, prima del round successivo (ms)
+        // Il ritmo accelera: i valori passano da "inizio" a "fine" nei primi RAMP_ROUNDS round.
+        const RAMP_ROUNDS = 8;
+        const GAP_START = [1500, 3500], GAP_END = [500, 1500];   // attesa casuale prima che qualcuno bussi (ms)
+        const MIN_WINDOW_START = 1500, MIN_WINDOW_END = 900;     // tempo minimo per aprire dall'inizio del suono (ms)
+        const REACT_AFTER_START = 1000, REACT_AFTER_END = 600;   // tempo extra dopo la fine del suono (ms)
+        const REVEAL_PAUSE_START = 1200, REVEAL_PAUSE_END = 600; // pausa dopo la rivelazione, prima del round successivo (ms)
+        const NOBODY_PAUSE_START = 1800, NOBODY_PAUSE_END = 900; // pausa se nessuno ha aperto (ms)
         const POINTS_OPEN = 1;            // apri a una persona gradita
         const PENALTY_OPEN = 1;           // apri a una persona sgradita
         const PENALTY_EARLY = 1;          // premi quando nessuno ha bussato
@@ -3728,6 +3731,8 @@
         let crowd = [], current = null, round = 0, serial = 0, fouls = new Set(), recent = [];
 
         const rand = ([min, max]) => min + Math.random() * (max - min);
+        const lerp = (a, b, p) => a + (b - a) * p;
+        const progress = () => Math.min(1, Math.max(0, round - 1) / RAMP_ROUNDS);
         const pick = list => list[Math.floor(Math.random() * list.length)];
         const shuffle = list => [...list].sort(() => Math.random() - .5);
         const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -3865,7 +3870,8 @@
             phase = "gap";
             $("#game-status").textContent = "ROUND " + round + " DI " + ROUNDS;
             setArena("🚪 Round " + round + " di " + ROUNDS, "Silenzio… qualcuno sta arrivando");
-            later(knock, rand(GAP));
+            const p = progress();
+            later(knock, rand([lerp(GAP_START[0], GAP_END[0], p), lerp(GAP_START[1], GAP_END[1], p)]));
         }
 
         // Qualcuno bussa o suona: si può aprire da subito
@@ -3877,7 +3883,9 @@
             const t = await playSlot(current.slot);
             if (game !== g || g.finished || phase !== "open" || mine !== serial) return;   // già aperto nel frattempo
             const now = performance.now();
-            const closeAt = Math.max(t.endsAt, t.audibleAt + MIN_WINDOW) + REACT_AFTER;
+            const p = progress();
+            const closeAt = Math.max(t.endsAt, t.audibleAt + lerp(MIN_WINDOW_START, MIN_WINDOW_END, p)) +
+                lerp(REACT_AFTER_START, REACT_AFTER_END, p);
             later(timeout, Math.max(300, closeAt - now));
         }
 
@@ -3890,7 +3898,7 @@
                 : "Bravi! Nessuno ha aperto a " + current.who;
             dbg("info", "⚪ " + msg);
             setArena("🚪 " + msg, "Round " + round + " di " + ROUNDS);
-            later(nextRound, 1800);
+            later(nextRound, lerp(NOBODY_PAUSE_START, NOBODY_PAUSE_END, progress()));
         }
 
         // Il primo che preme apre la porta
@@ -3918,7 +3926,7 @@
             const v = await playPerson(p);                // poi si scopre chi era
             await v.ended;
             if (game !== g || g.finished) return;
-            later(nextRound, REVEAL_PAUSE);
+            later(nextRound, lerp(REVEAL_PAUSE_START, REVEAL_PAUSE_END, progress()));
         }
 
         g.onInput = e => {
@@ -4086,8 +4094,11 @@
         const WIN_POINTS = 5;            // punti per vincere
         const MAX_DISHES = 24;           // piatti serviti al massimo
         const INEDIBLE_CHANCE = .6;      // probabilità di un piatto immangiabile
-        const GAP = [1200, 2800];        // pausa casuale tra un piatto e l'altro (ms)
-        const CLAIM_AFTER = 2200;        // tempo per prenotare dopo la fine della frase (ms)
+        // Il ritmo accelera: i valori passano da "inizio" a "fine" nei primi RAMP_DISHES piatti serviti.
+        const RAMP_DISHES = 14;
+        const GAP_START = [1200, 2800], GAP_END = [400, 1000];   // pausa casuale tra un piatto e l'altro (ms)
+        const CLAIM_AFTER_START = 2200, CLAIM_AFTER_END = 1200;  // tempo per prenotare dopo la fine della frase (ms)
+        const REVEAL_START = 1400, REVEAL_END = 700;             // pausa dopo la rivelazione del piatto (ms)
         const PENALTY_BLOCK = 2000;      // blocco del giocatore penalizzato (ms)
         const EARLY_BLOCK = 1000;        // blocco se si preme quando non c'è nessun piatto (ms)
 
@@ -4096,6 +4107,8 @@
         const buffers = new Map();
 
         const rand = ([min, max]) => min + Math.random() * (max - min);
+        const lerp = (a, b, p) => a + (b - a) * p;
+        const progress = () => Math.min(1, served / RAMP_DISHES);
 
         function pickDish() {
             const list = Math.random() < INEDIBLE_CHANCE ? INEDIBLE : EDIBLE;
@@ -4169,7 +4182,8 @@
             current = null;
             $("#game-status").textContent = "IL MENÙ";
             setArena("👨‍🍳 Il ristoratore pensa…", "Aspetta il prossimo piatto");
-            later(serve, rand(GAP));
+            const p = progress();
+            later(serve, rand([lerp(GAP_START[0], GAP_END[0], p), lerp(GAP_START[1], GAP_END[1], p)]));
         }
 
         function serve() {
@@ -4185,7 +4199,7 @@
             setArena("🔊 Ascolta il piatto…", "Prenota solo se è buono!");
 
             const duration = announce(current);
-            later(closeDish, duration + CLAIM_AFTER);
+            later(closeDish, duration + lerp(CLAIM_AFTER_START, CLAIM_AFTER_END, progress()));
         }
 
         // Chiude il piatto e ne rivela il nome
@@ -4200,7 +4214,7 @@
             else info = "Immangiabile";
 
             setArena((edible ? "😋 " : "🤢 ") + dish.name, info, edible ? "" : "signal");
-            later(nextDish, 1400);
+            later(nextDish, lerp(REVEAL_START, REVEAL_END, progress()));
         }
 
         function endByDishes() {
