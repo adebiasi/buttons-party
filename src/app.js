@@ -6,6 +6,7 @@
     const PLAYER_BUTTONS = ["P1", "P2", "P3", "P4"];
     const KEY_MAP = {"1": "P1", "2": "P2", "3": "P3", "4": "P4", " ": "C", "Enter": "C"};
     const DESCRIPTIONS = {
+        typewriter: "Premi il tuo tasto più veloce che puoi: ogni pressione fa il rumore di un tasto di macchina da scrivere e vale un punto. Quando senti il campanello di fine riga fermati: ogni pressione durante il campanello toglie un punto, anche sotto zero. Quando il suono finisce riparti subito. Dopo cinque righe il gioco finisce. Vince chi ha più punti.",
         tug: "Premi il tuo tasto più veloce che puoi per tirare la corda dalla tua parte. In due: al meglio di tre round. In tre: tre sfide uno contro uno. In quattro: due squadre, le pressioni dei compagni si sommano.",
         bounty: "Il narratore dice chi è il ricercato, poi dà il via, e alla fine di ogni round dice chi ha vinto. Tutti premono: se arrivi prima tu prendi un punto e il ricercato ne perde uno. Se il ricercato è più veloce, si salva e prende un punto. Se premi prima del via perdi un punto.",
         copyrhythm: "Un giocatore crea un ritmo di 8 battute premendo il suo tasto. Gli altri lo copiano tutti insieme seguendo la base. Poi cambia il creatore. Si fa un giro completo.",
@@ -47,6 +48,7 @@
         bomb: "Palla esplosiva",
         rope: "Saltare la corda",
         tennis: "Tennis",
+        typewriter: "Macchina da scrivere",
         tapas: "Consegna tapas",
         rally: "Rally",
         beeper: "Il bippatore",
@@ -1198,7 +1200,8 @@
             tug: makeTug,
             bounty: makeBounty,
             copyrhythm: makeCopyRhythm,
-            horse: makeHorse
+            horse: makeHorse,
+            typewriter: makeTypewriter
         })[id]();
     }
 
@@ -1222,7 +1225,7 @@
         };
 
         function next() {
-            const THINK_MS = 1200;     // dopo la fine del verso si può ancora rispondere (in cima a makePig)
+            const THINK_MS = 700;     // dopo la fine del verso si può ancora rispondere (in cima a makePig)
             if (g.finished) return;
             if (performance.now() - started >= duration) {
                 finish("Tempo scaduto!", winner());
@@ -1247,7 +1250,7 @@
                 // Finestra uguale per tutti gli animali: fine del verso + tempo per pensare.
                 // La durata non rivela più se è il maiale.
                 later(() => { active = false; next(); }, Math.max(0, t.endsAt - performance.now()) + THINK_MS);
-            }, 1200 + Math.random() * 1300);
+            }, 300  + Math.random() * 500);
         }
 
 
@@ -1685,6 +1688,119 @@
         };
 
         g.dispose = () => { stopTimer(); stopNatureAmbience(); };
+        return g;
+    }
+
+    function makeTypewriter() {
+        // "Macchina da scrivere": ogni pressione batte un tasto (+1). Ogni X pressioni totali suona il fine riga:
+        // chi preme mentre suona perde un punto per ogni pressione (anche sotto zero). Dopo Y fine riga il gioco finisce.
+        const g = baseGame("typewriter");
+        g.silentButtons = true;   // i suoni dei tasti li gestisce il gioco
+
+        // === File audio (facoltativi: se mancano si usano suoni sintetici) ===
+        const DIR = "assets/sounds/macchina-da-scrivere/";
+        const KEY_SOUNDS = [1, 2, 3, 4].map(n => DIR + "tasto-" + n + ".mp3");   // uno a caso a ogni pressione
+        const LINE_SOUND = DIR + "cambio-riga.mp3";                              // campanello di fine riga
+        const LAST_LINE_SOUND = DIR + "cambio-riga-finale.mp3";                  // ultimo fine riga: chiude il gioco
+        const PENALTY_SOUND = DIR + "penitenza.mp3";                             // si preme durante il fine riga
+
+        // === Parametri ===
+        const PRESSES_PER_PLAYER = 15;    // pressioni totali per riga = 15 x numero di giocatori
+        const LINES = 5;                  // dopo questo numero di fine riga il gioco finisce
+        const MAX_KEY_SOUNDS = 3;         // al massimo tre suoni di tasto contemporanei per giocatore
+
+        let ready = false, bell = false, row = 0, count = 0, perRow = 0, lastKey = -1, points = {}, playing = {};
+
+        async function keySound(id, path = null, fallback = null) {
+            let n = 0;
+            if (!path) {
+                do { n = Math.floor(Math.random() * KEY_SOUNDS.length); } while (n === lastKey && KEY_SOUNDS.length > 1);
+                lastKey = n;
+            }
+            const list = playing[id] = playing[id] || [];
+            while (list.length >= MAX_KEY_SOUNDS) {
+                try { list.shift().stop(); } catch (e) {}
+            }
+            const t = await playTimed(path || KEY_SOUNDS[n], {
+                fallback: fallback || (() => tone(1500 + Math.random() * 900, .03, "square", .05)), fallbackMs: 60
+            });
+            if (!t.source) return;
+            list.push(t.source);
+            t.ended.then(() => {
+                const i = list.indexOf(t.source);
+                if (i >= 0) list.splice(i, 1);
+            });
+        }
+
+        const show = () => setArena("⌨️ Riga " + (row + 1) + " di " + LINES, count + " / " + perRow + " tasti");
+
+        g.start = async () => {
+            ready = false; bell = false; row = 0; count = 0; lastKey = -1; playing = {};
+            perRow = PRESSES_PER_PLAYER * playerIds().length;
+            points = Object.fromEntries(playerIds().map(p => [p, 0]));
+            scores = {...points};
+            [...KEY_SOUNDS, LINE_SOUND, LAST_LINE_SOUND, PENALTY_SOUND].forEach(loadSample);
+            $("#game-status").textContent = "SCRIVETE!";
+            setArena("⌨️ Macchina da scrivere", "Premi il tuo tasto più veloce che puoi");
+            renderScores();
+            if (!await narrate(g, "Macchina da scrivere. Premi il tuo tasto più veloce che puoi: ogni pressione batte un tasto e vale un punto. " +
+                "Quando senti il campanello di fine riga, fermati: ogni pressione durante il campanello toglie un punto. " +
+                "Quando il suono finisce, riparti subito. Dopo " + LINES + " righe il gioco finisce. Vince chi ha più punti.")) return;
+            ready = true;
+            show();
+        };
+
+        async function lineChange() {
+            bell = true;
+            const last = row === LINES - 1;
+            setArena("🔔 Fine riga!", "Fermi! Chi preme perde punti", "signal");
+            const t = await playTimed(last ? LAST_LINE_SOUND : LINE_SOUND, {
+                fallback: () => {
+                    tone(1568, .5, "triangle", .12);
+                    if (last) { tone(1175, .5, "triangle", .1, .25); tone(784, .9, "triangle", .1, .5); }
+                },
+                fallbackMs: last ? 1500 : 800
+            });
+            await t.ended;
+            if (game !== g || g.finished) return;
+            while (paused && game === g) await new Promise(r => setTimeout(r, 150));
+            if (game !== g || g.finished) return;
+            if (last) {
+                const order = playerIds().sort((a, b) => points[b] - points[a]);
+                finish("Fine del foglio! Vince " + COLORS[order[0]], order);
+                return;
+            }
+            bell = false;
+            row++;
+            count = 0;
+            show();
+        }
+
+        g.onInput = e => {
+            if (e.type !== "down" || !playerIds().includes(e.button) || g.finished || !ready) return;
+            const id = e.button;
+            if (bell) {
+                points[id] -= 1;
+                scores[id] = points[id];
+                renderScores();
+                keySound(id, PENALTY_SOUND, () => tone(140, .18, "sawtooth", .08));   // suono di penitenza
+                toast("Durante il fine riga: " + COLORS[id] + " −1");
+                return;
+            }
+            points[id] += 1;
+            scores[id] = points[id];
+            renderScores();
+            keySound(id);
+            count++;
+            if (count >= perRow) {
+                setArena("🔔 Fine riga!", "Fermi! Chi preme perde punti", "signal");
+                lineChange();
+            } else {
+                show();
+            }
+        };
+
+        g.dispose = () => stopTimer();
         return g;
     }
 

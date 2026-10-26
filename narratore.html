@@ -9,6 +9,17 @@
   <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./src/style.css">
   <link rel="stylesheet" href="./src/narratore.css">
+  <style>
+    #toast{display:none !important}   /* niente popup dei punti presi o persi */
+    /* Schermo oscurato durante i giochi (solo con controller Bluetooth): nero puro, resta solo "Gioco X di Y" */
+    html:has(body.nar-dim), body.nar-dim{background:#000 !important}
+    body.nar-dim .app-shell, body.nar-dim .panel{background:#000 !important;border-color:transparent !important;box-shadow:none !important}
+    body.nar-dim .topbar, body.nar-dim #narrator-title, body.nar-dim #narrator-text, body.nar-dim #narrator-content,
+    body.nar-dim #narrator-input, body.nar-dim .narrator-actions, body.nar-dim .hint{display:none !important}
+    body.nar-dim .narrator-panel{min-height:70vh;display:flex;align-items:center;justify-content:center}
+    body.nar-dim .section-heading{display:flex;justify-content:center;text-align:center}
+    body.nar-dim .eyebrow{color:#f2f2f2 !important;font-size:clamp(2.2rem,12vw,4.5rem) !important;font-weight:800 !important;letter-spacing:.1em !important;line-height:1.1 !important;text-align:center;margin:0 !important}
+  </style>
   <title>Buttons-party · Narratore</title>
 </head>
 <body>
@@ -38,7 +49,7 @@
       <div id="simon-feedback" class="simon-feedback" aria-live="polite"></div>
     </section>
 
-    <section id="virtual-controller" class="controller-wrap" aria-label="Controller virtuale a cinque pulsanti">
+    <section id="virtual-controller" class="controller-wrap" hidden aria-label="Controller virtuale a cinque pulsanti">
       <div class="cross-controller">
         <span class="cross-spacer"></span><button class="pad pad-p1" data-button="P1" aria-label="Rosso"><span class="pad-number">1</span><small>ROSSO</small></button><span class="cross-spacer"></span>
         <button class="pad pad-p4" data-button="P4" aria-label="Verde"><span class="pad-number">4</span><small>VERDE</small></button>
@@ -63,6 +74,7 @@
           <option value="beeper">beeper</option><option value="beat">beat</option><option value="thirsty">thirsty</option>
           <option value="tug">tug</option><option value="bounty">bounty</option><option value="copyrhythm">copyrhythm</option>
           <option value="horse">horse</option>
+          <option value="typewriter">typewriter</option>
         </select>
         <p id="game-description"></p>
         <input type="checkbox" id="ble-enabled">
@@ -73,7 +85,6 @@
         <button id="random-button"></button>
       </section>
     </div>
-    <footer><span>Buttons-party · narratore</span><a href="./index.html">Torna al prototipo</a></footer>
   </main>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="./src/controller-ble.js"></script>

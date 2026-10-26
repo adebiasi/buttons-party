@@ -15,7 +15,7 @@
     ["bomb", "horse", "tennis"],                   // palla esplosiva, cavallino, tennis (si passa il turno)
     ["disturber", "beeper"],                       // disturbatore, bippatore
     ["duel", "bounty"],                            // duello, taglia
-    ["tug", "lesson", "grinder", "freeze"],        // fune, lezione, mola a disco, uno due tre stai là
+    ["tug", "lesson", "grinder", "freeze", "typewriter"],   // fune, lezione, mola a disco, uno due tre stai là, macchina da scrivere
     ["pig", "door", "restaurant"],                 // maiale, porta, ristorante
     ["mine", "parachute", "pot", "mosquito"],      // miniera, paracadute, piglia tutto, zanzara (scegliere il momento giusto)
     ["tapas", "rally", "simon"],                   // tapas, rally, simon (sequenze da ripetere)
@@ -38,6 +38,22 @@
   const color = id => COLORS[id].toLowerCase();
   const esc = s => String(s).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
   const listWords = words => words.length < 2 ? words.join("") : words.slice(0, -1).join(", ") + " e " + words.at(-1);
+
+  // Tiene lo schermo acceso finché la pagina è aperta (si gioca senza guardarlo: se si spegne, l'audio può fermarsi).
+  let wakeLock = null;
+  async function keepScreenOn() {
+    if (!("wakeLock" in navigator) || wakeLock || document.visibilityState !== "visible") return;
+    try {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => { wakeLock = null; });
+    } catch (error) {
+      console.warn("Wake lock non disponibile:", error);
+    }
+  }
+  document.addEventListener("visibilitychange", keepScreenOn);   // il blocco si perde quando la pagina va in secondo piano
+  document.addEventListener("pointerdown", keepScreenOn);
+  document.addEventListener("keydown", keepScreenOn);
+  keepScreenOn();
 
   BP.setMenuStart(false);
   BP.ble.setEnabled(true);
@@ -76,10 +92,24 @@
     await pressed;
   }
 
+  // Schermo oscurato durante i giochi (solo con il controller Bluetooth: senza, i pulsanti virtuali devono restare visibili).
+  let dimWanted = false;
+  function applyDim() {
+    document.body.classList.toggle("nar-dim", dimWanted && BP.ble.isConnected());
+  }
+  function setDim(on) {
+    dimWanted = on;
+    applyDim();
+  }
+
+  // Il controller virtuale resta nascosto: compare solo se il Bluetooth non è disponibile e si gioca con tastiera o tocco.
+  let showVirtualController = false;
+
   function updateInputPill() {
     const bluetoothConnected = BP.ble.isConnected();
+    applyDim();
     $("#narrator-input").textContent = bluetoothConnected ? "Controller: Bluetooth 🔵" : "Controller: tastiera ⌨️";
-    $("#virtual-controller").hidden = bluetoothConnected;
+    $("#virtual-controller").hidden = bluetoothConnected || !showVirtualController;
   }
 
   updateInputPill();
@@ -108,6 +138,7 @@
   async function beginFlow(withBluetooth) {
     if (flowStarted) return;
     flowStarted = true;
+    showVirtualController = !withBluetooth;
     state.phase = "connect";
     BP.unlockAudio();
     $("#narrator-retry-ble").hidden = true;
@@ -333,9 +364,11 @@
       renderGames();
       await speak(`Gioco ${i + 1} di ${state.games.length}.`);   // il titolo lo dice poi l'introduzione del gioco
       const finished = waitFinish();
+      setDim(true);
       BP.start(id, state.players);
       const detail = await finished;
       await waitSilence();
+      setDim(false);
       state.lastPoints[i] = awardPoints(detail);
       BP.end();
       renderGames();
