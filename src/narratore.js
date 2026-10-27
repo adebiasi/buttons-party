@@ -110,6 +110,7 @@
     applyDim();
     $("#narrator-input").textContent = bluetoothConnected ? "Controller: Bluetooth 🔵" : "Controller: tastiera ⌨️";
     $("#virtual-controller").hidden = bluetoothConnected || !showVirtualController;
+    $(".hint").hidden = bluetoothConnected || !showVirtualController;   // suggerimento tastiera: solo senza Bluetooth
   }
 
   updateInputPill();
@@ -392,9 +393,13 @@
       if (last && state.totals[last.ids[0]] === state.totals[id]) last.ids.push(id);
       else groups.push({pos: sorted.indexOf(id), ids: [id]});
     }
-    $("#narrator-content").innerHTML = `<ol class="nar-rank">${groups.map(g => g.ids.map(id =>
-      `<li class="${id.toLowerCase()}"><span>${g.pos + 1}° ${COLOR_EMOJI[id]} ${COLORS[id]}</span><strong>${state.totals[id]} punti</strong></li>`
-    ).join("")).join("")}</ol>`;
+    // La classifica parte vuota e si riempie seguendo la voce, dall'ultimo posto al primo.
+    $("#narrator-content").innerHTML = `<ol class="nar-rank" id="nar-rank-list"></ol>`;
+    const revealGroup = g => {
+      $("#nar-rank-list").insertAdjacentHTML("afterbegin", g.ids.map(id =>
+        `<li class="${id.toLowerCase()}"><span>${g.pos + 1}° ${COLOR_EMOJI[id]} ${COLORS[id]}</span><strong>${state.totals[id]} punti</strong></li>`
+      ).join(""));
+    };
 
     await speak("La partita è finita! Ecco la classifica finale, dall'ultimo al primo.");
     await sleep(600);
@@ -402,6 +407,7 @@
       const who = listWords(g.ids.map(color));
       const pts = state.totals[g.ids[0]];
       const tie = g.ids.length > 1 ? ", a pari merito," : "";
+      revealGroup(g);   // compare nella lista mentre la voce lo annuncia
       if (g.pos === 0) {
         await sleep(800);
         await speak(

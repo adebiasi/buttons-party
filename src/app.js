@@ -1751,7 +1751,7 @@
             setArena("⌨️ Macchina da scrivere", "Premi il tuo tasto più veloce che puoi");
             renderScores();
             if (!await narrate(g, "Macchina da scrivere. Premi il tuo tasto più veloce che puoi: ogni pressione batte un tasto e vale un punto. " +
-                "Quando senti il campanello di fine riga, fermati: ogni pressione durante il campanello toglie un punto. " +
+                "Quando senti il campanello di fine riga, fermàti: ogni pressione durante il campanello toglie un punto. " +
                 "Quando il suono finisce, riparti subito. Dopo " + LINES + " righe il gioco finisce. Vince chi ha più punti.")) return;
             ready = true;
             show();
@@ -1813,7 +1813,12 @@
 
     function makePot() {
         const g = baseGame("pot");
-        let pot = 0, limit = 0, cashed = {}, start = 0, rate = 700, ready = false;
+        // Il ritmo dei gettoni accelera di continuo (anche dopo ogni incasso, perché non riparte da capo).
+        const RATE_START = 700;      // ms tra un gettone e l'altro all'inizio
+        const RATE_MIN = 220;        // velocità massima (ms tra un gettone e l'altro)
+        const RATE_STEP = 8;         // ogni gettone toglie questi ms all'intervallo
+        const ROUNDS = 3;            // numero di round: i punti di ogni round si sommano
+        let pot = 0, limit = 0, cashed = {}, start = 0, rate = RATE_START, ready = false, round = 1;
 
         // Suoni (file facoltativi: se mancano si usano suoni sintetici)
         const COIN_SOUND = "assets/sounds/pot/gettone.mp3";   // arriva un gettone nel piatto
@@ -1836,14 +1841,15 @@
             pot = 0;
             limit = newLimit();
             cashed = {};
-            rate = 700;
+            rate = RATE_START;
+            round = 1;
             scores = Object.fromEntries(playerIds().map(p => [p, 0]));
             [COIN_SOUND, CASH_SOUND].forEach(loadSample);
-            $("#game-status").textContent = "QUANTO RISCHIERAI?";
+            $("#game-status").textContent = "ROUND 1 DI " + ROUNDS;
             setArena("🪙 0 gettoni", "Incassa quando vuoi… ma non aspettare troppo");
             renderScores();
             if (!await narrate(g, "Piglia tutto. Il piatto si riempie di gettoni, uno dopo l'altro. " +
-                "Premi per incassare quelli che ci sono. Ma se aspetti troppo il piatto esplode, e chi non ha incassato perde tutto. Si giocano tre round.")) return;
+                "Premi per incassare quelli che ci sono. Ma se aspetti troppo il piatto esplode, e chi non ha incassato perde tutto. Si giocano tre round e i punti si sommano.")) return;
             ready = true;
             start = performance.now();
             tick();
@@ -1854,26 +1860,52 @@
             pot++;
             coinSound();
             if (pot > limit) {
-                const order = playerIds().sort((a, b) => scores[b] - scores[a]);
-                const tie = scores[order[0]] === scores[order[1]];
-                finish(tie ? "💥 Limite superato! Pareggio" : "💥 Limite superato! Vince " + COLORS[order[0]], tie ? null : order);
+                endRound("Il piatto esplode! Chi non ha incassato perde tutto.");
                 return;
             }
             setArena("🪙 " + pot + " gettoni", "Il limite segreto è nascosto…");
-            rate = Math.max(260, rate - 3);
+            rate = Math.max(RATE_MIN, rate - RATE_STEP);
             later(tick, rate);
+        }
+
+        // Fine di un round: dopo l'ultimo il gioco finisce, altrimenti si riparte da zero (il ritmo continua ad accelerare)
+        function endRound(message) {
+            ready = false;
+            stopTimer();
+            if (round >= ROUNDS) {
+                const order = playerIds().sort((a, b) => scores[b] - scores[a]);
+                const tie = scores[order[0]] === scores[order[1]];
+                finish(tie ? "Fine dei tre round! Pareggio" : "🪙 Fine dei tre round! Vince " + COLORS[order[0]], tie ? null : order);
+                return;
+            }
+            nextRound(message);
+        }
+
+        async function nextRound(message) {
+            const done = round;
+            setArena("🪙 " + message, "Fine del round " + done + " di " + ROUNDS);
+            await sayAsync(message + " Fine del round " + done + ". " + (done === ROUNDS - 1 ? "Ultimo round!" : "Si ricomincia!"));
+            while (paused && game === g) await new Promise(r => setTimeout(r, 150));
+            if (game !== g || g.finished) return;
+            round++;
+            pot = 0;
+            limit = newLimit();
+            cashed = {};
+            $("#game-status").textContent = "ROUND " + round + " DI " + ROUNDS;
+            setArena("🪙 0 gettoni", "Round " + round + " di " + ROUNDS);
+            ready = true;
+            tick();
         }
 
         g.onInput = e => {
             if (e.type !== "down" || !playerIds().includes(e.button) || cashed[e.button] || g.finished || !ready) return;
             cashed[e.button] = true;
-            scores[e.button] = pot;
+            scores[e.button] += pot;   // i punti dei round si sommano
             renderScores();
             cashSound();
             toast(COLORS[e.button] + " incassa " + pot + " gettoni!");
             if (playerIds().every(p => cashed[p])) {
-                const order = playerIds().sort((a, b) => scores[b] - scores[a]);
-                finish("Piatto incassato!", order);
+                endRound("Tutti hanno incassato.");
                 return;
             }
             // Il piatto si svuota: chi non ha ancora incassato riparte da zero
@@ -2123,8 +2155,8 @@
         // === Parametri comuni ===
         const THRESHOLD = 0.7;
         const MAX_GAIN = 0.6;
-        const WIN_POINTS = 3;
-        const DURATION = 90000;
+        const WIN_POINTS = 2;
+        const DURATION = 45000;       // durata massima di un round (ms)
         const HIDE_TIME = 1500;
 
         // === Parametri mosca ===
@@ -2135,7 +2167,7 @@
 
         // === Parametri ape ===
         const BEE_SPEED = 1.5;
-        const BEE_BOUNDARY = 5;
+        const BEE_BOUNDARY = 3;        // l'ape resta più vicina: più occasioni di prenderla
         const BEE_TURN_MIN = 700;
         const BEE_TURN_MAX = 1800;
 
@@ -2317,6 +2349,10 @@
                 // Curve ampie e dolci, niente sterzate brusche
                 const turn = (Math.random() - 0.5) * (Math.PI / 3);
                 beeAngle += turn;
+                // Una volta su due, se si è allontanata, l'ape torna verso il centro (dove il ronzio è fortissimo)
+                if (Math.hypot(beeX, beeY) > 1.5 && Math.random() < 0.5) {
+                    beeAngle = Math.atan2(-beeY, -beeX) + (Math.random() - 0.5) * (Math.PI / 2);
+                }
 
                 beeNextTurn = now +
                     BEE_TURN_MIN +
@@ -2353,7 +2389,7 @@
                 Math.min(1, 1 - distance / BEE_BOUNDARY)
             );
 
-            return Math.pow(proximity, 1.5);
+            return proximity;   // curva lineare: il ronzio forte arriva da più lontano
         }
 
         // === Tick del gioco ===
@@ -2483,17 +2519,17 @@
                 intro =
                     "Cattura l'ape. Vola lentamente e cambia direzione in modo graduale. " +
                     "Ascolta il ronzio e premi quando è fortissimo, perché è vicina. " +
-                    "Se premi troppo presto perdi un punto. Vince chi ne prende tre.";
+                    "Se premi troppo presto perdi un punto. Vince chi ne prende due.";
             } else if (insect === "fly") {
                 intro =
                     "Cattura la mosca. Vola in linea retta e cambia bruscamente direzione. " +
                     "Ascolta il ronzio e premi quando è fortissimo, perché è vicina. " +
-                    "Se premi troppo presto perdi un punto. Vince chi ne prende tre.";
+                    "Se premi troppo presto perdi un punto. Vince chi ne prende due.";
             } else {
                 intro =
                     "Prendi la zanzara. Una zanzara vola intorno a te: premi quando " +
                     "il ronzio è fortissimo, perché vuol dire che è vicina. " +
-                    "Se premi troppo presto perdi un punto. Vince chi ne prende tre.";
+                    "Se premi troppo presto perdi un punto. Vince chi ne prende due.";
             }
 
             if (!await narrate(g, intro + " Si giocano tre round.")) return;
@@ -3000,7 +3036,7 @@
                 [UNO, STAI, STEP_SOUND, DQ_SOUND].map(async p => buffers.set(p, await loadSample(p)))
             );
 
-            await sayIntro("Uno, due, tre, stai là! Premi il più possibile, ma quando senti stai là, fermati!");
+            await sayIntro("Uno, due, tre, stai là! Premi il più possibile, ma quando senti stai là, fermàti!");
             await preload;
             if (game !== g) return;
 
@@ -3219,7 +3255,7 @@
             "She always drinks tea in the morning significa lei beve sempre il tè la mattina, mentre he drinks coffee significa lui beve il caffè.",
             "Listen carefully. The apple is red significa la mela è rossa, and the banana is yellow significa e la banana è gialla.",
             "Never talk during the test significa non parlate mai durante il compito, and never eat chips in class significa e non mangiate mai patatine in classe.",
-            "The window is open significa la finestra è aperta, so please close it significa quindi per favore chiudila."
+            "The window is open significa la finestra è aperta, so please close it significa quindi per favore chiùdila."
         ];
 
         // Frasi di sospensione: {n} = nomi dei giocatori scoperti
@@ -3617,7 +3653,7 @@
             );
 
             await sayIntro("A lezione. Il professore spiega inglese: mentre parla, premi il più possibile il tuo tasto. " +
-                "Quando si ferma, fermati anche tu: se ti scopre sei sospeso. Vince chi arriva per primo a " + TARGET +
+                "Quando si ferma, fermàti anche tu: se ti scopre sei sospeso. Vince chi arriva per primo a " + TARGET +
                 " pressioni, o l'ultimo rimasto in classe.");
             await preload;
             if (game !== g) return;
@@ -6128,7 +6164,7 @@
             );
 
             await sayIntro(
-                "Consegna tapas. Ascolta il percorso e ripetilo. " +
+                "Consegna tapas. Ascolta il percorso e ripètilo. " +
                 "Aspetta di aver sentito tutte le istruzioni prima di eseguirle. " +
                 "Le direzioni sono relative a te: indietro è il tuo tasto, " +
                 "avanti è quello di fronte, destra e sinistra sono ai tuoi lati. " +
@@ -6453,7 +6489,6 @@
         const BEEP_VOLUME = .22;
         const BEEP_FREQ = {P1: 1000, P2: 1250, P3: 800, P4: 1500};
         const WRONG_MIN = 150;            // ms di bip sopra un altro parlatore per prendere la penitenza
-        const DEMO_BEEP_MS = 700;         // durata del bip di prova che si sente dopo la chiamata del parlatore
 
 
 
@@ -7061,7 +7096,7 @@
                 speakers.map(s => s.id + " = " + s.persona.key + (s.persona.voice ? " (" + s.persona.voice.name + ")" : " (voce predefinita)")));
 
             // Intro brevissima
-            await sayIntro("Il bippatore. Ora assegno le voci: ogni parlatore ti chiama, e senti il tuo bip.");
+            await sayIntro("Il bippatore. Ora assegno le voci: ogni parlatore chiama il suo giocatore.");
             if (gone()) return;
 
             // Assegnazione: è il parlatore stesso a chiamare il giocatore
@@ -7072,13 +7107,10 @@
                 const text = phrases[i % phrases.length].replace("{c}", COLORS[sp.id]);
                 await speak(text, sp.persona);
                 if (gone()) return;
-                // Basta sentire la voce: il bip del giocatore parte da solo, senza premere
-                setArena("🎙 " + COLORS[sp.id] + ", ascolta il tuo bip", "Il tuo parlatore ti ha chiamato");
-                beepOn(sp.id);
-                await wait(DEMO_BEEP_MS);
-                beepOff(sp.id);
+                // Nessun bip di prova: basta sentire la voce
+                setArena("🎙 " + COLORS[sp.id] + ", questo è il tuo parlatore", "Il tuo parlatore ti ha chiamato");
+                await wait(700);
                 if (gone()) return;
-                await wait(300);
             }
 
             await sayAsync("Si comincia!");
@@ -7907,7 +7939,7 @@
         const TARGET_LATE_SOUND = "assets/sounds/taglia/ricercato-tardi.mp3";     // il ricercato preme troppo tardi
 
         // === Parametri ===
-        const ROUNDS = 10;
+        const ROUNDS = 6;
         const AFTER_NAME = [400, 1500];   // attesa casuale tra il nome del ricercato e lo sparo (ms)
         const REACT_LIMIT = 3000;         // dopo lo sparo, tempo massimo per reagire (ms)
         const LATE_WINDOW = 1800;         // dopo il round, entro questo tempo anche chi preme in ritardo sente il suo suono (ms)
@@ -7955,7 +7987,7 @@
 
             if (!await narrate(g, "Taglia. In ogni round il narratore dice chi è il ricercato, poi spara. Tutti premono il più in fretta possibile. " +
                 "Se arrivi prima tu, prendi un punto e il ricercato ne perde uno. Se il più veloce è il ricercato, si salva e prende un punto. " +
-                "Se premi prima dello sparo, perdi un punto. Alla fine di ogni round ti dico chi ha vinto. Si giocano dieci round.")) return;
+                "Se premi prima dello sparo, perdi un punto. Alla fine di ogni round ti dico chi ha vinto. Si giocano sei round.")) return;
             nextRound();
         };
 
@@ -9227,7 +9259,7 @@
 
             await sayIntro(
                 "Quattro tempi, poi un giro di prova senza punti. " +
-                "Ascolta il ritmo e preparati!"
+                "Ascolta il ritmo e prepàrati!"
             );
 
             if (gone()) return;
