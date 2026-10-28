@@ -3236,7 +3236,7 @@
         const DQ_BATCH = 350;             // chi viene scoperto entro questo tempo è annunciato insieme
         const RESUME_GAP = 500;           // pausa prima che il prof riprenda a parlare
         const PRESS_HOLD = 260;           // il suono di un giocatore resta acceso per questo tempo dopo l'ultima pressione
-        const MIN_VOL = .08;              // volume del suono del giocatore alla prima pressione
+        const MIN_VOL = .7;              // volume del suono del giocatore alla prima pressione
         const MAX_VOL = 1;                // volume al traguardo
         const CHALK_VOLUME = .35;
 
@@ -6495,11 +6495,13 @@
         // === Parlatori ===
         // lang: voce straniera che legge testo italiano (usata solo se il dispositivo la ha)
         // vi: indice della voce italiana da preferire
+        // Tutte voci italiane (le voci straniere leggevano male l'italiano): si distinguono per voce, tono e velocità.
+        // vi = indice della voce italiana da usare; se il dispositivo ne ha meno, si riparte da capo.
         const PERSONAS = [
-            {key: "uomo", name: "l'uomo", pitch: .7, rate: .98, lang: null, vi: 1},
-            {key: "spagnolo", name: "il parlatore spagnolo", pitch: 1, rate: .95, lang: "es", vi: 0},
-            {key: "tedesco", name: "il parlatore tedesco", pitch: .9, rate: .95, lang: "de", vi: 0},
-            {key: "francese", name: "il parlatore francese", pitch: 1.1, rate: 1, lang: "fr", vi: 0},
+            {key: "grave", name: "la voce grave", pitch: .7, rate: .95, lang: null, vi: 0},
+            {key: "acuta", name: "la voce acuta", pitch: 1.5, rate: 1.05, lang: null, vi: 1},
+            {key: "veloce", name: "la voce veloce", pitch: 1, rate: 1.15, lang: null, vi: 2},
+            {key: "lenta", name: "la voce lenta", pitch: .85, rate: .87, lang: null, vi: 3},
         ];
 
         // === Vocabolario ===
