@@ -28,7 +28,7 @@
         rope: "La corda batte a terra a ritmo regolare: premi il tuo tasto nello stesso istante del colpo. I primi tre colpi sono di prova. Chi non salta o salta fuori tempo è eliminato. Il ritmo accelera. Vince l'ultimo rimasto. Si giocano tre round.",        tennis: "Senti il rimbalzo della palla: quando rimbalza verso di te, premi per rispondere. Poi tocca al giocatore successivo in senso orario. Se premi prima del tuo rimbalzo resti fermo 2 secondi. Se manchi la palla sei eliminato. Si giocano tre round.",
         tapas: "A turno, ascolta il percorso e ripetilo con i tasti. Aspetta di aver sentito tutte le istruzioni prima di eseguirle. Le direzioni sono relative a te. Un chilometro è una pressione. Se sbagli sei licenziato.",
         rally: "Quando tocca a te la macchina parte: il navigatore dice comandi come «3 destra» o «2 accelera» e tu premi subito, senza aspettare. I comandi arrivano sempre più veloci e ravvicinati. Un errore o un ritardo e fai incidente. Vince chi completa più comandi.",
-        beeper: "Ogni giocatore ha un parlatore diverso, assegnato a voce. Tieni premuto per bippare tutta la parolaccia: più la copri, più punti prendi (fino a 3). Più tieni premuto su parole normali, più punti perdi (1,5 al secondo). Se bippi un parlatore che non è il tuo perdi punti allo stesso modo. Ogni parlatore dice lo stesso numero di parolacce.",
+        beeper: "Ogni giocatore ha un parlatore diverso, assegnato a voce. Tieni premuto per bippare tutta la parolaccia: più la copri, più punti prendi (fino a 3). Più tieni premuto su parole normali, più punti perdi (1,5 al secondo). Se bippi un parlatore che non è il tuo perdi punti allo stesso modo. Ogni parlatore dice lo stesso numero di parolacce. Le voci discutono del miglior programma televisivo di sempre: i programmi sono quelli veri, i conduttori sono inventati, e si finge che siano tutti bellissimi.",
         beat: "Ogni giocatore ha una percussione: cassa, rullante, charleston o battimani. Premi il tuo tasto a tempo quando senti la tua. Se premi nel momento sbagliato perdi un punto. Dopo tre loop la partita finisce.",
     }
     const GAME_NAMES = {
@@ -6520,6 +6520,15 @@
             nice: ["gentile", "simpatico", "bravissimo", "generoso", "tranquillo", "puntuale", "pazientissimo"],
             weather: ["bello", "nuvoloso", "perfetto", "fresco", "soleggiato"],
             day: ["domani", "stasera", "dopodomani"],
+            // tema comune: il miglior programma televisivo di sempre (ironico: in realtà li si prende in giro).
+            // I titoli sono programmi veri; i conduttori sono inventati e non si insultano mai persone reali.
+            show: ["Il Grande Fratello", "L'Isola dei Famosi", "Uomini e Donne", "Temptation Island",
+                "Ballando con le Stelle", "Pomeriggio Cinque", "Forum", "Striscia la notizia",
+                "Affari Tuoi", "La Corrida", "Carramba che sorpresa", "Il pranzo è servito"],
+            host: ["Lori Del Santo", "Giucas Casella", "Valeria Marini", "Cristiano Malgioglio", "Barbara D’Urso", "Paolo Brosio"],
+            great: ["geniale", "storico", "indimenticabile", "un capolavoro", "pura poesia", "un cult"],
+            prize: ["una lavatrice usata", "un criceto", "dieci minuti di gloria", "un abbonamento al dentista",
+                "una vacanza in tangenziale", "un frigorifero senza porta"],
             // intercalari normali: possono stare all'inizio o alla fine della frase
             pre: ["allora", "senti", "ecco", "boh", "cioè", "beh", "dai", "mah", "insomma",
                 "ascolta bene", "dico solo che", "sinceramente", "ripeto", "ma scusa"],
@@ -6541,29 +6550,34 @@
 
         // {b} insulto singolare, {ub} con articolo, {B} insulto plurale
         const ZERO = [
-            "oggi {name} ha mangiato {food} {where}",
-            "{day} andiamo tutti {where}",
-            "secondo me {name} è davvero {nice}",
-            "il tempo oggi è {weather}",
-            "ci tengo a precisare che {name} è {nice}",
-            "{name} mi ha portato {food} ed è stato {nice}",
-            "ho appena visto {name} {where} con {name}"
+            "il miglior programma di sempre è {show}",
+            "{show} è davvero {great}",
+            "{day} rivedo {show}, e piango dall'emozione",
+            "{host} dice che {show} è {great}",
+            "al primo posto metto {show}, senza dubbio",
+            "il premio finale di {show} è {prize}",
+            "ho visto {host} {where} con {food}",
+            "non c'è niente di meglio di {show} la domenica pomeriggio",
+            "ci tengo a precisare che {show} ha cambiato la televisione"
         ];
         const ONE = [
             "sei {b}",
             "{b}",
             "ci tengo a precisare che sei {ub}",
-            "{name} è proprio {ub}",
+            "{host} è proprio {ub}",
             "non comportarti da {b}",
             "che {b} che sei",
-            "ieri {name} è stato {ub} {where}",
-            "{name} mi ha portato {food} ma è comunque {ub}",
-            "{day} dirò a {name} che è {ub}"
+            "chi guarda {show} è {ub}",
+            "{show} lo guardano solo i {B}",
+            "chi non guarda {show} è {ub}",
+            "{day} dirò a {host} che è {ub}",
+            "dire che {show} è brutto è da {b}"
         ];
         const TWO = [
             "sei {b} e pure {b}",
-            "{name} è {b} ma anche tu sei {b}",
-            "{day} dirò che siete {B} e soprattutto {B}",
+            "{host} è {b} ma anche tu sei {b}",
+            "{day} dirò che gli spettatori di {show} sono {B} e soprattutto {B}",
+            "chi non guarda {show} è {ub} e pure {ub}",
             "siete {B} e soprattutto {B}",
             "sei {ub} e anche {ub}",
             "non sei solo {b}, sei anche {b}"
@@ -7096,7 +7110,7 @@
                 speakers.map(s => s.id + " = " + s.persona.key + (s.persona.voice ? " (" + s.persona.voice.name + ")" : " (voce predefinita)")));
 
             // Intro brevissima
-            await sayIntro("Il bippatore. Ora assegno le voci: ogni parlatore chiama il suo giocatore.");
+            await sayIntro("Il bippatore. Le voci discutono del miglior programma televisivo di sempre. Ora assegno le voci: ogni parlatore chiama il suo giocatore.");
             if (gone()) return;
 
             // Assegnazione: è il parlatore stesso a chiamare il giocatore
