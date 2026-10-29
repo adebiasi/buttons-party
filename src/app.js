@@ -1,3 +1,21 @@
+/*
+ * Buttons-party: minigiochi audio per 2-4 giocatori, giocabili senza guardare lo schermo con un controller a cinque pulsanti.
+ * Copyright (C) 2026  Alberto Debiasi
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 (() => {
     "use strict";
     const $ = (s) => document.querySelector(s);
@@ -7,6 +25,9 @@
     const KEY_MAP = {"1": "P1", "2": "P2", "3": "P3", "4": "P4", " ": "C", "Enter": "C"};
     const DESCRIPTIONS = {
         typewriter: "Premi il tuo tasto più veloce che puoi: ogni pressione fa il rumore di un tasto di macchina da scrivere e vale un punto. Quando senti il campanello di fine riga fermati: ogni pressione durante il campanello toglie un punto, anche sotto zero. Quando il suono finisce riparti subito. Dopo cinque righe il gioco finisce. Vince chi ha più punti.",
+        witnesses: "Un reato, quattro testimoni. Prima si ascoltano i fatti veri, poi ogni testimone racconta la sua versione: se qualcuno dice qualcosa di diverso dai fatti, premi subito il tuo tasto. Il più veloce prende un punto. Se premi quando la frase è giusta, ne perdi uno. Si giocano tre casi, tutti contro tutti.",
+        robot: "Un robot dice una frase ma a metà si inceppa e ripete le prime sillabe di una parola. Ogni giocatore ha una sillaba fissa: quando manca la tua, premi per far continuare il robot. Finché il robot è bloccato, chi ha la sillaba giusta perde punti, sempre più in fretta. Se premi quando non tocca a te ne perdi due. A volte manca una sillaba che non è di nessuno: in quel caso non premere.",
+        spy: "Sei una spia e devi capire chi ha composto il numero dei servizi segreti nemici: quattro cifre, diverso a ogni partita. Ascolta il suono del telefono a disco: più la cifra è alta, più il disco fa strada e più il suono dura. Quando senti comporre il numero giusto, premi per primo e prendi un punto. Se premi su un numero sbagliato, ne perdi uno. I numeri diventano sempre più veloci.",
         tug: "Premi il tuo tasto più veloce che puoi per tirare la corda dalla tua parte. In due: al meglio di tre round. In tre: tre sfide uno contro uno. In quattro: due squadre, le pressioni dei compagni si sommano.",
         bounty: "Il narratore dice chi è il ricercato, poi dà il via, e alla fine di ogni round dice chi ha vinto. Tutti premono: se arrivi prima tu prendi un punto e il ricercato ne perde uno. Se il ricercato è più veloce, si salva e prende un punto. Se premi prima del via perdi un punto.",
         copyrhythm: "Un giocatore crea un ritmo di 8 battute premendo il suo tasto. Gli altri lo copiano tutti insieme seguendo la base. Poi cambia il creatore. Si fa un giro completo.",
@@ -48,6 +69,9 @@
         bomb: "Palla esplosiva",
         rope: "Saltare la corda",
         tennis: "Tennis",
+        witnesses: "I testimoni",
+        robot: "Il robot inceppato",
+        spy: "La spia",
         typewriter: "Macchina da scrivere",
         tapas: "Consegna tapas",
         rally: "Rally",
@@ -1201,6 +1225,9 @@
             bounty: makeBounty,
             copyrhythm: makeCopyRhythm,
             horse: makeHorse,
+            witnesses: makeWitnesses,
+            robot: makeRobot,
+            spy: makeSpy,
             typewriter: makeTypewriter
         })[id]();
     }
@@ -1808,6 +1835,847 @@
         };
 
         g.dispose = () => stopTimer();
+        return g;
+    }
+
+    function makeWitnesses() {
+        // "I testimoni": un reato, quattro voci. Il narratore legge i fatti veri; i testimoni li raccontano con parole diverse,
+        // ma ogni tanto uno cambia un fatto. Chi preme per primo su un errore prende un punto; chi preme su una frase giusta ne perde uno.
+        const g = baseGame("witnesses");
+
+        // === Parametri ===
+        const CASES = 3;                   // numero di casi (un caso = un reato con 4 interviste)
+        const STATEMENTS_EACH = 2;         // frasi per testimone in ogni caso
+        const ERRORS_PER_CASE = [1, 2];    // errori per caso (min, max): in alcune interviste non ce ne sono
+        const GENERAL_CHANCE = .4;         // probabilità che una frase giusta sia più generica del verbale (roditore, in casa, dopo le sette...)
+        const REACT_MS = 2500;             // tempo per premere dopo la fine della frase (ms)
+        const GAP_MS = 500;                // pausa tra una frase e la successiva (ms)
+
+        const gone = () => game !== g || g.finished;
+        const pick = list => list[Math.floor(Math.random() * list.length)];
+        const shuffle = list => [...list].sort(() => Math.random() - .5);
+        const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+        const norm = lang => (lang || "").replace("_", "-").toLowerCase();
+
+        // === Voci: tutte italiane, distinte per voce, tono e velocità ===
+        const PERSONAS = [
+            {key: "grave", name: "la voce grave", pitch: .6, rate: .95, vi: 0},
+            {key: "acuta", name: "la voce acuta", pitch: 1.5, rate: 1.05, vi: 1},
+            {key: "veloce", name: "la voce veloce", pitch: 1, rate: 1.3, vi: 2},
+            {key: "lenta", name: "la voce lenta", pitch: .85, rate: .78, vi: 3}
+        ];
+        const kept = [];                   // evita che il browser elimini le frasi prima della fine
+        let itVoices = [], witnesses = [];
+
+        function loadVoices() {
+            return new Promise(resolve => {
+                if (!("speechSynthesis" in window)) return resolve([]);
+                const v = speechSynthesis.getVoices();
+                if (v.length) return resolve(v);
+                const t = setTimeout(() => resolve(speechSynthesis.getVoices()), 1500);
+                speechSynthesis.addEventListener("voiceschanged", () => {
+                    clearTimeout(t);
+                    resolve(speechSynthesis.getVoices());
+                }, {once: true});
+            });
+        }
+
+        function speakAs(text, persona) {
+            return new Promise(resolve => {
+                if (!("speechSynthesis" in window)) return resolve();
+                const u = new SpeechSynthesisUtterance(text);
+                const voice = itVoices.length ? itVoices[persona.vi % itVoices.length] : null;
+                if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = "it-IT";
+                u.pitch = persona.pitch;
+                u.rate = persona.rate;
+                u.volume = soundEnabled ? 1 : 0;
+                let finished = false, safety = null;
+                const end = () => {
+                    if (finished) return;
+                    finished = true;
+                    clearTimeout(safety);
+                    const i = kept.indexOf(u);
+                    if (i >= 0) kept.splice(i, 1);
+                    resolve();
+                };
+                safety = setTimeout(end, 20000);
+                u.onstart = () => { clearTimeout(safety); safety = setTimeout(end, 20000); };
+                u.onend = end;
+                u.onerror = end;
+                kept.push(u);
+                speechSynthesis.speak(u);
+            });
+        }
+
+        // Attesa che rispetta la pausa e si interrompe se il gioco finisce
+        async function wait(ms) {
+            let left = ms;
+            while (left > 0 && !gone()) {
+                await new Promise(r => setTimeout(r, 100));
+                if (!paused) left -= 100;
+            }
+        }
+
+        // === Fatti dei casi ===
+        // Ogni caso ha 5 fatti. Ogni valore ha una versione precisa ("t") e altri modi VERI di dirlo ("more"): categorie,
+        // sinonimi, intervalli (criceto → roditore, in cucina → in casa, alle otto → dopo le sette).
+        // Gli errori usano invece frasi FALSE per il valore vero: devono contraddire davvero il verbale.
+        const COLORS_OUTFIT = [{m: "rosso", f: "rossa"}, {m: "blu", f: "blu"}, {m: "verde", f: "verde"}, {m: "giallo", f: "gialla"}, {m: "nero", f: "nera"}];
+        const COLOR_CATS = {rosso: ["caldo"], giallo: ["caldo", "chiaro"], verde: ["freddo"], blu: ["freddo", "scuro"], nero: ["scuro"]};
+        const ALL_CATS = ["caldo", "freddo", "scuro", "chiaro"];
+        const GARMENTS = [{t: "una giacca", g: "f"}, {t: "un cappello", g: "m"}, {t: "una sciarpa", g: "f"}, {t: "un impermeabile", g: "m"}];
+        const HOURS = {7: "sette", 8: "otto", 9: "nove", 10: "dieci", 11: "undici", 12: "dodici"};
+        const INDOOR = ["in casa", "dentro casa", "al coperto"];
+        const PLACES = [
+            {t: "in cucina", more: INDOOR},
+            {t: "in salotto", more: INDOOR},
+            {t: "in cantina", more: [...INDOOR, "sottoterra"]},
+            {t: "in giardino", more: ["all'aperto", "fuori casa"]},
+            {t: "in garage", more: ["al coperto", "fuori casa"]}
+        ];
+        const WHEELS = ["è scappato su due ruote", "è scappato su un mezzo a ruote"];
+        const ESCAPES = [
+            {t: "è scappato dalla finestra", more: ["è uscito dalla finestra"]},
+            {t: "è scappato dal balcone", more: ["è uscito dal balcone"]},
+            {t: "è scappato dalla porta sul retro", more: ["è uscito dal retro", "è scappato dal retro"]},
+            {t: "è scappato in bicicletta", more: [...WHEELS, "è scappato pedalando"]},
+            {t: "è scappato in monopattino", more: WHEELS}
+        ];
+        const THEMES = [
+            {title: "il furto della torta", objects: [
+                {t: "una torta al cioccolato", more: ["una torta", "un dolce"]},
+                {t: "una crostata alla marmellata", more: ["una crostata", "un dolce"]},
+                {t: "un tiramisù", more: ["un dolce al cucchiaio", "un dolce"]},
+                {t: "una torta di mele", more: ["una torta", "un dolce"]},
+                {t: "un vassoio di bignè", more: ["dei pasticcini", "un dolce"]}]},
+            {title: "il criceto scomparso", objects: [
+                {t: "un criceto bianco", more: ["un criceto", "un roditore", "un animaletto"]},
+                {t: "un criceto grigio", more: ["un criceto", "un roditore", "un animaletto"]},
+                {t: "una tartaruga", more: ["un rettile", "un animaletto"]},
+                {t: "un pesce rosso", more: ["un pesce", "un animaletto"]},
+                {t: "un canarino giallo", more: ["un uccellino", "un animaletto"]}]},
+            {title: "il telecomando rubato", objects: [
+                {t: "il telecomando della televisione", more: ["un telecomando"]},
+                {t: "il telecomando del cancello", more: ["un telecomando"]},
+                {t: "il telecomando del condizionatore", more: ["un telecomando"]},
+                {t: "le batterie del telecomando", more: ["delle batterie"]},
+                {t: "il telecomando dell'antenna", more: ["un telecomando"]}]}
+        ];
+
+        // Frasi dei testimoni, con parole diverse per lo stesso fatto
+        const SAY = {
+            outfit: ["Ho visto bene il ladro: indossava {v}.", "Il ladro? Aveva {v}, ne sono sicuro.", "Mi ricordo {v} addosso al ladro.", "Il ladro portava {v}, non lo dimentico."],
+            time: ["Guardavo l'orologio: è successo {v}.", "Il furto è avvenuto {v}.", "Ho sentito dei rumori {v}.", "Se non sbaglio è successo {v}."],
+            place: ["Il colpo è stato fatto {v}.", "Tutto è successo {v}, ne sono certo.", "Il ladro era {v}, l'ho visto con i miei occhi.", "Mi trovavo vicino: è successo {v}."],
+            object: ["Ha rubato {v}.", "Il bottino? Direi {v}.", "Si è portato via {v}.", "Mancava {v}, l'ho notato subito."],
+            escape: ["Poi {v}.", "Dopo il colpo {v}.", "L'ho visto: {v}.", "Alla fine {v}."]
+        };
+        const FACT_KEYS = Object.keys(SAY);
+
+        // Fatto da un elenco di valori {t, more}: precisa, frasi vere (più generiche) e frasi false (tutte quelle degli altri valori)
+        function factFromList(list) {
+            const chosen = pick(list);
+            const truePhrases = [chosen.t, ...chosen.more];
+            const wrongs = [...new Set(list.filter(v => v !== chosen).flatMap(v => [v.t, ...v.more]).filter(p => !truePhrases.includes(p)))];
+            return {specific: chosen.t, trues: truePhrases, wrongs};
+        }
+
+        function outfitFact() {
+            const garment = pick(GARMENTS), color = pick(COLORS_OUTFIT);
+            const cats = COLOR_CATS[color.m];
+            const specific = garment.t + " " + color[garment.g];
+            return {
+                specific,
+                trues: [specific, ...cats.map(c => garment.t + " di colore " + c)],
+                wrongs: [
+                    ...COLORS_OUTFIT.filter(c => c !== color).map(c => garment.t + " " + c[garment.g]),
+                    ...ALL_CATS.filter(c => !cats.includes(c)).map(c => garment.t + " di colore " + c)
+                ]
+            };
+        }
+
+        // Orario: "alle otto" vale anche "verso le otto", "dopo le sette", "prima delle nove"...
+        function timeFact() {
+            const t = 8 + Math.floor(Math.random() * 4);   // 8..11
+            const specific = "alle " + HOURS[t];
+            const wrongs = [];
+            for (let w = 7; w <= 12; w++) {
+                if (w === t) continue;
+                wrongs.push("alle " + HOURS[w], "verso le " + HOURS[w]);
+                if (t <= w) wrongs.push("dopo le " + HOURS[w]);    // "dopo le W" è falso se l'ora vera è <= W
+                if (t >= w) wrongs.push("prima delle " + HOURS[w]); // "prima delle W" è falso se l'ora vera è >= W
+            }
+            return {
+                specific,
+                trues: [specific, "verso le " + HOURS[t], "dopo le " + HOURS[t - 1], "prima delle " + HOURS[t + 1],
+                    "tra le " + HOURS[t - 1] + " e le " + HOURS[t + 1]],
+                wrongs
+            };
+        }
+
+        function makeCase(n) {
+            const theme = THEMES[n % THEMES.length];
+            const fact = {
+                outfit: outfitFact(),
+                time: timeFact(),
+                place: factFromList(PLACES),
+                object: factFromList(theme.objects),
+                escape: factFromList(ESCAPES)
+            };
+
+            // modi di dire: per ogni fatto si pesca senza ripetere, così due testimoni non dicono la stessa frase identica
+            const decks = {};
+            const draw = key => {
+                if (!decks[key] || !decks[key].length) decks[key] = shuffle(SAY[key]);
+                return decks[key].pop();
+            };
+
+            // frasi: per ogni testimone STATEMENTS_EACH fatti diversi
+            const list = [];
+            witnesses.forEach(w => {
+                shuffle(FACT_KEYS).slice(0, STATEMENTS_EACH).forEach(key => list.push({witness: w, key, error: false}));
+            });
+            const errors = ERRORS_PER_CASE[0] + Math.floor(Math.random() * (ERRORS_PER_CASE[1] - ERRORS_PER_CASE[0] + 1));
+            shuffle(list.map((_, i) => i)).slice(0, errors).forEach(i => list[i].error = true);
+            list.forEach(st => {
+                const f = fact[st.key];
+                st.true = f.specific;
+                if (st.error) st.said = pick(f.wrongs);                                   // frase falsa: contraddice il verbale
+                else if (f.trues.length > 1 && Math.random() < GENERAL_CHANCE) st.said = pick(f.trues.slice(1));   // vera ma più generica
+                else st.said = f.specific;
+                st.text = cap(draw(st.key).replace("{v}", st.said));
+            });
+
+            const verbale = "Il furto è avvenuto " + fact.time.specific + ", " + fact.place.specific + ". " +
+                "Il ladro indossava " + fact.outfit.specific + " e ha rubato " + fact.object.specific + ". " +
+                "Poi " + fact.escape.specific + ".";
+            return {theme, verbale, statements: list};
+        }
+
+        // === Stato ===
+        let caseNo = 0, win = null;
+
+        const show = (msg, info = "", style = "") => setArena(msg, info, style);
+
+        g.start = async () => {
+            caseNo = 0; win = null;
+            scores = Object.fromEntries(playerIds().map(p => [p, 0]));
+            renderScores();
+            $("#game-status").textContent = "ASCOLTA I TESTIMONI";
+            show("🕵️ I testimoni", "Premi quando qualcuno dice una cosa sbagliata");
+            const voices = await loadVoices();
+            itVoices = voices.filter(v => norm(v.lang).startsWith("it"));
+            witnesses = shuffle(PERSONAS);
+            if (!await narrate(g, "I testimoni. È stato commesso un reato. Prima ascolti i fatti veri nel verbale. " +
+                "Poi quattro testimoni raccontano la loro versione, ma qualcuno sbaglia e dice una cosa diversa dal verbale. " +
+                "Quando senti un errore, premi subito il tuo tasto: il più veloce prende un punto. " +
+                "Se premi quando la frase è giusta, ne perdi uno. Si giocano " + CASES + " casi.")) return;
+            runCases();
+        };
+
+        async function runCases() {
+            for (caseNo = 1; caseNo <= CASES; caseNo++) {
+                if (gone()) return;
+                const c = makeCase(caseNo - 1);
+                $("#game-status").textContent = "CASO " + caseNo + " DI " + CASES;
+                show("🕵️ Caso " + caseNo + " di " + CASES, cap(c.theme.title));
+                await sayAsync("Caso " + caseNo + ": " + c.theme.title + ". Ascolta il verbale. " + c.verbale);
+                if (gone()) return;
+                await wait(800);
+                const missed = [];
+                let lastWitness = null;
+                for (const st of c.statements) {
+                    if (gone()) return;
+                    if (st.witness !== lastWitness) {
+                        lastWitness = st.witness;
+                        show("🎙 Testimone", st.witness.name);
+                    }
+                    win = {st, pressed: new Set(), claimed: false};
+                    await speakAs(st.text, st.witness);
+                    if (gone()) return;
+                    await wait(REACT_MS);
+                    if (gone()) return;
+                    if (st.error && !win.claimed) missed.push(st);
+                    win = null;
+                    await wait(GAP_MS);
+                }
+                if (gone()) return;
+                // Rivelazione degli errori che nessuno ha notato
+                if (missed.length) {
+                    const text = "Errori non notati: " + missed.map(st =>
+                        st.witness.name + " ha detto " + st.said + " invece di " + st.true).join(". ") + ".";
+                    show("🔎 Errori non notati", missed.length + (missed.length === 1 ? " errore" : " errori"));
+                    await sayAsync(text);
+                } else {
+                    show("👏 Tutti gli errori scoperti!");
+                    await sayAsync("Bravi, avete scoperto tutti gli errori.");
+                }
+                if (gone()) return;
+                if (caseNo < CASES) await wait(900);
+            }
+            if (gone()) return;
+            const order = playerIds().sort((a, b) => scores[b] - scores[a]);
+            const tie = scores[order[0]] === scores[order[1]];
+            finish(tie ? "🕵️ Pareggio!" : "🕵️ Vince " + COLORS[order[0]], tie ? null : order);
+        }
+
+        g.onInput = e => {
+            if (e.type !== "down" || !playerIds().includes(e.button) || g.finished || !win) return;
+            const id = e.button;
+            if (win.pressed.has(id)) return;            // una pressione per frase conta
+            win.pressed.add(id);
+            if (win.st.error) {
+                if (win.claimed) return;                // già preso da un altro: nessuna penitenza
+                win.claimed = true;
+                scores[id] += 1;
+                tone(988, .12, "triangle", .1);
+                tone(1319, .18, "triangle", .1, .1);
+                show("✅ Colto! " + COLORS[id] + " +1", "Errore scoperto");
+            } else {
+                scores[id] -= 1;
+                tone(160, .2, "sawtooth", .08);
+                show("❌ La frase era giusta! " + COLORS[id] + " −1");
+            }
+            renderScores();
+        };
+
+        g.dispose = () => {
+            win = null;
+            if ("speechSynthesis" in window) speechSynthesis.cancel();
+        };
+        return g;
+    }
+
+    function makeRobot() {
+        // "Il robot inceppato": il robot dice una frase e a metà si blocca su una parola, ripetendone le prime sillabe.
+        // Ogni giocatore ha una sillaba fissa: quando manca la sua, deve premere. Finché il robot è bloccato, il giocatore
+        // giusto perde punti sempre più in fretta; chi preme quando non tocca a lui ne perde due.
+        const g = baseGame("robot");
+
+        // === Parametri ===
+        const WORDS = 8;                  // parole (frasi) per partita
+        const OWNED_WORDS = 6;            // di cui con una sillaba che appartiene a un giocatore (le altre non sono di nessuno)
+        const TICK_MS = 1000;             // ogni quanto il giocatore giusto prende penitenza mentre il robot è bloccato
+        const TICKS_PER_LEVEL = 3;        // la penitenza sale di 1 ogni 3 secondi (1,1,1,2,2,2,3...)
+        const WRONG_PENALTY = 2;          // penitenza per chi preme quando non tocca a lui
+        const WRONG_COOLDOWN = 700;       // ms: una sola penitenza per giocatore in questo intervallo
+        const FAST_MS = 2000;             // se la sillaba giusta è premuta entro questo tempo: bonus
+        const FAST_BONUS = 1;
+        const NOBODY_MS = 5000;           // se la sillaba non è di nessuno, il robot si sblocca da solo dopo questo tempo
+        const MAX_STUCK_MS = 20000;       // limite massimo di blocco (ms)
+        const REPEATS = 6;                // ripetizioni della sillaba in ogni "pezzo" di balbettio
+
+        const gone = () => game !== g || g.finished;
+        const shuffle = list => [...list].sort(() => Math.random() - .5);
+        const norm = lang => (lang || "").replace("_", "-").toLowerCase();
+
+        // Sillaba fissa di ogni giocatore, con una parola di esempio per dirla bene a voce
+        const SYLLABLE = {
+            P1: {syl: "ta", example: "patata"},
+            P2: {syl: "ma", example: "mamma"},
+            P3: {syl: "mi", example: "mimosa"},
+            P4: {syl: "no", example: "nonno"}
+        };
+        const OWNER_OF = Object.fromEntries(Object.entries(SYLLABLE).map(([id, v]) => [v.syl, id]));
+
+        // Frasi: la parola si divide in sillabe e "miss" è l'indice della sillaba che manca (la prima dopo il blocco)
+        const ENTRIES = [
+            // TA
+            {before: "Per cena ho mangiato le", syl: ["pa", "ta", "tine"], miss: 1, rest: "con il ketchup"},
+            {before: "Mio fratello suona la", syl: ["chi", "ta", "rra"], miss: 1, rest: "tutte le sere"},
+            {before: "Quest'estate andiamo in", syl: ["mon", "ta", "gna"], miss: 1, rest: "con gli amici"},
+            {before: "Sotto la doccia mi piace", syl: ["can", "ta", "re"], miss: 1, rest: "a squarciagola"},
+            // MA
+            {before: "Stasera andiamo al", syl: ["ci", "ne", "ma"], miss: 2, rest: "a vedere un film"},
+            {before: "Prima di dormire mi metto il", syl: ["pi", "gia", "ma"], miss: 2, rest: "a righe"},
+            {before: "Il leone è un", syl: ["a", "ni", "ma", "le"], miss: 2, rest: "molto pigro"},
+            {before: "Stasera in televisione c'è un nuovo", syl: ["pro", "gram", "ma"], miss: 2, rest: "di cucina"},
+            // MI
+            {before: "Per dolce voglio il", syl: ["ti", "ra", "mi", "sù"], miss: 2, rest: "al caffè"},
+            {before: "Ieri ho comprato una", syl: ["ca", "mi", "cia"], miss: 1, rest: "bianca"},
+            {before: "Domenica pranziamo con tutta la", syl: ["fa", "mi", "glia"], miss: 1, rest: "dai nonni"},
+            {before: "Sul balcone c'era una", syl: ["for", "mi", "ca"], miss: 1, rest: "gigante"},
+            // NO
+            {before: "Brindiamo con un bicchiere di", syl: ["vi", "no"], miss: 1, rest: "rosso"},
+            {before: "Mi squilla il", syl: ["te", "le", "fo", "no"], miss: 3, rest: "ma non rispondo"},
+            {before: "Mia nonna suona il", syl: ["pia", "no", "for", "te"], miss: 1, rest: "ogni domenica"},
+            {before: "Dalla collina si vede un bel", syl: ["pa", "no", "ra", "ma"], miss: 1, rest: "sul lago"},
+            // sillabe che non sono di nessuno: non si deve premere
+            {before: "Ho perso le chiavi della", syl: ["mac", "chi", "na"], miss: 1, rest: "nuova"},
+            {before: "Vado al lavoro in", syl: ["bi", "ci", "clet", "ta"], miss: 1, rest: "ogni mattina"},
+            {before: "Ho nascosto i biscotti nella", syl: ["sca", "to", "la"], miss: 1, rest: "di latta"},
+            {before: "Ho aperto la", syl: ["fi", "ne", "stra"], miss: 1, rest: "per far entrare aria"}
+        ];
+
+        // === Voce del robot (italiana, tono basso) ===
+        const ROBOT = {pitch: .6, rate: 1.0};
+        // Si usano solo voci locali (localService), che partono subito e non dipendono dalla rete; le remote solo se non c'è altro.
+        // Tra le locali si preferiscono quelle il cui nome contiene una di queste parole (di solito le più "meccaniche").
+        const ROBOT_VOICE_NAMES = ["compact", "cosimo", "luca", "alice"];
+        const kept = [];
+        let itVoice = null;
+
+        function loadVoices() {
+            return new Promise(resolve => {
+                if (!("speechSynthesis" in window)) return resolve([]);
+                const v = speechSynthesis.getVoices();
+                if (v.length) return resolve(v);
+                const t = setTimeout(() => resolve(speechSynthesis.getVoices()), 1500);
+                speechSynthesis.addEventListener("voiceschanged", () => {
+                    clearTimeout(t);
+                    resolve(speechSynthesis.getVoices());
+                }, {once: true});
+            });
+        }
+
+        function chooseRobotVoice(italian) {
+            if (!italian.length) return null;
+            const local = italian.filter(v => v.localService);
+            const pool = local.length ? local : italian;   // solo se non ci sono voci locali si ripiega sulle remote
+            const preferred = pool.find(v => ROBOT_VOICE_NAMES.some(n => v.name.toLowerCase().includes(n)));
+            const chosen = preferred || pool[0];
+            console.info("Robot inceppato: voce scelta", chosen.name, chosen.lang, chosen.localService ? "(locale)" : "(remota)");
+            return chosen;
+        }
+
+        function robotSay(text, onStart = null) {
+            return new Promise(resolve => {
+                if (!("speechSynthesis" in window)) return resolve();
+                const u = new SpeechSynthesisUtterance(text);
+                if (itVoice) { u.voice = itVoice; u.lang = itVoice.lang; } else u.lang = "it-IT";
+                u.pitch = ROBOT.pitch;
+                u.rate = ROBOT.rate;
+                u.volume = soundEnabled ? 1 : 0;
+                let finished = false, safety = null;
+                const end = () => {
+                    if (finished) return;
+                    finished = true;
+                    clearTimeout(safety);
+                    const i = kept.indexOf(u);
+                    if (i >= 0) kept.splice(i, 1);
+                    resolve();
+                };
+                safety = setTimeout(end, 20000);
+                u.onstart = () => { clearTimeout(safety); safety = setTimeout(end, 20000); if (onStart) onStart(); };
+                u.onend = end;
+                u.onerror = end;
+                kept.push(u);
+                speechSynthesis.speak(u);
+            });
+        }
+
+        async function wait(ms) {
+            let left = ms;
+            while (left > 0 && !gone()) {
+                await new Promise(r => setTimeout(r, 100));
+                if (!paused) left -= 100;
+            }
+        }
+
+        // === Stato della parola corrente ===
+        let stuck = false, entry = null, owner = null, stuckAt = 0, ticks = 0, resolved = false, tickTimer = null;
+        let lastWrong = {};
+
+        function stopTick() {
+            clearInterval(tickTimer);
+            tickTimer = null;
+        }
+
+        function startTick() {
+            stopTick();
+            ticks = 0;
+            tickTimer = setInterval(() => {
+                if (!stuck || resolved || gone() || paused || !owner) return;
+                ticks++;
+                const loss = 1 + Math.floor((ticks - 1) / TICKS_PER_LEVEL);
+                scores[owner] -= loss;
+                renderScores();
+                tone(150, .08, "square", .06);
+                setArena("🤖 Il robot è bloccato!", COLORS[owner] + " −" + loss);
+            }, TICK_MS);
+        }
+
+        function pickWords(players) {
+            const mine = new Set(players.map(p => SYLLABLE[p] && SYLLABLE[p].syl).filter(Boolean));
+            const isOwned = e => mine.has(e.syl[e.miss]);
+            const owned = shuffle(ENTRIES.filter(isOwned));
+            const nobody = shuffle(ENTRIES.filter(e => !isOwned(e)));
+            const list = [...owned.slice(0, OWNED_WORDS), ...nobody.slice(0, WORDS - Math.min(OWNED_WORDS, owned.length))];
+            return shuffle(list).slice(0, WORDS);
+        }
+
+        g.start = async () => {
+            stuck = false; resolved = false; owner = null; entry = null; lastWrong = {};
+            scores = Object.fromEntries(playerIds().map(p => [p, 0]));
+            renderScores();
+            $("#game-status").textContent = "IL ROBOT SI INCEPPA";
+            setArena("🤖 Il robot inceppato", "Premi quando manca la tua sillaba");
+            const voices = await loadVoices();
+            const it = voices.filter(v => norm(v.lang).startsWith("it"));
+            itVoice = chooseRobotVoice(it);
+            if (!await narrate(g, "Il robot inceppato. Un robot dice una frase, ma a metà si blocca e ripete le prime sillabe di una parola. " +
+                "Ogni giocatore ha una sillaba: quando manca la tua, premi il tuo tasto per far continuare il robot. " +
+                "Finché il robot è bloccato, chi ha la sillaba giusta perde punti, sempre più in fretta. " +
+                "Se premi quando non tocca a te, ne perdi due. A volte manca una sillaba che non è di nessuno: in quel caso non premere. " +
+                "Ecco un esempio. Prima la frase intera.")) return;
+            await robotSay("Per cena ho mangiato le patatine con il ketchup.");
+            if (gone()) return;
+            await wait(500);
+            await sayAsync("Poi il robot si inceppa.");
+            if (gone()) return;
+            await robotSay("Per cena ho mangiato le pa, pa, pa, pa, pa, pa.");
+            if (gone()) return;
+            await wait(300);
+            await sayAsync("Manca ta: deve premere chi ha ta. Ora le sillabe.");
+            for (const id of playerIds()) {
+                if (gone()) return;
+                const sy = SYLLABLE[id];
+                if (!sy) continue;
+                setArena("🤖 " + COLORS[id] + ": " + sy.syl.toUpperCase(), "Come in " + sy.example);
+                await sayAsync(COLORS[id] + ": la tua sillaba è " + sy.syl + ", come in " + sy.example + ".");
+                await wait(300);
+            }
+            if (gone()) return;
+            await sayAsync("Si comincia!");
+            runWords();
+        };
+
+        async function runWords() {
+            const list = pickWords(playerIds());
+            for (let i = 0; i < list.length; i++) {
+                if (gone()) return;
+                entry = list[i];
+                owner = OWNER_OF[entry.syl[entry.miss]];
+                if (owner && !playerIds().includes(owner)) owner = null;
+                resolved = false;
+                stuck = false;
+                $("#game-status").textContent = "PAROLA " + (i + 1) + " DI " + list.length;
+                setArena("🤖 Il robot parla…", "");
+                // metà partita: ripasso delle sillabe
+                if (i === Math.floor(list.length / 2)) {
+                    await sayAsync("Ricordate le sillabe. " + playerIds().filter(id => SYLLABLE[id]).map(id =>
+                        COLORS[id] + ": " + SYLLABLE[id].syl).join(". ") + ".");
+                    if (gone()) return;
+                }
+                await robotSay(entry.before);
+                if (gone()) return;
+
+                // Il robot si blocca: ripete l'ultima sillaba prima di quella che manca
+                const prefix = entry.syl.slice(0, entry.miss);
+                const last = prefix[prefix.length - 1];
+                stuckAt = performance.now();
+                let first = true;
+                startTick();
+                while (!resolved && !gone()) {
+                    const elapsed = performance.now() - stuckAt;
+                    if (elapsed > MAX_STUCK_MS || (!owner && elapsed > NOBODY_MS)) break;
+                    const syllables = first ? [...prefix, ...Array(REPEATS - 1).fill(last)] : Array(REPEATS).fill(last);
+                    first = false;
+                    await robotSay(syllables.join(", ") + ",", () => {
+                        stuck = true;
+                        setArena("🤖 Il robot è bloccato!", owner ? "Manca la sillaba di " + COLORS[owner] : "Non è di nessuno: non premere");
+                    });
+                }
+                stuck = false;
+                stopTick();
+                if (gone()) return;
+                if ("speechSynthesis" in window) speechSynthesis.cancel();
+                await wait(250);
+                if (gone()) return;
+                await robotSay(entry.syl.join("") + " " + entry.rest + ".");
+                if (gone()) return;
+                await wait(700);
+            }
+            if (gone()) return;
+            const order = playerIds().sort((a, b) => scores[b] - scores[a]);
+            const tie = scores[order[0]] === scores[order[1]];
+            finish(tie ? "🤖 Pareggio!" : "🤖 Vince " + COLORS[order[0]], tie ? null : order);
+        }
+
+        g.onInput = e => {
+            if (e.type !== "down" || !playerIds().includes(e.button) || g.finished || !stuck || resolved) return;
+            const id = e.button;
+            if (owner && id === owner) {
+                // sillaba giusta: il robot si sblocca
+                resolved = true;
+                stuck = false;
+                const fast = performance.now() - stuckAt <= FAST_MS;
+                if (fast) scores[id] += FAST_BONUS;
+                renderScores();
+                tone(988, .12, "triangle", .1);
+                tone(1319, .18, "triangle", .1, .1);
+                setArena("✅ Sbloccato da " + COLORS[id] + "!", fast ? "Veloce: +" + FAST_BONUS : "");
+                if ("speechSynthesis" in window) speechSynthesis.cancel();   // interrompe il balbettio
+                return;
+            }
+            // sillaba sbagliata (o parola che non è di nessuno): penitenza, con un limite di frequenza
+            const now = performance.now();
+            if (now - (lastWrong[id] || 0) < WRONG_COOLDOWN) return;
+            lastWrong[id] = now;
+            scores[id] -= WRONG_PENALTY;
+            renderScores();
+            tone(160, .2, "sawtooth", .08);
+            setArena("❌ Non toccava a te! " + COLORS[id] + " −" + WRONG_PENALTY);
+        };
+
+        g.dispose = () => {
+            stuck = false;
+            stopTick();
+            if ("speechSynthesis" in window) speechSynthesis.cancel();
+        };
+        return g;
+    }
+
+    function makeSpy() {
+        // "La spia": la voce rivela il numero dei servizi segreti nemici, poi si sentono comporre molti numeri con un
+        // telefono a disco (sintetizzato). Chi preme per primo sul numero giusto prende un punto, chi preme su uno sbagliato lo perde.
+        // Nel disco vero la cifra è il numero di impulsi (lo 0 ne fa 10): le cifre alte durano di più.
+        const g = baseGame("spy");
+
+        // === Parametri ===
+        const DIGITS = 4;                 // cifre del numero segreto
+        const NUMBERS = 10;               // numeri composti in una partita
+        const SECRET_COUNT = 4;           // di cui uguali al numero segreto
+        const PULSE_START = 100, PULSE_END = 68;      // ms tra due impulsi (10 impulsi al secondo, poi più veloce)
+        const DIGIT_GAP_START = 420, DIGIT_GAP_END = 200;   // pausa tra una cifra e l'altra (ms)
+        const REACT_START = 2600, REACT_END = 1500;   // tempo per premere dopo l'ultima cifra (ms)
+        const BETWEEN_START = 700, BETWEEN_END = 350; // pausa dopo la finestra, prima del numero successivo (ms)
+        const WIN_POINTS = 1, WRONG_PENALTY = 1;
+
+        // === File audio (se mancano, si usano suoni sintetici di ripiego) ===
+        const DIR = "assets/sounds/spia/";
+        const DIGIT_SOUNDS = Array.from({length: 10}, (_, d) => DIR + "cifra-" + d + ".mp3");   // un file per cifra, da "cifra-0.mp3" a "cifra-9.mp3"
+        const CORRECT_SOUND = DIR + "corretto.mp3";       // premuto sul numero giusto
+        const WRONG_SOUND = DIR + "sbagliato.mp3";        // premuto sul numero sbagliato
+        const SAMPLE_MAX_RATE = 1.3;                      // velocità massima di riproduzione delle cifre a fine partita (alza anche un po' il tono)
+
+        const gone = () => game !== g || g.finished;
+        const pick = list => list[Math.floor(Math.random() * list.length)];
+        const shuffle = list => [...list].sort(() => Math.random() - .5);
+        const lerp = (a, b, p) => a + (b - a) * p;
+        const WORDS = ["zero", "uno", "due", "tre", "quattro", "cinque", "sei", "sette", "otto", "nove"];
+        const pulses = d => d === 0 ? 10 : d;           // come nel telefono a disco
+        const spell = digits => digits.map(d => WORDS[d]).join(", ");
+
+        // === Suono del telefono a disco ===
+        let noiseBuf = null;
+        const active = [];                   // sorgenti ancora in riproduzione (per fermarle alla fine)
+
+        function noise(ctx) {
+            if (!noiseBuf) {
+                noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+                const d = noiseBuf.getChannelData(0);
+                for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+            }
+            return noiseBuf;
+        }
+
+        // Rumore filtrato: freq0 -> freq1 in `dur` secondi, con inviluppo corto
+        function noiseBurst(ctx, t, dur, f0, f1, q, vol) {
+            const src = ctx.createBufferSource();
+            src.buffer = noise(ctx);
+            const filter = ctx.createBiquadFilter();
+            filter.type = "bandpass";
+            filter.Q.value = q;
+            filter.frequency.setValueAtTime(f0, t);
+            if (f1 !== f0) filter.frequency.linearRampToValueAtTime(f1, t + dur);
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(.0001, t);
+            gain.gain.exponentialRampToValueAtTime(vol, t + Math.min(.01, dur / 3));
+            gain.gain.setValueAtTime(vol, t + Math.max(.01, dur - .02));
+            gain.gain.exponentialRampToValueAtTime(.0001, t + dur);
+            src.connect(filter);
+            filter.connect(gain);
+            gain.connect(ctx.destination);
+            src.start(t, Math.random() * .4);
+            src.stop(t + dur + .02);
+            active.push(src);
+            src.onended = () => { const i = active.indexOf(src); if (i >= 0) active.splice(i, 1); };
+        }
+
+        const windMs = n => 120 + 30 * n;                     // il disco viene girato: più strada per le cifre alte
+        const digitMs = (d, pulseMs) => windMs(pulses(d)) + pulses(d) * pulseMs;
+
+        // Programma una cifra a partire da `t0` (secondi dell'AudioContext); restituisce la durata in ms
+        function scheduleDigit(ctx, t0, d, pulseMs) {
+            const n = pulses(d), wind = windMs(n) / 1000, step = pulseMs / 1000;
+            noiseBurst(ctx, t0, wind, 350, 900, 1.2, .05);                 // rotazione in avanti
+            const back = t0 + wind;
+            noiseBurst(ctx, back, n * step, 520, 460, 1.5, .035);           // il disco torna indietro (molla)
+            for (let k = 0; k < n; k++) {                                   // un clic per ogni impulso
+                const tc = back + (k + .5) * step;
+                noiseBurst(ctx, tc, .014, 1900 + Math.random() * 300, 1900, 3, .3);
+                noiseBurst(ctx, tc, .03, 320, 320, 1.2, .12);
+            }
+            return digitMs(d, pulseMs);
+        }
+
+        let digitBuffers = [];               // buffer dei file audio delle cifre (null se il file manca)
+
+        // Riproduce il file di una cifra a partire da `t0`; restituisce la durata in ms (più veloce = più corta)
+        function playDigitSample(ctx, t0, buffer, rate) {
+            const src = ctx.createBufferSource();
+            src.buffer = buffer;
+            src.playbackRate.value = rate;
+            src.connect(ctx.destination);
+            src.start(t0);
+            active.push(src);
+            src.onended = () => { const i = active.indexOf(src); if (i >= 0) active.splice(i, 1); };
+            return buffer.duration * 1000 / rate;
+        }
+
+        // Compone un numero intero e aspetta la fine. `p` (0..1) è l'avanzamento della partita: accelera i file e accorcia le pause.
+        async function dialNumber(digits, p) {
+            const ctx = ensureAudio();
+            const pulseMs = lerp(PULSE_START, PULSE_END, p), gapMs = lerp(DIGIT_GAP_START, DIGIT_GAP_END, p);
+            const rate = lerp(1, SAMPLE_MAX_RATE, p);
+            let t = ctx.currentTime + .05, total = 50;
+            digits.forEach((d, i) => {
+                const buffer = digitBuffers[d];
+                let ms;
+                if (buffer) ms = soundEnabled ? playDigitSample(ctx, t, buffer, rate) : buffer.duration * 1000 / rate;
+                else ms = soundEnabled ? scheduleDigit(ctx, t, d, pulseMs) : digitMs(d, pulseMs);   // ripiego sintetico
+                const step = ms + (i < digits.length - 1 ? gapMs : 0);
+                t += step / 1000;
+                total += step;
+            });
+            await wait(total);
+        }
+
+        async function wait(ms) {
+            let left = ms;
+            while (left > 0 && !gone()) {
+                await new Promise(r => setTimeout(r, 100));
+                if (!paused) left -= 100;
+            }
+        }
+
+        // === Numeri ===
+        function randomNumber() {
+            let n;
+            do {
+                n = Array.from({length: DIGITS}, () => Math.floor(Math.random() * 10));
+            } while (new Set(n).size < Math.min(3, DIGITS));    // almeno 3 cifre diverse
+            return n;
+        }
+
+        // Numero sbagliato: all'inizio cambia 2 cifre in modo netto, alla fine una cifra di soli 1 impulso (difficile)
+        function decoy(secret, hard) {
+            for (let tries = 0; tries < 50; tries++) {
+                const d = [...secret];
+                const positions = shuffle(d.map((_, i) => i)).slice(0, hard ? 1 : Math.min(2, DIGITS));
+                positions.forEach(i => {
+                    const p = pulses(d[i]);
+                    let np;
+                    if (hard) np = Math.max(1, Math.min(10, p + (Math.random() < .5 ? -1 : 1)));
+                    else { do { np = 1 + Math.floor(Math.random() * 10); } while (Math.abs(np - p) < 2); }
+                    d[i] = np === 10 ? 0 : np;
+                });
+                if (d.join("") !== secret.join("")) return d;
+            }
+            return [...secret.slice(0, -1), (secret[secret.length - 1] + 5) % 10];
+        }
+
+        let secret = [], seq = [], idx = -1, win = null;
+
+        function buildSequence() {
+            const slots = shuffle(Array.from({length: NUMBERS}, (_, i) => i < SECRET_COUNT));
+            // niente tre numeri giusti di fila
+            for (let i = 2; i < slots.length; i++) {
+                if (slots[i] && slots[i - 1] && slots[i - 2]) {
+                    const j = slots.findIndex((v, k) => !v && k > i);
+                    if (j > -1) [slots[i], slots[j]] = [slots[j], slots[i]];
+                }
+            }
+            return slots.map((isSecret, i) => ({
+                digits: isSecret ? [...secret] : decoy(secret, i >= NUMBERS / 2),
+                secret: isSecret
+            }));
+        }
+
+        g.start = async () => {
+            secret = randomNumber();
+            seq = []; idx = -1; win = null;
+            scores = Object.fromEntries(playerIds().map(p => [p, 0]));
+            renderScores();
+            digitBuffers = await Promise.all(DIGIT_SOUNDS.map(path => loadSample(path)));
+            [CORRECT_SOUND, WRONG_SOUND].forEach(loadSample);
+            $("#game-status").textContent = "ASCOLTA IL TELEFONO";
+            setArena("🕵️ La spia", "Riconosci il numero dei servizi segreti");
+            if (!await narrate(g, "La spia. Sei una spia e devi capire chi ha composto il numero dei servizi segreti nemici. " +
+                "Il numero ha " + DIGITS + " cifre e cambia a ogni partita. " +
+                "Sentirai comporre molti numeri con un telefono a disco. Più la cifra è alta, più il disco fa strada e più il suono dura. " +
+                "Quando senti il numero giusto, premi per primo e prendi un punto. Se premi su un numero sbagliato, ne perdi uno. " +
+                "I numeri diventeranno sempre più veloci. Ecco il numero dei servizi segreti nemici.")) return;
+            await sayAsync("Il numero è: " + spell(secret) + ".");
+            if (gone()) return;
+            await wait(400);
+            await dialNumber(secret, 0);
+            if (gone()) return;
+            await wait(500);
+            await sayAsync("Ascolta bene com'è fatto. Ora si comincia.");
+            if (gone()) return;
+            await wait(600);
+            seq = buildSequence();
+            runNumbers();
+        };
+
+        async function runNumbers() {
+            for (idx = 0; idx < seq.length; idx++) {
+                if (gone()) return;
+                const item = seq[idx], p = idx / (seq.length - 1);
+                $("#game-status").textContent = "NUMERO " + (idx + 1) + " DI " + seq.length;
+                setArena("☎️ Si compone un numero…", "");
+                // ripasso del numero a metà partita
+                if (idx === Math.floor(seq.length / 2)) {
+                    await sayAsync("Ricordate: il numero è " + spell(secret) + ".");
+                    if (gone()) return;
+                    await wait(300);
+                }
+                win = null;
+                await dialNumber(item.digits, p);
+                if (gone()) return;
+                win = {item, claimed: false, wrong: new Set()};
+                setArena("☎️ Numero completo!", "Era quello giusto?");
+                await wait(lerp(REACT_START, REACT_END, p));
+                if (gone()) return;
+                win = null;
+                await wait(lerp(BETWEEN_START, BETWEEN_END, p));
+            }
+            if (gone()) return;
+            const order = playerIds().sort((a, b) => scores[b] - scores[a]);
+            const tie = scores[order[0]] === scores[order[1]];
+            finish(tie ? "🕵️ Pareggio!" : "🕵️ Vince " + COLORS[order[0]], tie ? null : order);
+        }
+
+        g.onInput = e => {
+            if (e.type !== "down" || !playerIds().includes(e.button) || g.finished || !win) return;
+            const id = e.button;
+            if (win.item.secret) {
+                if (win.claimed) return;                  // già preso da un altro
+                win.claimed = true;
+                scores[id] += WIN_POINTS;
+                renderScores();
+                playSample(CORRECT_SOUND, () => {
+                    tone(988, .12, "triangle", .1);
+                    tone(1319, .18, "triangle", .1, .1);
+                });
+                setArena("✅ " + COLORS[id] + " +" + WIN_POINTS, "Numero giusto!");
+            } else {
+                if (win.wrong.has(id)) return;
+                win.wrong.add(id);
+                scores[id] -= WRONG_PENALTY;
+                renderScores();
+                playSample(WRONG_SOUND, () => tone(160, .2, "sawtooth", .08));
+                setArena("❌ " + COLORS[id] + " −" + WRONG_PENALTY, "Numero sbagliato");
+            }
+        };
+
+        g.dispose = () => {
+            win = null;
+            active.forEach(src => { try { src.stop(); } catch (e) {} });
+            active.length = 0;
+        };
         return g;
     }
 
@@ -3653,7 +4521,7 @@
             );
 
             await sayIntro("A lezione. Il professore spiega inglese: mentre parla, premi il più possibile il tuo tasto. " +
-                "Quando si ferma, fermàti anche tu: se ti scopre sei sospeso. Vince chi arriva per primo a " + TARGET +
+                "Quando si ferma, fermati anche tu: se ti scopre sei sospeso. Vince chi arriva per primo a " + TARGET +
                 " pressioni, o l'ultimo rimasto in classe.");
             await preload;
             if (game !== g) return;
@@ -4114,12 +4982,12 @@
             {name: "Spaghetti ai capelli", file: DIR + "spaghetti-capelli.mp3"},
             {name: "Bistecca di scarpa", file: DIR + "bistecca-scarpa.mp3"},
             {name: "Gelato al moccio", file: DIR + "gelato-moccio.mp3"},
-            {name: "Pizza ai vermi", file: DIR + "pizza-vermi.mp3"},
+            {name: "Pizza ai vermi e formiche", file: DIR + "pizza-vermi.mp3"},
             {name: "Lasagne di pannolini", file: DIR + "lasagne-pannolini.mp3"},
             {name: "Frittata di scarafaggi", file: DIR + "frittata-scarafaggi.mp3"},
             {name: "Torta di fango", file: DIR + "torta-fango.mp3"},
             {name: "Insalata di calzini", file: DIR + "insalata-calzini.mp3"},
-            {name: "Cotoletta di spazzolino", file: DIR + "cotoletta-spazzolino.mp3"}
+            {name: "Cotoletta di dentifricio", file: DIR + "cotoletta-dentifricio.mp3"}
         ];
         const BACKGROUND = DIR + "background-ristorante.mp3";   // gente che mangia, in loop (se manca: sottofondo sintetico)
         const BACKGROUND_VOLUME = .1;
@@ -4128,7 +4996,7 @@
 
         // === Parametri ===
         const WIN_POINTS = 5;            // punti per vincere
-        const MAX_DISHES = 24;           // piatti serviti al massimo
+        const MAX_DISHES = 16;           // piatti serviti al massimo
         const INEDIBLE_CHANCE = .6;      // probabilità di un piatto immangiabile
         // Il ritmo accelera: i valori passano da "inizio" a "fine" nei primi RAMP_DISHES piatti serviti.
         const RAMP_DISHES = 14;
@@ -6511,9 +7379,9 @@
             {s: "idiota", p: "idioti", a: "un"},
             {s: "imbecille", p: "imbecilli", a: "un"},
             {s: "deficiente", p: "deficienti", a: "un"},
-            {s: "fesso", p: "fessi", a: "un"},
+            {s: "coglione", p: "coglioni", a: "un"},
             {s: "scemo", p: "scemi", a: "uno"},
-            {s: "cafone", p: "cafoni", a: "un"}
+            {s: "ritardato", p: "ritardati", a: "un"}
         ];
         const LISTS = {
             name: ["Marco", "Giulia", "Luca", "Anna", "Paolo", "Sara", "Franco", "Elena"],

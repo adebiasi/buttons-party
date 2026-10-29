@@ -1,3 +1,21 @@
+/*
+ * Buttons-party: minigiochi audio per 2-4 giocatori, giocabili senza guardare lo schermo con un controller a cinque pulsanti.
+ * Copyright (C) 2026  Alberto Debiasi
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 (() => {
   "use strict";
   const $ = (s) => document.querySelector(s);
@@ -16,9 +34,9 @@
     ["disturber", "beeper"],                       // disturbatore, bippatore
     ["duel", "bounty"],                            // duello, taglia
     ["tug", "lesson", "grinder", "freeze", "typewriter"],   // fune, lezione, mola a disco, uno due tre stai là, macchina da scrivere
-    ["pig", "door", "restaurant"],                 // maiale, porta, ristorante
+    ["pig", "door", "restaurant", "witnesses", "robot"],   // maiale, porta, ristorante, testimoni, robot (si preme solo quando tocca a te / su ciò che è sbagliato)
     ["mine", "parachute", "pot", "mosquito"],      // miniera, paracadute, piglia tutto, zanzara (scegliere il momento giusto)
-    ["tapas", "rally", "simon"],                   // tapas, rally, simon (sequenze da ripetere)
+    ["tapas", "rally", "simon", "spy"],             // tapas, rally, simon, spia (sequenze da ricordare)
     ["beat", "copyrhythm", "rope"]                 // tieni il tempo, copia il ritmo, saltare la corda (ritmo)
   ];
   const GROUP_OF = Object.fromEntries(GAME_GROUPS.flatMap((g, i) => g.map(id => [id, i])));
