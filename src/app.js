@@ -38,7 +38,7 @@
         parachute: "Apri il paracadute il più tardi possibile, ma prima dell'impatto. L'esito è rivelato alla fine. Si giocano tre round.",
         disturber: "Premi il più possibile mentre parla Topo Gigio: ogni pressione è un punto. Quando non parla, ogni pressione toglie un punto. Ogni giocatore ha un suono diverso.",        pot: "Il piatto cresce: incassa quando vuoi, ma se aspetti troppo rischi di perdere tutto. Si giocano tre round.",
         simon: "Simon a catena: il primo sceglie una nota, poi in senso orario ognuno ripete tutta la sequenza e ne aggiunge una. Hai 3 secondi tra una nota e l'altra. Chi sbaglia è eliminato. Il tasto centrale mette in pausa.",
-        mosquito: "Una zanzara vola intorno a te: premi quando il ronzio è fortissimo, cioè quando è vicina. Se premi troppo presto perdi un punto. Si giocano tre round.",
+        mosquito: "Un insetto (zanzara, mosca o ape) vola intorno a te: premi quando il ronzio è fortissimo, cioè quando è vicino. Se premi troppo presto perdi un punto. Si giocano tre round.",
         mine: "Ascolta il canarino: se smette di cantare per più di 10 secondi è morto. Allora premi entro 2 secondi. Se premi prima scappi, se premi dopo è troppo tardi. Vince l'ultimo a uscire in tempo. Si giocano tre round.",
         freeze: "Premi il più possibile mentre senti uno, due, tre. Appena senti «stai là!» fermati: chi preme è squalificato. Vince chi arriva per primo al numero di passi stabilito.",
         lesson: "Il prof di inglese spiega: finché parla (e il gesso scrive) premi il più possibile, e sentirai il tuo suono sempre più forte. Quando si ferma, fermati anche tu: chi preme viene scoperto e sospeso. Vince chi arriva per primo al numero di pressioni stabilito, o l'ultimo rimasto in classe.",
@@ -59,7 +59,7 @@
         disturber: "Disturbatore",
         pot: "Piglia tutto",
         simon: "Simon",
-        mosquito: "Prendi la zanzara",
+        mosquito: "Cattura l'insetto",
         mine: "In miniera",
         freeze: "Uno, due, tre, stai là!",
         lesson: "A lezione",
@@ -281,7 +281,7 @@
         ...["kick", "snare", "hat", "clap", "click"].map(DIR_("batteria")),
         ...["galoppo", "salto", "cambio-verso", "via"].map(DIR_("cavallino")),
         ...["rosso", "blu", "giallo", "verde"].map(DIR_("simon")),
-        ...["applausi", "buu"].map(DIR_("classifica")),
+        ...["applausi", "intermedio", "buu"].map(DIR_("classifica")),
     ];
 
     async function preloadAll() {
@@ -481,6 +481,28 @@
         src.start();
     }
 
+    // Posizioni intermedie: applauso breve e tiepido (se manca il file intermedio.mp3)
+    function synthMeh() {
+        if (!soundEnabled) return;
+        const a = ensureAudio(), dur = 1.2, size = Math.floor(a.sampleRate * dur);
+        const buffer = a.createBuffer(1, size, a.sampleRate), d = buffer.getChannelData(0);
+        for (let i = 0; i < size; i++) {
+            const t = i / a.sampleRate;
+            const env = Math.min(1, t * 8) * Math.min(1, (dur - t) * 2.5);
+            d[i] = (Math.random() * 2 - 1) * env * (Math.random() < .0015 ? 1 : .2);
+        }
+        const src = a.createBufferSource(), band = a.createBiquadFilter(), gain = a.createGain();
+        src.buffer = buffer;
+        band.type = "bandpass";
+        band.frequency.value = 1800;
+        band.Q.value = .6;
+        gain.gain.value = .35;
+        src.connect(band);
+        band.connect(gain);
+        gain.connect(a.destination);
+        src.start();
+    }
+
     function synthBoo(position = 2, total = 4) {
         if (!soundEnabled) return;
         const a = ensureAudio(), now = a.currentTime;
@@ -508,16 +530,19 @@
         lfo.stop(now + 1.25);
     }
 
-    // Suono di fine posizione: 1 = applausi, le altre = buu (più grave in fondo). Restituisce una Promise a fine suono.
+    // Suono di fine posizione: 1 = applausi, ultima = buu, posizioni intermedie = intermedio.mp3.
+    // Restituisce una Promise a fine suono.
     async function positionSound(position, total = 4) {
         const first = position === 1;
+        const last = !first && position >= total;
+        const file = first ? "applausi" : last ? "buu" : "intermedio";
         const t = await playTimed(
-            first ? "assets/sounds/classifica/applausi.mp3" : "assets/sounds/classifica/buu.mp3",
+            "assets/sounds/classifica/" + file + ".mp3",
             {
-                volume: first ? .9 : .7,
-                rate: first ? 1 : (position >= total ? .85 : 1),
-                fallback: () => first ? synthApplause() : synthBoo(position, total),
-                fallbackMs: first ? 2400 : 1300
+                volume: first ? .9 : last ? .7 : .8,
+                rate: last ? .85 : 1,
+                fallback: () => first ? synthApplause() : last ? synthBoo(position, total) : synthMeh(),
+                fallbackMs: first ? 2400 : last ? 1300 : 1200
             });
         return t.ended;
     }
@@ -740,9 +765,16 @@
             };
             const skip = () => {
                 window.BPDebug?.log("partita", "info", "descrizione saltata con il tasto pausa");
+                if (skipped) return;
+                skipped = true;
                 speechSynthesis?.cancel();
-                done();
+                // Dopo cancel() Chrome ignora la voce che parte subito: breve attesa prima di proseguire
+                setTimeout(() => {
+                    try { speechSynthesis?.resume(); } catch (_) {}
+                    done();
+                }, 250);
             };
+            let skipped = false;
             introSkip = skip;
             sayAsync(text).then(done);
         });
@@ -1069,7 +1101,7 @@
     }
 
     // Giochi a più round: quanti round si giocano
-    const MULTI_ROUNDS = {horse: 3, parachute: 3, mosquito: 3, pot: 3, mine: 3, bomb: 3, rope: 3, tennis: 3};
+    const MULTI_ROUNDS = {horse: 3, parachute: 3, mosquito: 3, mine: 3, bomb: 3, rope: 3, tennis: 3};
 
     function recordRound(m, ranking, pointAdjustments = {}) {
         if (ranking && ranking.length) {
@@ -2908,7 +2940,8 @@
 
         function timeUp() {
             if (g.finished || (phase !== "repeat" && phase !== "add")) return;
-            eliminate("tempo scaduto");
+            if (phase === "add") eliminate("tempo scaduto: non ha aggiunto un nuovo colore", "non ha aggiunto un nuovo colore");
+            else eliminate("tempo scaduto: sequenza incompleta", "sequenza errata");
         }
 
         g.onInput = e => {
@@ -2919,7 +2952,7 @@
 
             if (phase === "repeat") {
                 if (seq[idx] !== id) {
-                    eliminate("nota sbagliata (era " + colorName(seq[idx]) + ")");
+                    eliminate("nota sbagliata (era " + colorName(seq[idx]) + ")", "sequenza errata");
                     return;
                 }
                 playColor(id);
@@ -2946,7 +2979,7 @@
             }
         };
 
-        function eliminate(why) {
+        function eliminate(why, spoken) {
             const p = cur();
             stopTimer();
             phase = "between";
@@ -2958,13 +2991,17 @@
             toast(COLORS[p] + " eliminato: " + why);
             dbg("info", "❌ " + COLORS[p] + " eliminato: " + why);
             showScores();
-            if (alive.length <= 1) {
-                later(conclude, 1000);
-                return;
-            }
-            turn = turn % alive.length;
-            if (seq.length) later(() => replay(startTurn), 1200);
-            else later(startTurn, 1200);
+            // La voce dice il motivo, poi si prosegue
+            sayAsync(COLORS[p] + " eliminato: " + spoken + ".", 7000).then(() => {
+                if (game !== g || g.finished) return;
+                if (alive.length <= 1) {
+                    later(conclude, 500);
+                    return;
+                }
+                turn = turn % alive.length;
+                if (seq.length) later(() => replay(startTurn), 600);
+                else later(startTurn, 600);
+            });
         }
 
         // Dopo un errore la sequenza giusta viene riprodotta una volta, così il prossimo la sente
@@ -3029,7 +3066,7 @@
 
         // === Parametri mosca ===
         const FLY_SPEED = 3.2;
-        const FLY_BOUNDARY = 5;
+        const FLY_BOUNDARY = 3.5;      // la mosca resta più vicina: più occasioni di prenderla
         const FLY_TURN_MIN = 400;
         const FLY_TURN_MAX = 1600;
 
@@ -3148,6 +3185,10 @@
                     (Math.random() < 0.5 ? -1 : 1);
 
                 flyAngle += turn;
+                // Spesso, se si è allontanata, la mosca torna verso il centro (dove il ronzio è fortissimo)
+                if (Math.hypot(flyX, flyY) > 1.6 && Math.random() < 0.6) {
+                    flyAngle = Math.atan2(-flyY, -flyX) + (Math.random() - 0.5) * (Math.PI / 2);
+                }
 
                 flyNextTurn = now +
                     FLY_TURN_MIN +
@@ -3184,7 +3225,7 @@
                 Math.min(1, 1 - distance / FLY_BOUNDARY)
             );
 
-            return Math.pow(proximity, 1.2);
+            return proximity;   // curva lineare: il ronzio forte arriva da più lontano
         }
 
         // === Movimento ape: lento e regolare ===
@@ -6596,6 +6637,7 @@
         const KM_MAX = 4;
         const LEG_PAUSE = [350, 900];
         const TURN_PAUSE = 900;
+        const INPUT_LIMIT = 8000;   // tempo massimo (ms) per ogni pressione; scaduto, il giocatore è licenziato
         const MAX_ROUNDS = 15;
         const SCOOTER_VOLUME = 0.7;
         const ENGINE_VOLUME = 0.25;
@@ -6608,6 +6650,22 @@
         let current = null;
         let turnResolve = null;
         let engineAudio = null;
+        let inputTimer = null;
+
+        // Limite di tempo: riparte a ogni pressione corretta; in pausa si riarma
+        function armInputTimer() {
+            clearTimeout(inputTimer);
+            inputTimer = setTimeout(() => {
+                inputTimer = null;
+                if (gone() || phase !== "input") return;
+                if (paused) {
+                    armInputTimer();
+                    return;
+                }
+                toast("Tempo scaduto!");
+                endTurn(false);
+            }, INPUT_LIMIT);
+        }
 
         const buffers = new Map();
 
@@ -6723,6 +6781,11 @@
             return leg.km +
                 (leg.km === 1 ? " chilometro " : " chilometri ") +
                 DIRECTIONS[leg.dir].text;
+        }
+
+        // Effetto sonoro (non voce): usa sempre il file, anche con FORCE_ES; se manca, rumore sintetico
+        async function sfx(path, fallback) {
+            return playSampleWait(path, fallback);
         }
 
         async function voice(path, text) {
@@ -6864,6 +6927,7 @@
 
             showInput();
             startEngine(); // Motore acceso durante le pressioni
+            armInputTimer();
 
             return new Promise(resolve => {
                 turnResolve = resolve;
@@ -6871,6 +6935,8 @@
         }
 
         function endTurn(ok) {
+            clearTimeout(inputTimer);
+            inputTimer = null;
             stopEngine();
 
             phase = "between";
@@ -6917,7 +6983,10 @@
                         );
 
                         // Prima la frenata, poi "Sei licenziato!"
-                        await voice(BRAKE, "Screeeech!");
+                        await sfx(BRAKE, () => {
+                            noise(.5, .12);
+                            tone(1400, .45, "sawtooth", .05);
+                        });
 
                         if (gone()) return;
 
@@ -7068,6 +7137,7 @@
                     endTurn(true);
                 } else {
                     showInput();
+                    armInputTimer();
                 }
 
             } else {
@@ -7090,6 +7160,8 @@
         };
 
         g.dispose = () => {
+            clearTimeout(inputTimer);
+            inputTimer = null;
             stopEngine();
             stopTimer();
 
@@ -10256,6 +10328,8 @@
         positionSound: (position, total) => positionSound(position, total),
         // Dice il testo (es. «Secondo posto: Blu») e poi fa partire il suono della posizione
         announcePosition: async (text, position, total, maxMs) => {
+            // Ultimo posto (con più di un giocatore): si aggiunge «Imbarazzante»
+            if (total > 1 && position >= total) text = String(text).replace(/[.!?\s]+$/, "") + ". Imbarazzante.";
             await sayAsync(text, maxMs);
             await positionSound(position, total);
         },

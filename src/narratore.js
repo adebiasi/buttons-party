@@ -433,8 +433,10 @@
         );
         await BP.positionSound(1, state.players.length);        // applausi
       } else {
-        await speak(`Al ${ORDINALS[g.pos]} posto${tie} ${who}, con ${pts} punti.`);
-        await BP.positionSound(g.pos + 1, state.players.length);   // buu
+        // Ultimo posto: «Imbarazzante» e buu. Posizioni intermedie: suono intermedio (nessun buu).
+        const isLast = groups.length > 1 && g === groups.at(-1);
+        await speak(`Al ${ORDINALS[g.pos]} posto${tie} ${who}, con ${pts} punti.${isLast ? " Imbarazzante." : ""}`);
+        await BP.positionSound(isLast ? state.players.length : g.pos + 1, state.players.length);   // ultimo: buu · altri: intermedio
       }
       await sleep(500);
     }
