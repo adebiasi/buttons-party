@@ -15,20 +15,15 @@ static constexpr const char* CHARACTERISTIC_UUID =
 
 static constexpr const char* HID_SERVICE_UUID = "1812";
 
-// Generic HID appearance: Android lo mostra come dispositivo di input
-static constexpr uint16_t HID_APPEARANCE = 0x03C0;
-
 EspBle ble;
 EspBleGattCharacteristic eventCharacteristic;
 
 // true quando la pagina Arcade è iscritta alle notifiche
 volatile bool arcadeMode = false;
 
-// Bond obsoleto da rimuovere dopo un pairing fallito.
-// NimBLE rifiuta un nuovo pairing se l'ESP conserva ancora le chiavi
-// di un telefono che le ha invece dimenticate.
-bool staleBondPending = false;
-EspBleBond staleBond;
+// Tenere premuto il pulsante centrale all'avvio cancella tutti i bond.
+// Serve quando telefono ed ESP32 hanno chiavi non allineate.
+static constexpr int BOND_RESET_BUTTON_INDEX = 4;
 
 // --------------------------------------------------
 // PULSANTI
@@ -182,6 +177,29 @@ void updateButtons() {
 }
 
 // --------------------------------------------------
+// RESET BOND
+// --------------------------------------------------
+
+// Va chiamata dopo ble.begin() e prima dell'advertising:
+// deleteAllBonds() richiede nessuna connessione attiva.
+void resetBondsIfRequested() {
+
+    const bool resetRequested =
+        digitalRead(buttonPins[BOND_RESET_BUTTON_INDEX]) == LOW;
+
+    if (!resetRequested) {
+        return;
+    }
+
+    if (ble.deleteAllBonds()) {
+        Serial.println("Tutti i bond sono stati cancellati");
+    } else {
+        Serial.print("Errore cancellazione bond: ");
+        Serial.println(ble.lastErrorDetail());
+    }
+}
+
+// --------------------------------------------------
 // SETUP
 // --------------------------------------------------
 
@@ -222,6 +240,16 @@ void setup() {
         characteristicConfig
     );
 
+    if (!service.valid() || !eventCharacteristic.valid()) {
+        Serial.println("Errore configurazione GATT");
+        return;
+    }
+
+    if (!gatt.setValue(eventCharacteristic, String("READY"))) {
+        Serial.println("Errore valore iniziale GATT");
+        return;
+    }
+
     // Rileva quando la pagina Arcade si iscrive alle notifiche
     gatt.onSubscriptionChanged(
         [](const EspBleGattSubscription& subscription) {
@@ -247,12 +275,6 @@ void setup() {
     config.security.enabled = true;
     config.security.bonding = true;
 
-    // Il pairing lo avvia l'host HID (Android) quando legge le
-    // caratteristiche cifrate. Forzarlo alla connessione faceva
-    // accoppiare anche la pagina Web Bluetooth, creando un bond che
-    // poi entrava in conflitto con l'accoppiamento dalle impostazioni.
-    config.security.pairOnConnect = false;
-
     if (!ble.begin(config)) {
 
         Serial.print("Errore inizializzazione BLE: ");
@@ -271,29 +293,33 @@ void setup() {
 
             Serial.print("Accoppiamento fallito: ");
             Serial.println(event.detail);
-
-            staleBond.peerAddress = event.connection.peerAddress;
-            staleBond.peerAddressType = event.connection.peerAddressType;
-            staleBondPending = true;
+            Serial.println(
+                "Dimentica il dispositivo sul telefono e riavvia "
+                "l'ESP32 tenendo premuto il pulsante centrale"
+            );
         }
     );
 
     // Riavvia advertising quando un dispositivo si disconnette
     ble.onDisconnected(
-        [](const EspBleConnection&) {
+        [](const EspBleConnection& connection) {
             arcadeMode = false;
-            Serial.println("Dispositivo disconnesso");
+            Serial.print("Dispositivo disconnesso, motivo: 0x");
+            Serial.println(connection.disconnectReason, HEX);
             ble.advertising().start();
         }
     );
 
-    // Pubblicizza il dispositivo come HID + servizio Arcade.
-    // Il nome finisce automaticamente nella scan response.
+    resetBondsIfRequested();
+    Serial.print("Bond salvati: ");
+    Serial.println(ble.bondCount());
+
+    // Pubblicizza servizio Arcade + HID: senza 0x1812 Android
+    // non riconosce il dispositivo come controller da accoppiare
     auto& advertising = ble.advertising();
     advertising.setName(DEVICE_NAME);
-    advertising.setAppearance(HID_APPEARANCE);
-    advertising.addServiceUuid(HID_SERVICE_UUID);
     advertising.addServiceUuid(SERVICE_UUID);
+    advertising.addServiceUuid(HID_SERVICE_UUID);
 
     if (!advertising.start()) {
         Serial.print("Errore advertising: ");
@@ -306,24 +332,6 @@ void setup() {
 }
 
 // --------------------------------------------------
-// PULIZIA BOND OBSOLETI
-// --------------------------------------------------
-
-// deleteBond() richiede che non ci siano connessioni attive
-void removeStaleBondIfIdle() {
-
-    if (!staleBondPending || ble.connectionCount() != 0) {
-        return;
-    }
-
-    staleBondPending = false;
-
-    if (ble.deleteBond(staleBond)) {
-        Serial.println("Bond obsoleto rimosso: riprova l'accoppiamento");
-    }
-}
-
-// --------------------------------------------------
 // LOOP PRINCIPALE
 // --------------------------------------------------
 
@@ -331,8 +339,6 @@ void loop() {
 
     // Gestisce gli eventi BLE
     ble.update();
-
-    removeStaleBondIfIdle();
 
     // Legge i pulsanti
     updateButtons();
