@@ -18,14 +18,11 @@ static constexpr const char* HID_SERVICE_UUID = "1812";
 EspBle ble;
 EspBleGattCharacteristic eventCharacteristic;
 
-// La pagina Arcade scrive "ARCADE" quando si collega e "SPOTIFY" quando
-// si chiude. Su Android pagina web e host HID condividono la stessa
-// connessione BLE, quindi la disconnessione non basta a capire che la
-// pagina è stata chiusa. Se la pagina si chiude senza avvisare serve
-// un riavvio dell'ESP32.
-static constexpr const char* ARCADE_REQUEST = "ARCADE";
-static constexpr const char* SPOTIFY_REQUEST = "SPOTIFY";
-
+// La modalità segue l'iscrizione della pagina Arcade alle notifiche:
+// iscritta = Arcade, non iscritta = Spotify. Su Android pagina web e
+// host HID condividono la stessa connessione BLE, quindi la pagina
+// annulla esplicitamente l'iscrizione quando si chiude. Se si chiude
+// senza farlo serve un riavvio dell'ESP32.
 bool arcadeMode = false;
 
 void setArcadeMode(const bool enabled) {
@@ -252,8 +249,6 @@ void setup() {
     EspBleGattCharacteristicConfig characteristicConfig;
     characteristicConfig.readable = true;
     characteristicConfig.notifiable = true;
-    characteristicConfig.writable = true;
-    characteristicConfig.writableWithoutResponse = true;
 
     const EspBleGattService service =
         gatt.addService(SERVICE_UUID);
@@ -274,36 +269,14 @@ void setup() {
         return;
     }
 
-    // Cambio modalità richiesto dalla pagina Arcade
-    gatt.onWritten(
-        [](const EspBleGattWrite& write) {
-
-            Serial.print("Scrittura ricevuta: ");
-            Serial.println(write.value);
-
-            if (write.characteristic != eventCharacteristic) {
-                return;
-            }
-
-            if (write.value == ARCADE_REQUEST) {
-                setArcadeMode(true);
-            } else if (write.value == SPOTIFY_REQUEST) {
-                setArcadeMode(false);
-            }
-        }
-    );
-
     // Inizializza BLE
     EspBleConfig config;
     config.deviceName = DEVICE_NAME;
 
+    // Come nella v1: il pairing parte alla connessione, così il popup di
+    // Android accoppia anche il controller multimediale
     config.security.enabled = true;
     config.security.bonding = true;
-
-    // Il pairing lo avvia Android quando si accoppia il controller dalle
-    // impostazioni. Avviarlo alla connessione aprirebbe il popup di
-    // accoppiamento anche quando ci si collega da narratore.html.
-    config.security.pairOnConnect = false;
 
     if (!ble.begin(config)) {
 
@@ -344,6 +317,10 @@ void setup() {
             Serial.print("Iscrizione ");
             Serial.print(subscription.characteristicUuid);
             Serial.println(subscription.notifications ? ": attiva" : ": disattivata");
+
+            if (subscription.characteristic == eventCharacteristic) {
+                setArcadeMode(subscription.notifications);
+            }
         }
     );
 
