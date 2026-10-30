@@ -18,8 +18,30 @@ static constexpr const char* HID_SERVICE_UUID = "1812";
 EspBle ble;
 EspBleGattCharacteristic eventCharacteristic;
 
-// true quando la pagina Arcade è iscritta alle notifiche
-volatile bool arcadeMode = false;
+// La pagina Arcade scrive "ARCADE" quando si collega e "SPOTIFY" quando
+// si chiude. Su Android pagina web e host HID condividono la stessa
+// connessione BLE, quindi la disconnessione non basta a capire che la
+// pagina è stata chiusa. Se la pagina si chiude senza avvisare serve
+// un riavvio dell'ESP32.
+static constexpr const char* ARCADE_REQUEST = "ARCADE";
+static constexpr const char* SPOTIFY_REQUEST = "SPOTIFY";
+
+bool arcadeMode = false;
+
+void setArcadeMode(const bool enabled) {
+
+    if (arcadeMode == enabled) {
+        return;
+    }
+
+    arcadeMode = enabled;
+
+    if (arcadeMode) {
+        Serial.println("Modalita ARCADE attiva");
+    } else {
+        Serial.println("Modalita SPOTIFY attiva");
+    }
+}
 
 // Tenere premuto il pulsante centrale all'avvio cancella tutti i bond.
 // Serve quando telefono ed ESP32 hanno chiavi non allineate.
@@ -230,6 +252,8 @@ void setup() {
     EspBleGattCharacteristicConfig characteristicConfig;
     characteristicConfig.readable = true;
     characteristicConfig.notifiable = true;
+    characteristicConfig.writable = true;
+    characteristicConfig.writableWithoutResponse = true;
 
     const EspBleGattService service =
         gatt.addService(SERVICE_UUID);
@@ -250,20 +274,18 @@ void setup() {
         return;
     }
 
-    // Rileva quando la pagina Arcade si iscrive alle notifiche
-    gatt.onSubscriptionChanged(
-        [](const EspBleGattSubscription& subscription) {
+    // Cambio modalità richiesto dalla pagina Arcade
+    gatt.onWritten(
+        [](const EspBleGattWrite& write) {
 
-            if (subscription.characteristic != eventCharacteristic) {
+            if (write.characteristic != eventCharacteristic) {
                 return;
             }
 
-            arcadeMode = subscription.notifications;
-
-            if (arcadeMode) {
-                Serial.println("Modalita ARCADE attiva");
-            } else {
-                Serial.println("Modalita SPOTIFY attiva");
+            if (write.value == ARCADE_REQUEST) {
+                setArcadeMode(true);
+            } else if (write.value == SPOTIFY_REQUEST) {
+                setArcadeMode(false);
             }
         }
     );
@@ -274,6 +296,11 @@ void setup() {
 
     config.security.enabled = true;
     config.security.bonding = true;
+
+    // Il pairing lo avvia Android quando si accoppia il controller dalle
+    // impostazioni. Avviarlo alla connessione aprirebbe il popup di
+    // accoppiamento anche quando ci si collega da narratore.html.
+    config.security.pairOnConnect = false;
 
     if (!ble.begin(config)) {
 
@@ -303,7 +330,7 @@ void setup() {
     // Riavvia advertising quando un dispositivo si disconnette
     ble.onDisconnected(
         [](const EspBleConnection& connection) {
-            arcadeMode = false;
+            setArcadeMode(false);
             Serial.print("Dispositivo disconnesso, motivo: 0x");
             Serial.println(connection.disconnectReason, HEX);
             ble.advertising().start();

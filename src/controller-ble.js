@@ -24,6 +24,12 @@
   const CHARACTERISTIC_UUID =
       "7b7a1001-1234-4567-890a-bcdef0123456";
 
+  // Il firmware passa in modalità Arcade alla connessione della pagina e
+  // torna in modalità Spotify quando la pagina si disconnette o si chiude.
+  const ARCADE_REQUEST = "ARCADE";
+  const SPOTIFY_REQUEST = "SPOTIFY";
+  const textEncoder = new TextEncoder();
+
   const EVENTS = {
     P1_DOWN: ["P1", "down"],
     P1_UP:   ["P1", "up"],
@@ -45,9 +51,15 @@
       this.characteristic = null;
       this.enabled = false;
       this.held = new Set();
+      this.writeQueue = Promise.resolve();
 
       this.handleNotification = this.handleNotification.bind(this);
       this.handleDisconnect = this.handleDisconnect.bind(this);
+
+      // Tentativo di riportare il firmware in Spotify alla chiusura della scheda
+      window.addEventListener("pagehide", () => {
+        this.writeMode(SPOTIFY_REQUEST);
+      });
     }
 
     setEnabled(enabled) {
@@ -55,9 +67,28 @@
 
       if (!enabled) {
         this.releaseAll();
+        this.writeMode(SPOTIFY_REQUEST);
+      } else {
+        this.writeMode(ARCADE_REQUEST);
       }
 
       this.updateStatus();
+    }
+
+    // Web Bluetooth rifiuta operazioni GATT concorrenti: le scritture vanno in coda
+    writeMode(mode) {
+      const characteristic = this.characteristic;
+      if (!characteristic) return Promise.resolve();
+
+      const data = textEncoder.encode(mode);
+      this.writeQueue = this.writeQueue
+          .then(() => characteristic.writeValueWithoutResponse
+              ? characteristic.writeValueWithoutResponse(data)
+              : characteristic.writeValue(data))
+          .catch(error => {
+            console.warn("Scrittura modalità controller fallita", error);
+          });
+      return this.writeQueue;
     }
 
     async connect() {
@@ -123,6 +154,7 @@
             this.handleNotification
         );
 
+        if (this.enabled) await this.writeMode(ARCADE_REQUEST);
         this.updateStatus();
       } catch (error) {
         this.device.removeEventListener(
@@ -177,8 +209,9 @@
       this.updateStatus();
     }
 
-    disconnect() {
+    async disconnect() {
       if (this.device?.gatt?.connected) {
+        await this.writeMode(SPOTIFY_REQUEST);
         this.device.gatt.disconnect();
       } else {
         this.handleDisconnect();

@@ -162,6 +162,10 @@
                 onEvent
             );
 
+            // Il firmware v2 invia eventi Arcade solo dopo questa richiesta
+            await characteristic.writeValueWithoutResponse(
+                new TextEncoder().encode("ARCADE")
+            );
             setStatus("Connesso a " + device.name, true);
             printEvent("BLE_CONNECTED");
             disconnectBtn.disabled = false;
@@ -171,8 +175,11 @@
         }
     }
 
-    function disconnect() {
+    async function disconnect() {
         if (device && device.gatt.connected) {
+            await characteristic
+                ?.writeValueWithoutResponse(new TextEncoder().encode("SPOTIFY"))
+                .catch(() => {});
             device.gatt.disconnect();
         } else {
             onDisconnected();
