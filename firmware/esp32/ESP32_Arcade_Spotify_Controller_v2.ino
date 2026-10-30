@@ -278,6 +278,9 @@ void setup() {
     gatt.onWritten(
         [](const EspBleGattWrite& write) {
 
+            Serial.print("Scrittura ricevuta: ");
+            Serial.println(write.value);
+
             if (write.characteristic != eventCharacteristic) {
                 return;
             }
@@ -324,6 +327,23 @@ void setup() {
                 "Dimentica il dispositivo sul telefono e riavvia "
                 "l'ESP32 tenendo premuto il pulsante centrale"
             );
+        }
+    );
+
+    ble.onConnected(
+        [](const EspBleConnection& connection) {
+            Serial.print("Dispositivo connesso: ");
+            Serial.print(connection.peerAddress);
+            Serial.print(connection.bonded ? " (accoppiato)" : " (non accoppiato)");
+            Serial.println(connection.encrypted ? " cifrato" : " non cifrato");
+        }
+    );
+
+    gatt.onSubscriptionChanged(
+        [](const EspBleGattSubscription& subscription) {
+            Serial.print("Iscrizione ");
+            Serial.print(subscription.characteristicUuid);
+            Serial.println(subscription.notifications ? ": attiva" : ": disattivata");
         }
     );
 

@@ -85,6 +85,7 @@
           .then(() => characteristic.writeValueWithoutResponse
               ? characteristic.writeValueWithoutResponse(data)
               : characteristic.writeValue(data))
+          .then(() => console.log("Modalità controller inviata:", mode))
           .catch(error => {
             console.warn("Scrittura modalità controller fallita", error);
           });
