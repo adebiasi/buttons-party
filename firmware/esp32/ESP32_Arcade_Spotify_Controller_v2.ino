@@ -13,11 +13,22 @@ static constexpr const char* SERVICE_UUID =
 static constexpr const char* CHARACTERISTIC_UUID =
     "7b7a1001-1234-4567-890a-bcdef0123456";
 
+static constexpr const char* HID_SERVICE_UUID = "1812";
+
+// Generic HID appearance: Android lo mostra come dispositivo di input
+static constexpr uint16_t HID_APPEARANCE = 0x03C0;
+
 EspBle ble;
 EspBleGattCharacteristic eventCharacteristic;
 
 // true quando la pagina Arcade è iscritta alle notifiche
 volatile bool arcadeMode = false;
+
+// Bond obsoleto da rimuovere dopo un pairing fallito.
+// NimBLE rifiuta un nuovo pairing se l'ESP conserva ancora le chiavi
+// di un telefono che le ha invece dimenticate.
+bool staleBondPending = false;
+EspBleBond staleBond;
 
 // --------------------------------------------------
 // PULSANTI
@@ -83,6 +94,11 @@ void sendMediaCommand(int buttonIndex) {
 
     // Non inviare comandi Spotify durante Arcade
     if (arcadeMode) {
+        return;
+    }
+
+    if (!ble.hidConsumerControl().ready()) {
+        Serial.println("HID non pronto: nessun host accoppiato");
         return;
     }
 
@@ -230,7 +246,12 @@ void setup() {
 
     config.security.enabled = true;
     config.security.bonding = true;
-    config.security.pairOnConnect = true;
+
+    // Il pairing lo avvia l'host HID (Android) quando legge le
+    // caratteristiche cifrate. Forzarlo alla connessione faceva
+    // accoppiare anche la pagina Web Bluetooth, creando un bond che
+    // poi entrava in conflitto con l'accoppiamento dalle impostazioni.
+    config.security.pairOnConnect = false;
 
     if (!ble.begin(config)) {
 
@@ -239,6 +260,23 @@ void setup() {
 
         return;
     }
+
+    ble.onSecurityChanged(
+        [](const EspBleSecurityChanged& event) {
+
+            if (event.success) {
+                Serial.println("Accoppiamento riuscito");
+                return;
+            }
+
+            Serial.print("Accoppiamento fallito: ");
+            Serial.println(event.detail);
+
+            staleBond.peerAddress = event.connection.peerAddress;
+            staleBond.peerAddressType = event.connection.peerAddressType;
+            staleBondPending = true;
+        }
+    );
 
     // Riavvia advertising quando un dispositivo si disconnette
     ble.onDisconnected(
@@ -249,13 +287,40 @@ void setup() {
         }
     );
 
-    // Pubblicizza il dispositivo
-    ble.advertising().setName(DEVICE_NAME);
-    ble.advertising().addServiceUuid(SERVICE_UUID);
-    ble.advertising().start();
+    // Pubblicizza il dispositivo come HID + servizio Arcade.
+    // Il nome finisce automaticamente nella scan response.
+    auto& advertising = ble.advertising();
+    advertising.setName(DEVICE_NAME);
+    advertising.setAppearance(HID_APPEARANCE);
+    advertising.addServiceUuid(HID_SERVICE_UUID);
+    advertising.addServiceUuid(SERVICE_UUID);
+
+    if (!advertising.start()) {
+        Serial.print("Errore advertising: ");
+        Serial.println(ble.lastErrorDetail());
+        return;
+    }
 
     Serial.println("BLE pronto");
     Serial.println("Nome dispositivo: ESP32-Controller");
+}
+
+// --------------------------------------------------
+// PULIZIA BOND OBSOLETI
+// --------------------------------------------------
+
+// deleteBond() richiede che non ci siano connessioni attive
+void removeStaleBondIfIdle() {
+
+    if (!staleBondPending || ble.connectionCount() != 0) {
+        return;
+    }
+
+    staleBondPending = false;
+
+    if (ble.deleteBond(staleBond)) {
+        Serial.println("Bond obsoleto rimosso: riprova l'accoppiamento");
+    }
 }
 
 // --------------------------------------------------
@@ -266,6 +331,8 @@ void loop() {
 
     // Gestisce gli eventi BLE
     ble.update();
+
+    removeStaleBondIfIdle();
 
     // Legge i pulsanti
     updateButtons();
