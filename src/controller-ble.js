@@ -24,11 +24,9 @@
   const CHARACTERISTIC_UUID =
       "7b7a1001-1234-4567-890a-bcdef0123456";
 
-  // Il firmware passa in modalità Arcade alla connessione della pagina e
-  // torna in modalità Spotify quando la pagina si disconnette o si chiude.
-  const ARCADE_REQUEST = "ARCADE";
-  const SPOTIFY_REQUEST = "SPOTIFY";
-  const textEncoder = new TextEncoder();
+  // Il firmware è in modalità Arcade finché la pagina è iscritta alle
+  // notifiche: chiudendo la pagina l'iscrizione va annullata esplicitamente,
+  // perché su Android la connessione BLE resta aperta per il controller HID.
 
   const EVENTS = {
     P1_DOWN: ["P1", "down"],
@@ -51,14 +49,14 @@
       this.characteristic = null;
       this.enabled = false;
       this.held = new Set();
-      this.writeQueue = Promise.resolve();
+      this.gattQueue = Promise.resolve();
 
       this.handleNotification = this.handleNotification.bind(this);
       this.handleDisconnect = this.handleDisconnect.bind(this);
 
       // Tentativo di riportare il firmware in Spotify alla chiusura della scheda
       window.addEventListener("pagehide", () => {
-        this.writeMode(SPOTIFY_REQUEST);
+        this.setNotifications(false);
       });
     }
 
@@ -67,29 +65,26 @@
 
       if (!enabled) {
         this.releaseAll();
-        this.writeMode(SPOTIFY_REQUEST);
-      } else {
-        this.writeMode(ARCADE_REQUEST);
       }
+      this.setNotifications(enabled);
 
       this.updateStatus();
     }
 
-    // Web Bluetooth rifiuta operazioni GATT concorrenti: le scritture vanno in coda
-    writeMode(mode) {
+    // Web Bluetooth rifiuta operazioni GATT concorrenti: le operazioni vanno in coda
+    setNotifications(on) {
       const characteristic = this.characteristic;
       if (!characteristic) return Promise.resolve();
 
-      const data = textEncoder.encode(mode);
-      this.writeQueue = this.writeQueue
-          .then(() => characteristic.writeValueWithoutResponse
-              ? characteristic.writeValueWithoutResponse(data)
-              : characteristic.writeValue(data))
-          .then(() => console.log("Modalità controller inviata:", mode))
+      this.gattQueue = this.gattQueue
+          .then(() => on
+              ? characteristic.startNotifications()
+              : characteristic.stopNotifications())
+          .then(() => console.log("Notifiche controller:", on ? "attive" : "disattivate"))
           .catch(error => {
-            console.warn("Scrittura modalità controller fallita", error);
+            console.warn("Cambio notifiche controller fallito", error);
           });
-      return this.writeQueue;
+      return this.gattQueue;
     }
 
     async connect() {
@@ -149,13 +144,12 @@
             CHARACTERISTIC_UUID
         );
 
-        await this.characteristic.startNotifications();
         this.characteristic.addEventListener(
             "characteristicvaluechanged",
             this.handleNotification
         );
 
-        if (this.enabled) await this.writeMode(ARCADE_REQUEST);
+        if (this.enabled) await this.setNotifications(true);
         this.updateStatus();
       } catch (error) {
         this.device.removeEventListener(
@@ -212,7 +206,7 @@
 
     async disconnect() {
       if (this.device?.gatt?.connected) {
-        await this.writeMode(SPOTIFY_REQUEST);
+        await this.setNotifications(false);
         this.device.gatt.disconnect();
       } else {
         this.handleDisconnect();
