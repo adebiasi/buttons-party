@@ -25,7 +25,7 @@
     const KEY_MAP = {"1": "P1", "2": "P2", "3": "P3", "4": "P4", " ": "C", "Enter": "C"};
     const DESCRIPTIONS = {
         typewriter: "Premi il tuo tasto più veloce che puoi: ogni pressione fa il rumore di un tasto di macchina da scrivere e vale un punto. Quando senti il campanello di fine riga fermati: ogni pressione durante il campanello toglie un punto, anche sotto zero. Quando il suono finisce riparti subito. Dopo cinque righe il gioco finisce. Vince chi ha più punti.",
-        witnesses: "Un reato, quattro testimoni. Prima si ascoltano i fatti veri, poi ogni testimone racconta la sua versione: se qualcuno dice qualcosa di diverso dai fatti, premi subito il tuo tasto. Il più veloce prende un punto. Se premi quando la frase è giusta, ne perdi uno. Si giocano tre casi, tutti contro tutti.",
+        witnesses: "Quattro testimoni raccontano quattro casi diversi. Ascolta il verbale e cerca le contraddizioni: chi le individua per primo guadagna un punto, chi segnala una frase corretta ne perde uno. Dopo ogni errore il narratore spiega chi l'ha trovato e perché.",
         robot: "Un robot dice una frase ma a metà si inceppa e ripete le prime sillabe di una parola. Ogni giocatore ha una sillaba fissa: quando manca la tua, premi per far continuare il robot. Finché il robot è bloccato, chi ha la sillaba giusta perde punti, sempre più in fretta. Se premi quando non tocca a te ne perdi due. A volte manca una sillaba che non è di nessuno: in quel caso non premere.",
         spy: "Sei una spia e devi capire chi ha composto il numero dei servizi segreti nemici: quattro cifre, diverso a ogni partita. Ascolta il suono del telefono a disco: più la cifra è alta, più il disco fa strada e più il suono dura. Quando senti comporre il numero giusto, premi per primo e prendi un punto. Se premi su un numero sbagliato, ne perdi uno. I numeri diventano sempre più veloci.",
         tug: "Premi il tuo tasto più veloce che puoi per tirare la corda dalla tua parte. In due: al meglio di tre round. In tre: tre sfide uno contro uno. In quattro: due squadre, le pressioni dei compagni si sommano.",
@@ -44,13 +44,13 @@
         lesson: "Il prof di inglese spiega: finché parla (e il gesso scrive) premi il più possibile, e sentirai il tuo suono sempre più forte. Quando si ferma, fermati anche tu: chi preme viene scoperto e sospeso. Vince chi arriva per primo al numero di pressioni stabilito, o l'ultimo rimasto in classe.",
         door: "Qualcuno bussa o suona il campanello. Se è una persona che vuoi vedere, premi il più in fretta possibile per aprire; se non la vuoi, non aprire! Il primo che preme apre la porta. Ogni partita cambia il modo di bussare di ogni persona: all'inizio vengono presentate. Apri alla persona giusta e prendi un punto, apri a quella sbagliata e lo perdi.",
         restaurant: "Il ristoratore annuncia i piatti: prenota premendo per primo quelli buoni. Se prenoti un piatto immangiabile, paghi la penitenza e perdi un punto.",
-        grinder: "Tieni premuto per spingere il legno contro la mola. Quando il suono finisce, lascia subito il tasto o perdi la mano! Vince chi tiene premuto più a lungo in totale.",
+        grinder: "Tre round da cinque pezzi di legno. Tieni premuto per spingere il legno contro la mola. Quando il suono finisce, lascia subito il tasto o perdi la mano! Vince chi resiste e accumula più tempo.",
         bomb: "La bomba passa da un giocatore all'altro: premi solo quando senti il tuo colore. Se premi fuori turno o non fai in tempo, sei eliminato. Il ritmo accelera sempre di più, soprattutto quando restano in due. Si giocano tre round.",
-        rope: "La corda batte a terra a ritmo regolare: premi il tuo tasto nello stesso istante del colpo. I primi tre colpi sono di prova. Chi non salta o salta fuori tempo è eliminato. Il ritmo accelera. Vince l'ultimo rimasto. Si giocano tre round.",        tennis: "Senti il rimbalzo della palla: quando rimbalza verso di te, premi per rispondere. Poi tocca al giocatore successivo in senso orario. Se premi prima del tuo rimbalzo resti fermo 2 secondi. Se manchi la palla sei eliminato. Si giocano tre round.",
+        rope: "Tre round a eliminazione. Salta a tempo con la corda: appena uno o più giocatori sbagliano, il colpo si ferma, il narratore annuncia gli eliminati e i superstiti continuano. Vince chi resta in gara.",        tennis: "Senti il rimbalzo della palla: quando rimbalza verso di te, premi per rispondere. Poi tocca al giocatore successivo in senso orario. Se premi prima del tuo rimbalzo resti fermo 2 secondi. Se manchi la palla sei eliminato. Si giocano tre round.",
         tapas: "A turno, ascolta il percorso e ripetilo con i tasti. Aspetta di aver sentito tutte le istruzioni prima di eseguirle. Le direzioni sono relative a te. Un chilometro è una pressione. Se sbagli sei licenziato.",
         rally: "Quando tocca a te la macchina parte: il navigatore dice comandi come «3 destra» o «2 accelera» e tu premi subito, senza aspettare. I comandi arrivano sempre più veloci e ravvicinati. Un errore o un ritardo e fai incidente. Vince chi completa più comandi.",
         beeper: "Ogni giocatore ha un parlatore diverso, assegnato a voce. Tieni premuto per bippare tutta la parolaccia: più la copri, più punti prendi (fino a 3). Più tieni premuto su parole normali, più punti perdi (1,5 al secondo). Se bippi un parlatore che non è il tuo perdi punti allo stesso modo. Ogni parlatore dice lo stesso numero di parolacce. Le voci discutono del miglior programma televisivo di sempre: i programmi sono quelli veri, i conduttori sono inventati, e si finge che siano tutti bellissimi.",
-        beat: "Ogni giocatore ha una percussione: cassa, rullante, charleston o battimani. Premi il tuo tasto a tempo quando senti la tua. Se premi nel momento sbagliato perdi un punto. Dopo tre loop la partita finisce.",
+        beat: "Ogni giocatore ha una percussione: cassa, rullante, charleston o battimani. Ascolta il ritmo più lento e premi a tempo quando senti la tua. Se premi nel momento sbagliato perdi un punto.",
     }
     const GAME_NAMES = {
         pig: "Cattura il maiale",
@@ -90,6 +90,7 @@
     let audio = null, soundEnabled = true, game = null, timer = null, paused = false;
     let natureSource = null, natureGain = null, natureVolume = 0.08;
     let held = new Set(), players = 4, scores = {}, toastTimer = null;
+    const playedGames = new Set(); // non riproporre un minigioco già concluso nella stessa sessione
     // Tasti scelti dai giocatori (es. ["P2","P3"]); null = i primi `players` tasti.
     let activeButtons = null;
     // Se false, il tasto centrale senza partita in corso non avvia un gioco (usato da narratore.html).
@@ -1009,7 +1010,11 @@
         startGame();
     });
     $("#random-button").addEventListener("click", () => {
-        const keys = Object.keys(GAME_NAMES);
+        let keys = Object.keys(GAME_NAMES).filter(id => !playedGames.has(id));
+        if (!keys.length) {
+            playedGames.clear();
+            keys = Object.keys(GAME_NAMES);
+        }
         $("#game-select").value = keys[Math.floor(Math.random() * keys.length)];
         updateSetup();
         toast("Gioco scelto: " + GAME_NAMES[$("#game-select").value]);
@@ -1075,6 +1080,7 @@
         $("#game-title").textContent = GAME_NAMES[$("#game-select").value];
         $("#simon-feedback").textContent = "";
         const id = $("#game-select").value;
+        playedGames.add(id);
         game = makeGame(id);
         game.match = MULTI_ROUNDS[id] ? {round: 1, total: MULTI_ROUNDS[id], wins: {}, points: {}} : null;
         window.BPDebug?.gameStart(game, GAME_NAMES[id]);
@@ -1101,7 +1107,7 @@
     }
 
     // Giochi a più round: quanti round si giocano
-    const MULTI_ROUNDS = {horse: 3, parachute: 3, mosquito: 3, mine: 3, bomb: 3, rope: 3, tennis: 3};
+    const MULTI_ROUNDS = {horse: 3, parachute: 3, mosquito: 3, mine: 3, bomb: 3, rope: 3, tennis: 3, grinder: 3};
 
     function recordRound(m, ranking, pointAdjustments = {}) {
         if (ranking && ranking.length) {
@@ -1666,7 +1672,7 @@
         const MISS_TONE = {P1: 110, P2: 90, P3: 135, P4: 160};
 
         const TARGET_GRACE = 350;     // tolleranza dopo la fine della voce (ms)
-        const DURATION = 60000;
+        const DURATION = 35000; // partita più breve
         let active = false, start = 0, points = {}, ready = false, lastTarget = null;
         const MAX_SOUNDS_PER_PLAYER = 2;   // al massimo due suoni (colpo/errore) in contemporanea per giocatore
         let playing = {};                  // giocatore -> sorgenti audio ancora in riproduzione
@@ -1876,11 +1882,11 @@
         const g = baseGame("witnesses");
 
         // === Parametri ===
-        const CASES = 3;                   // numero di casi (un caso = un reato con 4 interviste)
-        const STATEMENTS_EACH = 2;         // frasi per testimone in ogni caso
-        const ERRORS_PER_CASE = [1, 2];    // errori per caso (min, max): in alcune interviste non ce ne sono
+        const CASES = 4;                   // quattro casi, con storie diverse
+        const STATEMENTS_EACH = 2;         // due dichiarazioni per testimone
+        const ERRORS_PER_CASE = [2, 3];    // più contraddizioni da individuare in ogni caso
         const GENERAL_CHANCE = .4;         // probabilità che una frase giusta sia più generica del verbale (roditore, in casa, dopo le sette...)
-        const REACT_MS = 2500;             // tempo per premere dopo la fine della frase (ms)
+        const REACT_MS = 2200;             // finestra di risposta dopo ogni dichiarazione (ms)
         const GAP_MS = 500;                // pausa tra una frase e la successiva (ms)
 
         const gone = () => game !== g || g.finished;
@@ -1991,7 +1997,25 @@
                 {t: "il telecomando del cancello", more: ["un telecomando"]},
                 {t: "il telecomando del condizionatore", more: ["un telecomando"]},
                 {t: "le batterie del telecomando", more: ["delle batterie"]},
-                {t: "il telecomando dell'antenna", more: ["un telecomando"]}]}
+                {t: "il telecomando dell'antenna", more: ["un telecomando"]}]},
+            {title: "il quadro scomparso", objects: [
+                {t: "un ritratto a olio", more: ["un quadro", "un dipinto"]},
+                {t: "un paesaggio ad acquerello", more: ["un quadro", "un dipinto"]},
+                {t: "una fotografia incorniciata", more: ["una fotografia", "un'immagine"]},
+                {t: "un quadro astratto", more: ["un quadro", "un dipinto"]},
+                {t: "un disegno antico", more: ["un disegno", "un'opera d'arte"]}]},
+            {title: "la coppa del torneo", objects: [
+                {t: "la coppa d'oro", more: ["la coppa", "il trofeo"]},
+                {t: "la medaglia d'argento", more: ["la medaglia", "il premio"]},
+                {t: "il trofeo di cristallo", more: ["il trofeo", "il premio"]},
+                {t: "la targa dei vincitori", more: ["la targa", "il premio"]},
+                {t: "la coppa di bronzo", more: ["la coppa", "il trofeo"]}]},
+            {title: "il pacco misterioso", objects: [
+                {t: "una scatola di cioccolatini", more: ["una scatola", "un pacco"]},
+                {t: "un pacco di fotografie", more: ["un pacco", "delle fotografie"]},
+                {t: "una busta sigillata", more: ["una busta", "un documento"]},
+                {t: "un cofanetto di legno", more: ["un cofanetto", "una scatola"]},
+                {t: "un pacco di libri", more: ["un pacco", "dei libri"]}]}
         ];
 
         // Frasi dei testimoni, con parole diverse per lo stesso fatto
@@ -2003,6 +2027,9 @@
             escape: ["Poi {v}.", "Dopo il colpo {v}.", "L'ho visto: {v}.", "Alla fine {v}."]
         };
         const FACT_KEYS = Object.keys(SAY);
+        // Suoni già presenti nel progetto: conferma per l'errore trovato, penalità per il falso allarme.
+        const RIGHT_SOUND = "assets/sounds/maiale/punto.mp3";
+        const WRONG_SOUND = "assets/sounds/maiale/penalita.mp3";
 
         // Fatto da un elenco di valori {t, more}: precisa, frasi vere (più generiche) e frasi false (tutte quelle degli altri valori)
         function factFromList(list) {
@@ -2046,7 +2073,9 @@
         }
 
         function makeCase(n) {
-            const theme = THEMES[n % THEMES.length];
+            const remainingThemes = THEMES.filter(t => !usedThemes.has(t.title));
+            const theme = pick(remainingThemes.length ? remainingThemes : THEMES);
+            usedThemes.add(theme.title);
             const fact = {
                 outfit: outfitFact(),
                 time: timeFact(),
@@ -2086,11 +2115,12 @@
 
         // === Stato ===
         let caseNo = 0, win = null;
+        let usedThemes = new Set();
 
         const show = (msg, info = "", style = "") => setArena(msg, info, style);
 
         g.start = async () => {
-            caseNo = 0; win = null;
+            caseNo = 0; win = null; usedThemes = new Set();
             scores = Object.fromEntries(playerIds().map(p => [p, 0]));
             renderScores();
             $("#game-status").textContent = "ASCOLTA I TESTIMONI";
@@ -2100,8 +2130,9 @@
             witnesses = shuffle(PERSONAS);
             if (!await narrate(g, "I testimoni. È stato commesso un reato. Prima ascolti i fatti veri nel verbale. " +
                 "Poi quattro testimoni raccontano la loro versione, ma qualcuno sbaglia e dice una cosa diversa dal verbale. " +
-                "Quando senti un errore, premi subito il tuo tasto: il più veloce prende un punto. " +
-                "Se premi quando la frase è giusta, ne perdi uno. Si giocano " + CASES + " casi.")) return;
+                "Quando senti una contraddizione, premi subito: il più veloce prende un punto. " +
+                "Se premi su una frase corretta, perdi un punto. Dopo ogni dichiarazione il narratore spiega quale fatto non torna e chi lo ha notato. " +
+                "Ci sono " + CASES + " casi, con più dichiarazioni e più dettagli da confrontare.")) return;
             runCases();
         };
 
@@ -2114,7 +2145,6 @@
                 await sayAsync("Caso " + caseNo + ": " + c.theme.title + ". Ascolta il verbale. " + c.verbale);
                 if (gone()) return;
                 await wait(800);
-                const missed = [];
                 let lastWitness = null;
                 for (const st of c.statements) {
                     if (gone()) return;
@@ -2122,26 +2152,34 @@
                         lastWitness = st.witness;
                         show("🎙 Testimone", st.witness.name);
                     }
-                    win = {st, pressed: new Set(), claimed: false};
+                    win = {st, pressed: new Set(), claimed: false, claimedBy: null};
                     await speakAs(st.text, st.witness);
                     if (gone()) return;
                     await wait(REACT_MS);
                     if (gone()) return;
-                    if (st.error && !win.claimed) missed.push(st);
+                    const result = win;
                     win = null;
+                    if (st.error) {
+                        if (result.claimedBy) {
+                            show("🔎 Imprecisione trovata", COLORS[result.claimedBy] + " ha riconosciuto la contraddizione");
+                            await sayAsync(COLORS[result.claimedBy] + " ha trovato l'imprecisione. " +
+                                st.witness.name + " ha detto: " + st.said + ". " +
+                                "Ma il verbale stabilisce: " + st.true + ". " +
+                                "Le due versioni si contraddicono: per questo la dichiarazione è imprecisa.");
+                        } else {
+                            show("🔎 Imprecisione non individuata", "La dichiarazione contraddice il verbale");
+                            await sayAsync("Nessuno ha individuato questa imprecisione. " +
+                                st.witness.name + " ha detto: " + st.said + ". " +
+                                "Ma il verbale stabilisce: " + st.true + ". " +
+                                "Le due versioni si contraddicono.");
+                        }
+                    }
+                    if (gone()) return;
                     await wait(GAP_MS);
                 }
                 if (gone()) return;
-                // Rivelazione degli errori che nessuno ha notato
-                if (missed.length) {
-                    const text = "Errori non notati: " + missed.map(st =>
-                        st.witness.name + " ha detto " + st.said + " invece di " + st.true).join(". ") + ".";
-                    show("🔎 Errori non notati", missed.length + (missed.length === 1 ? " errore" : " errori"));
-                    await sayAsync(text);
-                } else {
-                    show("👏 Tutti gli errori scoperti!");
-                    await sayAsync("Bravi, avete scoperto tutti gli errori.");
-                }
+                // Ogni imprecisione è già stata spiegata subito dopo la dichiarazione:
+                // non serve un riepilogo che dica se sono state trovate tutte.
                 if (gone()) return;
                 if (caseNo < CASES) await wait(900);
             }
@@ -2159,13 +2197,16 @@
             if (win.st.error) {
                 if (win.claimed) return;                // già preso da un altro: nessuna penitenza
                 win.claimed = true;
+                win.claimedBy = id;
                 scores[id] += 1;
-                tone(988, .12, "triangle", .1);
-                tone(1319, .18, "triangle", .1, .1);
+                playSample(RIGHT_SOUND, () => {
+                    tone(988, .12, "triangle", .1);
+                    tone(1319, .18, "triangle", .1, .1);
+                });
                 show("✅ Colto! " + COLORS[id] + " +1", "Errore scoperto");
             } else {
                 scores[id] -= 1;
-                tone(160, .2, "sawtooth", .08);
+                playSample(WRONG_SOUND, () => tone(160, .2, "sawtooth", .08));
                 show("❌ La frase era giusta! " + COLORS[id] + " −1");
             }
             renderScores();
@@ -5501,8 +5542,8 @@
 
             await sayIntro(
                 "Mola a disco. Tieni premuto per spingere il legno. " +
-                "Quando il suono finisce, lascia subito il tasto, " +
-                "o perdi la mano!"
+                "Quando il suono finisce, lascia subito il tasto, o perdi la mano! " +
+                "Si giocano tre round, ciascuno con cinque pezzi di legno."
             );
 
             await preload;
@@ -6175,49 +6216,64 @@
             if (clock >= beatAt + curWindow) judgeBeat();
         }
 
-        // Chiude il colpo corrente: chi non ha saltato è eliminato
-        function judgeBeat() {
+        // Chiude il colpo corrente: chi sbaglia viene eliminato insieme agli altri
+        // errori dello stesso colpo; il gioco riparte solo dopo l'annuncio del narratore.
+        async function judgeBeat() {
             if (phase !== "live") return;
 
             if (beatNo > WARMUP) {
                 const failed = alive.filter(p => !jumped.has(p));
-                if (failed.length && eliminate(failed, "non ha saltato")) return;
+                if (failed.length) {
+                    await eliminate(failed, "non ha saltato");
+                    return;
+                }
             }
 
             beatNo++;
             scheduleBeat(beatAt + lerp(BEAT_START, BEAT_END, progress()));
         }
 
-        // Elimina i giocatori indicati. Restituisce true se la partita è finita.
-        function eliminate(list, reason) {
+        // Interrompe il colpo corrente, annuncia gli eliminati e poi fa ripartire
+        // il round con i soli giocatori ancora in gara.
+        async function eliminate(list, reason) {
+            if (phase !== "live" || !list.length) return;
+            phase = "resolving";
             list.forEach(p => {
                 alive = alive.filter(a => a !== p);
                 outOrder.push(p);
                 status[p] = "OUT";
             });
             render();
-            toast(list.map(p => COLORS[p]).join(", ") + (list.length > 1 ? " eliminati: " : " eliminato: ") + reason);
 
+            const names = list.map(p => COLORS[p]).join(", ");
+            const announcement = names + (list.length > 1 ? " sono eliminati" : " è eliminato") +
+                " perché " + reason + ".";
+            show("🪢 Eliminazione!", announcement, "signal");
             const sound = playSampleWait(TRIP, () => {
                 tone(220, .25, "sawtooth", .12);
                 tone(110, .3, "sawtooth", .12, .15);
             });
+            await sound;
+            if (gone()) return;
+            await sayAsync(announcement + (alive.length ? " Continuano " + alive.map(p => COLORS[p]).join(", ") + "." : ""));
+            if (gone()) return;
 
             if (alive.length <= minAlive()) {
                 phase = "over";
                 stopInterval();
                 stopNatureAmbience();
-                conclude(sound);
-                return true;
+                conclude(Promise.resolve());
+                return;
             }
-            return false;
+            beatNo++;
+            phase = "live";
+            scheduleBeat(clock + lerp(BEAT_START, BEAT_END, progress()));
         }
 
-        async function conclude(sound) {
+        async function conclude(sound = Promise.resolve()) {
             const order = [...alive, ...[...outOrder].reverse()];
 
             if (alive.length) {
-                // announce = false: la voce parla dopo il suono dell'inciampo
                 finish("🪢 " + COLORS[alive[0]] + " è l'ultimo a saltare: vince!", order, false);
                 await sound;
                 if (game !== g) return;
@@ -9807,7 +9863,7 @@
         const CLICK = DIR + "click.mp3";
 
         // === PARAMETRI ===
-        const BPM = 60;          // Ritmo lento
+        const BPM = 45;          // Ritmo più disteso e leggibile
         const LOOPS = 5;         // Cinque giri con punteggio
         const COUNT_STEPS = 16;  // Conteggio iniziale: quattro battiti
         const HITS = 2;          // Pochi colpi per strumento
@@ -10321,7 +10377,14 @@
             startGame();
         },
         end: endGame,
-        games: () => ({...GAME_NAMES}),
+        games: () => {
+            let available = Object.entries(GAME_NAMES).filter(([id]) => !playedGames.has(id));
+            if (!available.length) {
+                playedGames.clear();
+                available = Object.entries(GAME_NAMES);
+            }
+            return Object.fromEntries(available);
+        },
         colors: () => ({...COLORS}),
         speak: (text, maxMs) => sayAsync(text, maxMs),
         // Suono di una posizione della classifica finale (1 = applausi, altre = buu). Si può aspettare con await.
