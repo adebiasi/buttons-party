@@ -2838,7 +2838,7 @@
                 positions.forEach(i => {
                     const p = pulses(d[i]);
                     let np;
-                    if (hard) np = Math.max(1, Math.min(10, p + (Math.random() < .5 ? -1 : 1)));
+                    if (hard) np = pick([-2, -1, 1, 2].map(x => p + x).filter(v => v >= 1 && v <= 10));
                     else { do { np = 1 + Math.floor(Math.random() * 10); } while (Math.abs(np - p) < 2); }
                     d[i] = np === 10 ? 0 : np;
                 });
@@ -4667,10 +4667,10 @@
             P2: DIR + "lattina.mp3",
             P3: DIR + "cannuccia.mp3",
             P4: DIR + "caramella.mp3",
-            P5: DIR + "biscotto.mp3",
-            P6: DIR + "bottiglietta.mp3",
-            P7: DIR + "cerniera.mp3",
-            P8: DIR + "bustina.mp3"
+            P5: DIR + "patatine.mp3",
+            P6: DIR + "lattina.mp3",
+            P7: DIR + "cannuccia.mp3",
+            P8: DIR + "caramella.mp3"
         };
         const SYNTH_FREQ = {P1: 4500, P2: 7000, P3: 2500, P4: 3500, P5: 3000, P6: 5500, P7: 6000, P8: 2000};   // timbro del suono sintetico di ripiego
         const PAN = new Proxy({}, {get: (_, id) => panSpread(id, .6)});   // distribuita tra i giocatori attivi
