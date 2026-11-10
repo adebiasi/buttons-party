@@ -1419,7 +1419,7 @@
     }
 
     function makeGame(id) {
-        return ({
+        const factory = ({
             pig: makePig,
             duel: makeDuel,
             parachute: makeParachute,
