@@ -11,6 +11,11 @@ body, body * { -webkit-user-select: none; user-select: none; }
 .nar-player.p2.ready { border-color: var(--blue); }
 .nar-player.p3.ready { border-color: var(--yellow); }
 .nar-player.p4.ready { border-color: var(--green); }
+/* Colori dei giocatori 5-8 */
+.nar-player.p5.ready { border-color: var(--orange, #ff9f43); }
+.nar-player.p6.ready { border-color: var(--purple, #a66cff); }
+.nar-player.p7.ready { border-color: var(--pink, #ff7eb6); }
+.nar-player.p8.ready { border-color: var(--white, #f1f5f9); }
 .nar-player strong, .nar-player span { display: block; }
 .nar-player span:last-child { margin-top: 6px; color: var(--muted); font-size: .9rem; }
 .nar-emoji { font-size: 1.8rem; margin-bottom: 6px; }
