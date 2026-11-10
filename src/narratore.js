@@ -20,11 +20,11 @@
   "use strict";
   const $ = (s) => document.querySelector(s);
   const BP = window.BPArcade;
-  const PLAYER_BUTTONS = ["P1", "P2", "P3", "P4"];
+  const PLAYER_BUTTONS = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"];
   const COLORS = BP.colors();
-  const COLOR_EMOJI = {P1: "🔴", P2: "🔵", P3: "🟡", P4: "🟢"};
+  const COLOR_EMOJI = {P1: "🔴", P2: "🔵", P3: "🟡", P4: "🟢", P5: "🟠", P6: "🟣", P7: "🌸", P8: "⚪"};
   const GAMES_PER_MATCH = 5;
-  const ORDINALS = ["primo", "secondo", "terzo", "quarto"];
+  const ORDINALS = ["primo", "secondo", "terzo", "quarto", "quinto", "sesto", "settimo", "ottavo"];
   // Nei giochi a squadre (4 giocatori) la classifica elenca prima i due vincitori, poi i due sconfitti.
   const TEAM_GAMES = new Set(["tug", "thirsty"]);
 
@@ -32,14 +32,23 @@
   const GAME_GROUPS = [
     ["bomb", "horse", "tennis"],                   // palla esplosiva, cavallino, tennis (si passa il turno)
     ["disturber", "beeper"],                       // disturbatore, bippatore
-    ["duel", "bounty"],                            // duello, taglia
+    ["duel", "bounty", "standoff"],      // duello, taglia, stallo messicano
     ["tug", "lesson", "grinder", "freeze", "typewriter"],   // fune, lezione, mola a disco, uno due tre stai là, macchina da scrivere
     ["pig", "door", "restaurant", "witnesses", "robot"],   // maiale, porta, ristorante, testimoni, robot (si preme solo quando tocca a te / su ciò che è sbagliato)
-    ["mine", "parachute", "pot", "mosquito"],      // miniera, paracadute, piglia tutto, zanzara (scegliere il momento giusto)
+    ["mine", "parachute", "pot", "mosquito", "roulette"],   // miniera, paracadute, piglia tutto, zanzara, roulette (rischio e momento giusto)
     ["tapas", "rally", "simon", "spy"],             // tapas, rally, simon, spia (sequenze da ricordare)
     ["beat", "copyrhythm", "rope"]                 // tieni il tempo, copia il ritmo, saltare la corda (ritmo)
   ];
   const GROUP_OF = Object.fromEntries(GAME_GROUPS.flatMap((g, i) => g.map(id => [id, i])));
+
+  // Giochi disponibili in base al numero di giocatori: [minimo, massimo] arriva da app.js (BP.limits), default 2-8
+  const availableGames = ids => {
+    const limits = BP.limits ? BP.limits() : {};
+    return ids.filter(id => {
+      const [min, max] = limits[id] || [2, 8];
+      return state.players.length >= min && state.players.length <= max;
+    });
+  };
 
   const state = {
     phase: "start",          // start | connect | register | lineup | playing | final
@@ -312,7 +321,7 @@
   async function lineup() {
     state.phase = "lineup";
     const names = BP.games();
-    state.games = pickGames(Object.keys(names), GAMES_PER_MATCH);
+    state.games = pickGames(availableGames(Object.keys(names)), GAMES_PER_MATCH);
     state.gameIndex = 0;
     state.lastPoints = {};
     state.totals = Object.fromEntries(state.players.map(id => [id, 0]));

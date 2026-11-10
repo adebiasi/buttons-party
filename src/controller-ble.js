@@ -37,6 +37,14 @@
     P3_UP:   ["P3", "up"],
     P4_DOWN: ["P4", "down"],
     P4_UP:   ["P4", "up"],
+    P5_DOWN: ["P5", "down"],
+    P5_UP:   ["P5", "up"],
+    P6_DOWN: ["P6", "down"],
+    P6_UP:   ["P6", "up"],
+    P7_DOWN: ["P7", "down"],
+    P7_UP:   ["P7", "up"],
+    P8_DOWN: ["P8", "down"],
+    P8_UP:   ["P8", "up"],
     C_DOWN: ["C", "down"],
     C_UP:   ["C", "up"]
   };

@@ -20,19 +20,21 @@
     "use strict";
     const $ = (s) => document.querySelector(s);
     const buttons = [...document.querySelectorAll("[data-button]")];
-    const COLORS = {P1: "Rosso", P2: "Blu", P3: "Giallo", P4: "Verde", C: "Centro"};
-    const PLAYER_BUTTONS = ["P1", "P2", "P3", "P4"];
-    const KEY_MAP = {"1": "P1", "2": "P2", "3": "P3", "4": "P4", " ": "C", "Enter": "C"};
+    const COLORS = {P1: "Rosso", P2: "Blu", P3: "Giallo", P4: "Verde", P5: "Arancione", P6: "Viola", P7: "Rosa", P8: "Bianco", C: "Centro"};
+    const PLAYER_BUTTONS = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"];
+    const KEY_MAP = {"1": "P1", "2": "P2", "3": "P3", "4": "P4", "5": "P5", "6": "P6", "7": "P7", "8": "P8", " ": "C", "Enter": "C"};
     const DESCRIPTIONS = {
         typewriter: "Premi il tuo tasto più veloce che puoi: ogni pressione fa il rumore di un tasto di macchina da scrivere e vale un punto. Quando senti il campanello di fine riga fermati: ogni pressione durante il campanello toglie un punto, anche sotto zero. Quando il suono finisce riparti subito. Dopo cinque righe il gioco finisce. Vince chi ha più punti.",
         witnesses: "Quattro testimoni raccontano quattro casi diversi. Ascolta il verbale e cerca le contraddizioni: chi le individua per primo guadagna un punto, chi segnala una frase corretta ne perde uno. Dopo ogni errore il narratore spiega chi l'ha trovato e perché.",
         robot: "Un robot dice una frase ma a metà si inceppa e ripete le prime sillabe di una parola. Ogni giocatore ha una sillaba fissa: quando manca la tua, premi per far continuare il robot. Finché il robot è bloccato, chi ha la sillaba giusta perde punti, sempre più in fretta. Se premi quando non tocca a te ne perdi due. A volte manca una sillaba che non è di nessuno: in quel caso non premere.",
         spy: "Sei una spia e devi capire chi ha composto il numero dei servizi segreti nemici: quattro cifre, diverso a ogni partita. Ascolta il suono del telefono a disco: più la cifra è alta, più il disco fa strada e più il suono dura. Quando senti comporre il numero giusto, premi per primo e prendi un punto. Se premi su un numero sbagliato, ne perdi uno. I numeri diventano sempre più veloci.",
-        tug: "Premi il tuo tasto più veloce che puoi per tirare la corda dalla tua parte. In due: al meglio di tre round. In tre: tre sfide uno contro uno. In quattro: due squadre, le pressioni dei compagni si sommano.",
+        standoff: "Hai dieci secondi. Puoi sparare un solo colpo, solo al giocatore alla tua sinistra, e ogni colpo costa un punto. Chi viene colpito è fuori. Puoi anche non sparare. Allo scadere i sopravvissuti si dividono i punti del round. Al secondo round si gira verso: si spara a destra.",
+        roulette: "Un revolver con una sola pallottola in otto camere. A turno, in senso orario, il giocatore di turno può premere per tirare il grilletto: se va a vuoto prende due punti e passa il turno, se il colpo parte muore e prende una penitenza. Può anche aspettare senza premere, per non rischiare. Il rischio aumenta a ogni colpo a vuoto.",
+        tug: "Premi il tuo tasto più veloce che puoi per tirare la corda dalla tua parte. In due: al meglio di tre round. In tre: tre sfide uno contro uno. Da quattro in su: due squadre sorteggiate, le pressioni dei compagni si sommano.",
         bounty: "Il narratore dice chi è il ricercato, poi dà il via, e alla fine di ogni round dice chi ha vinto. Tutti premono: se arrivi prima tu prendi un punto e il ricercato ne perde uno. Se il ricercato è più veloce, si salva e prende un punto. Se premi prima del via perdi un punto.",
         copyrhythm: "Un giocatore crea un ritmo di 8 battute premendo il suo tasto. Gli altri lo copiano tutti insieme seguendo la base. Poi cambia il creatore. Si fa un giro completo.",
         horse: "Cavallino: premi per galoppare e passare al prossimo, doppio tocco per saltare un giocatore, tieni premuto per invertire il verso. Il tempo per agire diminuisce continuamente. Si giocano tre round.",
-        thirsty: "Quante birre riesci a bere? Per ogni birra: premi per stappare, tieni premuto per bere, premi per buttare il bicchiere, tieni premuto per il rutto. Se lasci il tasto il suono riparte da dove eri. Conta solo la sequenza completa. In due: turni singoli. In tre: tre sfide uno contro uno. In quattro: due squadre, uno stappa e butta, l'altro beve e rutta.",
+        thirsty: "Quante birre riesci a bere? Per ogni birra: premi per stappare, tieni premuto per bere, premi per buttare il bicchiere, tieni premuto per il rutto. Se lasci il tasto il suono riparte da dove eri. Conta solo la sequenza completa. In due: turni singoli. In tre: tre sfide uno contro uno. Da quattro in su: due squadre, i quattro passaggi (stappare, bere, buttare il bicchiere, rutto) si dividono tra i compagni.",
         pig: "Ascolta i versi: premi quando senti il maiale, non gli altri animali. Vince chi ne cattura cinque.",
         duel: "Aspetta il segnale e premi appena lo senti. Anticipare significa falsa partenza. Il narratore dice chi vince ogni round.",
         parachute: "Apri il paracadute il più tardi possibile, ma prima dell'impatto. L'esito è rivelato alla fine. Si giocano tre round.",
@@ -72,6 +74,8 @@
         witnesses: "I testimoni",
         robot: "Il robot inceppato",
         spy: "La spia",
+        standoff: "Stallo messicano",
+        roulette: "Roulette russa",
         typewriter: "Macchina da scrivere",
         tapas: "Consegna tapas",
         rally: "Rally",
@@ -549,7 +553,7 @@
     }
 
     function beepButton(id) {
-        const freqs = {P1: 330, P2: 392, P3: 494, P4: 262, C: 587};
+        const freqs = {P1: 330, P2: 392, P3: 494, P4: 262, P5: 294, P6: 349, P7: 440, P8: 523, C: 587};
         tone(freqs[id] || 440, .07, "sine", .045);
     }
 
@@ -849,6 +853,21 @@
         }, ms);
     }
 
+    // Numero di giocatori (minimo, massimo) per ogni gioco; i giochi non elencati vanno da 2 a 8.
+    // Tapas e Rally usano ancora una geometria pensata per 4 (le direzioni sono relative alla croce dei tasti).
+    const GAME_LIMITS = {
+        tapas: [2, 4], rally: [2, 4],
+        standoff: [3, 8]
+    };
+    const limitsFor = id => GAME_LIMITS[id] || [2, 8];
+
+    // Posizione stereo di un giocatore, distribuita tra i giocatori attivi da -width a +width
+    function panSpread(id, width) {
+        const ids = playerIds(), i = ids.indexOf(id);
+        if (i < 0 || ids.length < 2) return 0;
+        return -width + 2 * width * i / (ids.length - 1);
+    }
+
     function playerIds() {
         return activeButtons ? [...activeButtons] : PLAYER_BUTTONS.slice(0, players);
     }
@@ -1072,6 +1091,14 @@
         pausedTotal = 0;
         paused = false;
         players = Number($("#player-count").value);
+        {
+            const [min, max] = limitsFor($("#game-select").value);
+            const count = playerIds().length;
+            if (count < min || count > max) {
+                toast(GAME_NAMES[$("#game-select").value] + ": servono da " + min + " a " + max + " giocatori");
+                return;
+            }
+        }
         scores = Object.fromEntries(playerIds().map(id => [id, 0]));
         $("#setup-panel").hidden = true;
         $("#game-panel").hidden = false;
@@ -1107,7 +1134,7 @@
     }
 
     // Giochi a più round: quanti round si giocano
-    const MULTI_ROUNDS = {horse: 3, parachute: 3, mosquito: 3, mine: 3, bomb: 3, rope: 3, tennis: 3, grinder: 3};
+    const MULTI_ROUNDS = {horse: 3, parachute: 3, mosquito: 3, pot: 3, mine: 3, bomb: 3, rope: 3, tennis: 3, grinder: 3};
 
     function recordRound(m, ranking, pointAdjustments = {}) {
         if (ranking && ranking.length) {
@@ -1184,6 +1211,10 @@
             window.BPDebug?.finishIgnored(message, !game);
             return;
         }
+        if (game.onFinishHook) {            // partita a gruppi: la fine di un gruppo non chiude la partita
+            game.onFinishHook(message, ranking);
+            return;
+        }
         const m = game.match;
         if (m) {
             if (m.round < m.total) {
@@ -1236,6 +1267,157 @@
         };
     }
 
+    // Giochi con strumenti o parti per 4 che, con più di 4 giocatori, si giocano a gruppi: prima un gruppo, poi gli altri
+    const GROUPED_GAMES = new Set(["beat", "copyrhythm"]);
+
+    // Divide i giocatori in gruppi bilanciati di al massimo `maxSize` (5 → 3+2, 6 → 3+3, 7 → 4+3, 8 → 4+4)
+    function splitGroups(ids, maxSize = 4) {
+        const k = Math.ceil(ids.length / maxSize), base = Math.floor(ids.length / k), extra = ids.length % k;
+        const groups = [];
+        let i = 0;
+        for (let g = 0; g < k; g++) {
+            const size = base + (g < extra ? 1 : 0);
+            groups.push(ids.slice(i, i + size));
+            i += size;
+        }
+        return groups;
+    }
+
+    // Gioca `factory()` una volta per gruppo (playerIds() restituisce solo il gruppo in gioco), poi unisce i punti
+    function makeInGroups(id, factory) {
+        const outer = baseGame(id);
+        const all = [...playerIds()];
+        const groups = splitGroups(all);
+        const original = activeButtons;
+        const total = {};
+        let gi = 0, inner = null;
+        const restore = () => { activeButtons = original; };
+        const names = list => {
+            const w = list.map(p => COLORS[p].toLowerCase());
+            return w.length < 2 ? w.join("") : w.slice(0, -1).join(", ") + " e " + w.at(-1);
+        };
+
+        outer.dispose = () => { restore(); stopTimer(); };
+
+        function runGroup() {
+            activeButtons = groups[gi];
+            inner = factory();
+            inner.match = gi > 0 ? {round: 2, total: 2, wins: {}, points: {}} : null;   // dal secondo gruppo si salta la spiegazione
+            const innerDispose = inner.dispose;
+            inner.dispose = () => { if (innerDispose) innerDispose.call(inner); restore(); };
+            inner.onFinishHook = () => {
+                groups[gi].forEach(p => { total[p] = scores[p] || 0; });
+                inner.finished = true;
+                inner.dispose();
+                game = outer;
+                gi++;
+                if (gi < groups.length) {
+                    nextGroup();
+                } else {
+                    restore();
+                    scores = {...total};
+                    renderScores();
+                    const order = [...all].sort((a, b) => total[b] - total[a]);
+                    const tie = total[order[0]] === total[order[1]];
+                    finish(tie ? "🥁 Pareggio!" : "🥁 Vince " + COLORS[order[0]], tie ? null : order);
+                }
+            };
+            game = inner;
+            scores = Object.fromEntries(groups[gi].map(p => [p, 0]));
+            renderScores();
+            inner.setup();
+            inner.start();
+        }
+
+        async function nextGroup() {
+            const my = outer;
+            setArena("Gruppo " + (gi + 1) + " di " + groups.length, names(groups[gi]));
+            await sayAsync("Ora tocca a " + names(groups[gi]) + ". Gli altri ascoltano.", 8000);
+            if (game !== my) return;
+            runGroup();
+        }
+
+        outer.start = async () => {
+            $("#game-status").textContent = "GIOCO A GRUPPI";
+            setArena("Gioco a gruppi", groups.map(names).join(" · "));
+            scores = Object.fromEntries(all.map(p => [p, 0]));
+            renderScores();
+            await sayAsync("Siete in " + all.length + ", quindi si gioca a gruppi. Prima " + names(groups[0]) +
+                ". Poi " + groups.slice(1).map(names).join(", poi ") + ". I punti si sommano.", 12000);
+            if (game !== outer) return;
+            runGroup();
+        };
+        return outer;
+    }
+
+    // Giochi con una parte (voce, sillaba...) per ogni giocatore, al massimo 4: con più di 4 giocatori si formano fino a 4 squadre
+    const TEAM_GAMES = new Set(["beeper"]);
+    let teamLabels = {};     // nome da dire per ogni "capo squadra" (es. «Rosso e Blu»)
+    const teamLabel = id => teamLabels[id] || COLORS[id];
+
+    // Ogni squadra è guidata da un giocatore (il "capo"): il gioco vede solo i capi come giocatori, i tasti dei compagni
+    // contano come tasti del capo e i punti della squadra vanno a tutti i suoi componenti.
+    function makeWithTeams(id, factory) {
+        const all = [...playerIds()];
+        const original = activeButtons;
+        const k = Math.min(4, Math.ceil(all.length / 2));
+        const order = [...all].sort(() => Math.random() - .5);
+        const teams = Array.from({length: k}, () => []);
+        order.forEach((p, i) => teams[i % k].push(p));
+        const leaderOf = {};
+        teams.forEach(t => t.forEach(p => { leaderOf[p] = t[0]; }));
+        const leaders = teams.map(t => t[0]).sort();
+        const names = list => list.map(p => COLORS[p]).join(" e ");
+        const holds = {};                         // quanti compagni tengono premuto il tasto di ogni squadra
+        teamLabels = Object.fromEntries(teams.map(t => [t[0], names(t)]));
+        activeButtons = leaders;
+
+        const inner = factory();
+        const restore = () => { activeButtons = original; teamLabels = {}; };
+
+        const start = inner.start.bind(inner);
+        inner.start = async () => {
+            $("#game-status").textContent = "A SQUADRE";
+            setArena("Si gioca a squadre", teams.map(names).join(" · "));
+            await sayAsync("Siete in " + all.length + ", quindi si gioca a squadre. " +
+                teams.map((t, i) => "Squadra " + (i + 1) + ": " + names(t)).join(". ") + ". Basta che un compagno prema per la squadra.", 14000);
+            if (game !== inner) return;
+            return start();
+        };
+
+        const onInput = inner.onInput.bind(inner);
+        inner.onInput = e => {
+            const leader = leaderOf[e.button];
+            if (!leader) return onInput(e);
+            if (e.type === "down") {
+                holds[leader] = (holds[leader] || 0) + 1;
+                if (holds[leader] > 1) return;             // un compagno sta già tenendo premuto
+            } else if (e.type === "up") {
+                holds[leader] = Math.max(0, (holds[leader] || 0) - 1);
+                if (holds[leader] > 0) return;             // un altro compagno tiene ancora premuto
+            }
+            onInput({...e, button: leader});
+        };
+
+        inner.onFinishHook = () => {
+            inner.onFinishHook = null;
+            const order2 = [...leaders].sort((a, b) => scores[b] - scores[a]);
+            const tie = order2.length > 1 && scores[order2[0]] === scores[order2[1]];
+            const total = {};
+            teams.forEach(t => t.forEach(p => { total[p] = scores[t[0]] || 0; }));
+            const winnerTeam = teams.find(t => t[0] === order2[0]);
+            restore();
+            scores = total;
+            renderScores();
+            finish(tie ? "🔇 Pareggio!" : "🔇 Vince la squadra " + names(winnerTeam) + " con " + total[winnerTeam[0]] + " punti!",
+                tie ? null : order2.flatMap(l => teams.find(t => t[0] === l)));
+        };
+
+        const innerDispose = inner.dispose;
+        inner.dispose = () => { if (innerDispose) innerDispose.call(inner); restore(); };
+        return inner;
+    }
+
     function makeGame(id) {
         return ({
             pig: makePig,
@@ -1266,8 +1448,12 @@
             witnesses: makeWitnesses,
             robot: makeRobot,
             spy: makeSpy,
+            standoff: makeStandoff,
+            roulette: makeRoulette,
             typewriter: makeTypewriter
-        })[id]();
+        })[id];
+        if (TEAM_GAMES.has(id) && playerIds().length > 4) return makeWithTeams(id, factory);
+        return GROUPED_GAMES.has(id) && playerIds().length > 4 ? makeInGroups(id, factory) : factory();
     }
 
     function makePig() {
@@ -1665,11 +1851,13 @@
         const BACKGROUND = DIR + "background-voci.mp3";
         const TARGET_NAME = "Topo Gigio";
         const TARGET_VOICES = [1, 2, 3].map(n => DIR + "topo-gigio-" + n + ".mp3");
-        const HIT_SOUNDS = {P1: DIR + "colpo-1.mp3", P2: DIR + "colpo-2.mp3", P3: DIR + "colpo-3.mp3", P4: DIR + "colpo-4.mp3"};
-        const MISS_SOUNDS = {P1: DIR + "errore-1.mp3", P2: DIR + "errore-1.mp3", P3: DIR + "errore-1.mp3", P4: DIR + "errore-1.mp3"};
+        const HIT_SOUNDS = {P1: DIR + "colpo-1.mp3", P2: DIR + "colpo-2.mp3", P3: DIR + "colpo-3.mp3", P4: DIR + "colpo-4.mp3",
+            P5: DIR + "colpo-5.mp3", P6: DIR + "colpo-6.mp3", P7: DIR + "colpo-7.mp3", P8: DIR + "colpo-8.mp3"};
+        const MISS_SOUNDS = {P1: DIR + "errore-1.mp3", P2: DIR + "errore-1.mp3", P3: DIR + "errore-1.mp3", P4: DIR + "errore-1.mp3",
+            P5: DIR + "errore-1.mp3", P6: DIR + "errore-1.mp3", P7: DIR + "errore-1.mp3", P8: DIR + "errore-1.mp3"};
         // Se il file manca: un tono diverso per giocatore
-        const HIT_TONE = {P1: 660, P2: 520, P3: 830, P4: 1040};
-        const MISS_TONE = {P1: 110, P2: 90, P3: 135, P4: 160};
+        const HIT_TONE = {P1: 660, P2: 520, P3: 830, P4: 1040, P5: 740, P6: 590, P7: 930, P8: 1170};
+        const MISS_TONE = {P1: 110, P2: 90, P3: 135, P4: 160, P5: 100, P6: 80, P7: 120, P8: 175};
 
         const TARGET_GRACE = 350;     // tolleranza dopo la fine della voce (ms)
         const DURATION = 35000; // partita più breve
@@ -2242,14 +2430,16 @@
         const shuffle = list => [...list].sort(() => Math.random() - .5);
         const norm = lang => (lang || "").replace("_", "-").toLowerCase();
 
-        // Sillaba fissa di ogni giocatore, con una parola di esempio per dirla bene a voce
-        const SYLLABLE = {
-            P1: {syl: "ta", example: "patata"},
-            P2: {syl: "ma", example: "mamma"},
-            P3: {syl: "mi", example: "mimosa"},
-            P4: {syl: "no", example: "nonno"}
-        };
-        const OWNER_OF = Object.fromEntries(Object.entries(SYLLABLE).map(([id, v]) => [v.syl, id]));
+        // Sillaba fissa di ogni squadra (con 4 giocatori o meno ogni giocatore è una squadra), con una parola di esempio
+        const SYLLABLES = [
+            {syl: "ta", example: "patata"},
+            {syl: "ma", example: "mamma"},
+            {syl: "mi", example: "mimosa"},
+            {syl: "no", example: "nonno"}
+        ];
+        let teams = [], teamOf = {};          // squadre (liste di giocatori) e squadra di ogni giocatore
+        const teamLabel = i => teams[i].map(p => COLORS[p]).join(" e ");
+        const addTeam = (i, delta) => teams[i].forEach(p => { scores[p] += delta; });
 
         // Frasi: la parola si divide in sillabe e "miss" è l'indice della sillaba che manca (la prima dopo il blocco)
         const ENTRIES = [
@@ -2358,18 +2548,18 @@
             stopTick();
             ticks = 0;
             tickTimer = setInterval(() => {
-                if (!stuck || resolved || gone() || paused || !owner) return;
+                if (!stuck || resolved || gone() || paused || owner === null) return;
                 ticks++;
                 const loss = 1 + Math.floor((ticks - 1) / TICKS_PER_LEVEL);
-                scores[owner] -= loss;
+                addTeam(owner, -loss);
                 renderScores();
                 tone(150, .08, "square", .06);
-                setArena("🤖 Il robot è bloccato!", COLORS[owner] + " −" + loss);
+                setArena("🤖 Il robot è bloccato!", teamLabel(owner) + " −" + loss);
             }, TICK_MS);
         }
 
-        function pickWords(players) {
-            const mine = new Set(players.map(p => SYLLABLE[p] && SYLLABLE[p].syl).filter(Boolean));
+        function pickWords() {
+            const mine = new Set(teams.map((_, i) => SYLLABLES[i].syl));
             const isOwned = e => mine.has(e.syl[e.miss]);
             const owned = shuffle(ENTRIES.filter(isOwned));
             const nobody = shuffle(ENTRIES.filter(e => !isOwned(e)));
@@ -2379,6 +2569,15 @@
 
         g.start = async () => {
             stuck = false; resolved = false; owner = null; entry = null; lastWrong = {};
+            {   // con più di 4 giocatori: fino a 4 squadre sorteggiate (una sillaba per squadra)
+                const ids = [...playerIds()];
+                const k = ids.length > 4 ? Math.min(4, Math.ceil(ids.length / 2)) : ids.length;
+                const order = ids.length > 4 ? shuffle(ids) : ids;
+                teams = Array.from({length: k}, () => []);
+                order.forEach((p, i) => teams[i % k].push(p));
+                teamOf = {};
+                teams.forEach((t, i) => t.forEach(p => { teamOf[p] = i; }));
+            }
             scores = Object.fromEntries(playerIds().map(p => [p, 0]));
             renderScores();
             $("#game-status").textContent = "IL ROBOT SI INCEPPA";
@@ -2400,12 +2599,11 @@
             if (gone()) return;
             await wait(300);
             await sayAsync("Manca ta: deve premere chi ha ta. Ora le sillabe.");
-            for (const id of playerIds()) {
+            for (let i = 0; i < teams.length; i++) {
                 if (gone()) return;
-                const sy = SYLLABLE[id];
-                if (!sy) continue;
-                setArena("🤖 " + COLORS[id] + ": " + sy.syl.toUpperCase(), "Come in " + sy.example);
-                await sayAsync(COLORS[id] + ": la tua sillaba è " + sy.syl + ", come in " + sy.example + ".");
+                const sy = SYLLABLES[i];
+                setArena("🤖 " + teamLabel(i) + ": " + sy.syl.toUpperCase(), "Come in " + sy.example);
+                await sayAsync(teamLabel(i) + ": " + (teams[i].length > 1 ? "la vostra sillaba è " : "la tua sillaba è ") + sy.syl + ", come in " + sy.example + ".");
                 await wait(300);
             }
             if (gone()) return;
@@ -2414,20 +2612,20 @@
         };
 
         async function runWords() {
-            const list = pickWords(playerIds());
+            const list = pickWords();
             for (let i = 0; i < list.length; i++) {
                 if (gone()) return;
                 entry = list[i];
-                owner = OWNER_OF[entry.syl[entry.miss]];
-                if (owner && !playerIds().includes(owner)) owner = null;
+                const ti = SYLLABLES.findIndex((sy, k) => k < teams.length && sy.syl === entry.syl[entry.miss]);
+                owner = ti >= 0 ? ti : null;       // squadra a cui tocca premere (null: non è di nessuno)
                 resolved = false;
                 stuck = false;
                 $("#game-status").textContent = "PAROLA " + (i + 1) + " DI " + list.length;
                 setArena("🤖 Il robot parla…", "");
                 // metà partita: ripasso delle sillabe
                 if (i === Math.floor(list.length / 2)) {
-                    await sayAsync("Ricordate le sillabe. " + playerIds().filter(id => SYLLABLE[id]).map(id =>
-                        COLORS[id] + ": " + SYLLABLE[id].syl).join(". ") + ".");
+                    await sayAsync("Ricordate le sillabe. " + teams.map((t, k) =>
+                        teamLabel(k) + ": " + SYLLABLES[k].syl).join(". ") + ".");
                     if (gone()) return;
                 }
                 await robotSay(entry.before);
@@ -2441,12 +2639,12 @@
                 startTick();
                 while (!resolved && !gone()) {
                     const elapsed = performance.now() - stuckAt;
-                    if (elapsed > MAX_STUCK_MS || (!owner && elapsed > NOBODY_MS)) break;
+                    if (elapsed > MAX_STUCK_MS || (owner === null && elapsed > NOBODY_MS)) break;
                     const syllables = first ? [...prefix, ...Array(REPEATS - 1).fill(last)] : Array(REPEATS).fill(last);
                     first = false;
                     await robotSay(syllables.join(", ") + ",", () => {
                         stuck = true;
-                        setArena("🤖 Il robot è bloccato!", owner ? "Manca la sillaba di " + COLORS[owner] : "Non è di nessuno: non premere");
+                        setArena("🤖 Il robot è bloccato!", owner !== null ? "Manca la sillaba di " + teamLabel(owner) : "Non è di nessuno: non premere");
                     });
                 }
                 stuck = false;
@@ -2468,12 +2666,12 @@
         g.onInput = e => {
             if (e.type !== "down" || !playerIds().includes(e.button) || g.finished || !stuck || resolved) return;
             const id = e.button;
-            if (owner && id === owner) {
+            if (owner !== null && teamOf[id] === owner) {
                 // sillaba giusta: il robot si sblocca
                 resolved = true;
                 stuck = false;
                 const fast = performance.now() - stuckAt <= FAST_MS;
-                if (fast) scores[id] += FAST_BONUS;
+                if (fast) addTeam(owner, FAST_BONUS);
                 renderScores();
                 tone(988, .12, "triangle", .1);
                 tone(1319, .18, "triangle", .1, .1);
@@ -2485,7 +2683,7 @@
             const now = performance.now();
             if (now - (lastWrong[id] || 0) < WRONG_COOLDOWN) return;
             lastWrong[id] = now;
-            scores[id] -= WRONG_PENALTY;
+            addTeam(teamOf[id], -WRONG_PENALTY);          // la penitenza va a tutta la squadra di chi ha sbagliato
             renderScores();
             tone(160, .2, "sawtooth", .08);
             setArena("❌ Non toccava a te! " + COLORS[id] + " −" + WRONG_PENALTY);
@@ -2752,6 +2950,306 @@
         return g;
     }
 
+    function makeStandoff() {
+        // "Stallo messicano": ogni round dura 10 secondi. Ognuno ha un solo colpo, solo al giocatore alla sua sinistra (a destra
+        // nei round pari), e ogni colpo costa un punto. Chi è colpito è fuori. Allo scadere i sopravvissuti si dividono i punti.
+        const g = baseGame("standoff");
+
+        // === Parametri ===
+        const ROUNDS = 3;                  // il verso si alterna: sinistra, destra, sinistra
+        const SECONDS = 10;                // durata di un round
+        const POINTS_PER_PLAYER = 3;       // punti del round = 3 x numero di giocatori, divisi tra i sopravvissuti
+        const MAX_SHARE = 6;               // massimo di punti per sopravvissuto
+        const SHOT_COST = 1;               // ogni colpo sparato costa un punto
+        const WARN_AT = 5;                 // secondi rimasti in cui la voce avvisa
+
+        const SHOT_SOUND = "assets/sounds/duello/pistola-sparo.mp3";
+        const JAM_SOUND = "assets/sounds/duello/proiettile-schiavato.mp3";     // chi è già fuori prova a sparare
+
+        const gone = () => game !== g || g.finished;
+        const LEFT = 1, RIGHT = -1;        // "sinistra" = il colore successivo (rosso, blu, giallo, verde)
+        const lower = id => COLORS[id].toLowerCase();
+        const listWords = w => w.length < 2 ? w.join("") : w.slice(0, -1).join(", ") + " e " + w.at(-1);
+
+        let round = 1, introDone = false, phase = "idle", token = 0, ticker = null, left = 0;
+        let ring = [], dir = LEFT, fired = new Set(), dead = new Set(), shots = [];
+
+        const targetOf = id => ring[(ring.indexOf(id) + dir + ring.length) % ring.length];
+        const stopTicker = () => { clearInterval(ticker); ticker = null; };
+
+        g.start = async () => {
+            introDone = false; round = 1; phase = "idle";
+            scores = Object.fromEntries(playerIds().map(p => [p, 0]));
+            renderScores();
+            $("#game-status").textContent = "STALLO MESSICANO";
+            setArena("🌵 Stallo messicano", "Ascolta le istruzioni");
+            if (!await narrate(g, "Stallo messicano. In ogni round hai " + SECONDS + " secondi. " +
+                "Puoi sparare un solo colpo, solo al giocatore alla tua sinistra, e ogni colpo costa un punto. " +
+                "Chi viene colpito è fuori e non può più sparare. Puoi anche non sparare. " +
+                "Allo scadere i sopravvissuti si dividono i punti del round: " + POINTS_PER_PLAYER + " per ogni giocatore, con un massimo di " + MAX_SHARE + " a testa. " +
+                "Al secondo round si gira verso: si spara a destra. Si giocano " + ROUNDS + " round.")) return;
+            introDone = true;
+            beginRound();
+        };
+
+        function beginRound() {
+            if (gone()) return;
+            ring = [...playerIds()].sort();
+            dir = round % 2 === 1 ? LEFT : RIGHT;
+            fired = new Set(); dead = new Set(); shots = [];
+            phase = "announce";
+            const my = ++token;
+            const side = dir === LEFT ? "sinistra" : "destra";
+            $("#game-status").textContent = "ROUND " + round + " DI " + ROUNDS;
+            setArena("Round " + round + " / " + ROUNDS, ring.length === 2 ? "Spari all'altro giocatore" : "Si spara a " + side);
+            renderScores();
+            const text = ring.length === 2
+                ? "Round " + round + ". Spari all'altro giocatore. Via!"
+                : "Round " + round + ". Si spara al giocatore alla propria " + side + ". Via!";
+            sayAsync(text, 7000).then(() => {
+                if (gone() || my !== token) return;
+                phase = "open";
+                left = SECONDS;
+                setArena("🌵 " + left, "Spara… o aspetta");
+                ticker = setInterval(() => {
+                    if (gone() || my !== token) return stopTicker();
+                    if (paused) return;
+                    left--;
+                    tone(left <= 3 ? 1200 : 900, .04, "square", .05);   // tic discreto a ogni secondo
+                    setArena("🌵 " + Math.max(left, 0), "Spara… o aspetta");
+                    if (left === WARN_AT) say(WARN_AT + " secondi.");
+                    if (left <= 0) endRound(my);
+                }, 1000);
+            });
+        }
+
+        function everyoneFired() {
+            // il round può finire prima se tutti quelli ancora in piedi hanno già sparato
+            return ring.filter(p => !dead.has(p)).every(p => fired.has(p));
+        }
+
+        async function endRound(my) {
+            if (phase !== "open" || my !== token) return;
+            phase = "done";
+            stopTicker();
+            tone(440, .5, "triangle", .12);   // fine del tempo
+
+            const alive = ring.filter(p => !dead.has(p));
+            const share = alive.length ? Math.min(MAX_SHARE, Math.floor(POINTS_PER_PLAYER * ring.length / alive.length)) : 0;
+            alive.forEach(p => { scores[p] += share; });
+            renderScores();
+
+            const parts = [];
+            parts.push(shots.length
+                ? shots.map(h => lower(h.shooter) + " ha colpito " + lower(h.target)).join(". ") + "."
+                : "Nessuno ha sparato.");
+            parts.push(alive.length
+                ? (alive.length === ring.length ? "Sono sopravvissuti tutti" : "Sopravvissuti: " + listWords(alive.map(lower))) +
+                  ", " + share + (share === 1 ? " punto" : " punti") + (alive.length > 1 ? " a testa." : ".")
+                : "Nessun sopravvissuto.");
+            setArena("Fine del round " + round, alive.length + (alive.length === 1 ? " sopravvissuto" : " sopravvissuti") + " · " + share + " a testa");
+            const text = parts.join(" ");
+            await sayAsync(text.charAt(0).toUpperCase() + text.slice(1), 12000);
+            if (gone()) return;
+            round++;
+            if (round <= ROUNDS) {
+                later(beginRound, 1200);
+            } else {
+                later(() => {
+                    const order = playerIds().sort((a, b) => scores[b] - scores[a]);
+                    const tie = scores[order[0]] === scores[order[1]];
+                    finish(tie ? "🌵 Pareggio!" : "🌵 Vince " + COLORS[order[0]], tie ? null : order);
+                }, 1200);
+            }
+        }
+
+        g.onInput = e => {
+            if (e.type !== "down" || e.button === "C" || gone() || !introDone || phase !== "open") return;
+            const id = e.button;
+            if (!playerIds().includes(id) || fired.has(id)) return;   // un solo colpo
+            fired.add(id);
+            if (dead.has(id)) {                                       // già colpito: non spara e non paga
+                playSample(JAM_SOUND, () => tone(120, .15, "square", .08));
+                return;
+            }
+            const target = targetOf(id);
+            dead.add(target);
+            shots.push({shooter: id, target});
+            scores[id] -= SHOT_COST;
+            renderScores();
+            playSample(SHOT_SOUND, () => tone(180, .18, "sawtooth", .15));   // il colpo si sente, ma non si sa chi ha sparato
+            if (everyoneFired()) {
+                const my = token;
+                later(() => { if (!gone() && my === token) endRound(my); }, 900);
+            }
+        };
+
+        g.dispose = () => {
+            token++;
+            phase = "idle";
+            stopTicker();
+        };
+        g.resume = () => setArena("Stallo messicano ripreso", "Continua a giocare");
+        return g;
+    }
+
+    function makeRoulette() {
+        // "Roulette russa": un revolver con una sola pallottola in CHAMBERS camere. A turno, in senso orario, il giocatore di turno
+        // può premere per tirare il grilletto (a vuoto: punti e passa; colpo partito: muore, penitenza e il round finisce)
+        // oppure aspettare senza premere (passa senza rischiare, senza punti). Il rischio cresce a ogni colpo a vuoto.
+        const g = baseGame("roulette");
+
+        // === Parametri ===
+        const CHAMBERS = 8;                // camere del tamburo (una sola ha il proiettile)
+        const ROUNDS = 3;                  // a ogni round parte un giocatore diverso
+        const TURN_SECONDS = 5;            // tempo per decidere
+        const PULL_POINTS = 2;             // colpo a vuoto
+        const PASS_POINTS = 0;             // aspettare senza premere
+        const DEATH_PENALTY = 4;           // colpo partito
+
+        const SPIN_SOUND = "assets/sounds/roulette/giro-tamburo.mp3";
+        const CLICK_SOUND = "assets/sounds/roulette/click.mp3";             // colpo a vuoto
+        const SHOT_SOUND = "assets/sounds/duello/pistola-sparo.mp3";        // colpo partito
+
+        const gone = () => game !== g || g.finished;
+        const lower = id => COLORS[id].toLowerCase();
+        const word = n => ["zero", "uno", "due", "tre", "quattro", "cinque", "sei", "sette", "otto"][n] || String(n);
+
+        let round = 1, introDone = false, phase = "idle", token = 0, ticker = null, left = 0;
+        let ring = [], turn = 0, pulls = 0, bulletAt = 0, passesInRow = 0, forced = false;
+
+        const current = () => ring[turn % ring.length];
+        const stopTicker = () => { clearInterval(ticker); ticker = null; };
+
+        g.start = async () => {
+            introDone = false; round = 1; phase = "idle";
+            [SPIN_SOUND, CLICK_SOUND, SHOT_SOUND].forEach(loadSample);
+            scores = Object.fromEntries(playerIds().map(p => [p, 0]));
+            renderScores();
+            $("#game-status").textContent = "ROULETTE RUSSA";
+            setArena("🔫 Roulette russa", "Ascolta le istruzioni");
+            if (!await narrate(g, "Roulette russa. Un revolver con " + CHAMBERS + " camere e una sola pallottola. " +
+                "A turno, in senso orario, il giocatore di turno può premere per tirare il grilletto: " +
+                "se va a vuoto prende " + PULL_POINTS + " punti e passa il turno; se il colpo parte, muore e prende una penitenza di " + DEATH_PENALTY + " punti, e il round finisce. " +
+                "Puoi anche aspettare " + TURN_SECONDS + " secondi senza premere: passi senza rischiare, ma senza punti. " +
+                "Il rischio aumenta a ogni colpo a vuoto: ti dico sempre quante camere restano. " +
+                "Se tutti passano di fila, il prossimo deve premere. Si giocano " + ROUNDS + " round.")) return;
+            introDone = true;
+            beginRound();
+        };
+
+        function beginRound() {
+            if (gone()) return;
+            ring = [...playerIds()].sort();
+            bulletAt = 1 + Math.floor(Math.random() * CHAMBERS);     // a quale colpo parte il proiettile
+            pulls = 0; passesInRow = 0;
+            turn = (round - 1) % ring.length;                        // a ogni round parte un giocatore diverso
+            phase = "announce";
+            const my = ++token;
+            $("#game-status").textContent = "ROUND " + round + " DI " + ROUNDS;
+            setArena("Round " + round + " / " + ROUNDS, "Si carica un solo proiettile");
+            renderScores();
+            playSample(SPIN_SOUND, () => {
+                for (let i = 0; i < 8; i++) tone(500 + i * 40, .03, "square", .05, i * .05);   // il tamburo gira
+            });
+            sayAsync("Round " + round + ". Un solo proiettile in " + CHAMBERS + " camere. Si comincia da " + lower(ring[turn]) + ".", 8000).then(() => {
+                if (gone() || my !== token) return;
+                nextTurn("");
+            });
+        }
+
+        async function nextTurn(prefix) {
+            if (gone()) return;
+            const my = token, id = current(), remaining = CHAMBERS - pulls;
+            forced = passesInRow >= ring.length;                    // un giro intero di passaggi: ora si deve premere
+            phase = "announce";
+            setArena("🔫 Tocca a " + lower(id), "Rischio: uno su " + remaining);
+            const text = prefix + "Tocca a " + lower(id) + ". Rischio: uno su " + word(remaining) + "." + (forced ? " Devi premere!" : "");
+            await sayAsync(text, 8000);
+            if (gone() || my !== token) return;
+            phase = "open";
+            left = TURN_SECONDS;
+            setArena("🔫 " + COLORS[id] + " · " + left, forced ? "Devi premere!" : "Premi o aspetta");
+            ticker = setInterval(() => {
+                if (gone() || my !== token) return stopTicker();
+                if (paused) return;
+                left--;
+                tone(left <= 2 ? 1200 : 900, .04, "square", .05);
+                setArena("🔫 " + COLORS[id] + " · " + Math.max(left, 0), forced ? "Devi premere!" : "Premi o aspetta");
+                if (left <= 0) timeout(my);
+            }, 1000);
+        }
+
+        function timeout(my) {
+            if (phase !== "open" || my !== token) return;
+            stopTicker();
+            const id = current();
+            if (forced) {                                           // tempo scaduto quando si doveva premere: il grilletto parte da solo
+                pull(id, "Tempo scaduto. ");
+                return;
+            }
+            scores[id] += PASS_POINTS;
+            renderScores();
+            passesInRow++;
+            turn++;
+            nextTurn(lower(id) + " passa. ");
+        }
+
+        async function pull(id, prefix) {
+            phase = "busy";
+            stopTicker();
+            pulls++;
+            if (pulls === bulletAt) {
+                scores[id] -= DEATH_PENALTY;
+                renderScores();
+                playSample(SHOT_SOUND, () => tone(180, .3, "sawtooth", .18));
+                setArena("💥 " + COLORS[id] + " è morto", "Penitenza −" + DEATH_PENALTY);
+                await wait(900);
+                if (gone()) return;
+                await sayAsync(prefix + "Bang! " + COLORS[id] + " è morto. Penitenza: " + DEATH_PENALTY + " punti.", 8000);
+                if (gone()) return;
+                round++;
+                if (round <= ROUNDS) {
+                    later(beginRound, 1200);
+                } else {
+                    later(() => {
+                        const order = playerIds().sort((a, b) => scores[b] - scores[a]);
+                        const tie = scores[order[0]] === scores[order[1]];
+                        finish(tie ? "🔫 Pareggio!" : "🔫 Vince " + COLORS[order[0]], tie ? null : order);
+                    }, 1200);
+                }
+                return;
+            }
+            scores[id] += PULL_POINTS;
+            renderScores();
+            passesInRow = 0;
+            playSample(CLICK_SOUND, () => tone(320, .04, "square", .1));
+            setArena("✅ Click! " + COLORS[id] + " +" + PULL_POINTS, "A vuoto");
+            turn++;
+            await wait(500);
+            if (gone()) return;
+            nextTurn(prefix + "A vuoto. ");
+        }
+
+        async function wait(ms) {
+            await new Promise(r => setTimeout(r, ms));
+        }
+
+        g.onInput = e => {
+            if (e.type !== "down" || e.button === "C" || gone() || !introDone || phase !== "open") return;
+            if (e.button !== current()) return;                    // contano solo i tasti del giocatore di turno
+            pull(e.button, "");
+        };
+
+        g.dispose = () => {
+            token++;
+            phase = "idle";
+            stopTicker();
+        };
+        g.resume = () => setArena("Roulette russa ripresa", "Continua a giocare");
+        return g;
+    }
+
     function makePot() {
         const g = baseGame("pot");
         // Il ritmo dei gettoni accelera di continuo (anche dopo ogni incasso, perché non riparte da capo).
@@ -2862,21 +3360,21 @@
         // sequenza e ne aggiunge una in fondo. Chi sbaglia o è troppo lento è eliminato.
         // Modalità "realtime": il tasto centrale mette in pausa e non fa mai parte della sequenza.
         const g = baseGame("simon");
-        const NOTES = ["P1", "P2", "P3", "P4"];
-        const tones = {P1: 330, P2: 392, P3: 494, P4: 262};
+        const NOTES = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"];
+        const tones = {P1: 330, P2: 392, P3: 494, P4: 262, P5: 294, P6: 349, P7: 440, P8: 523};
         const STEP_LIMIT = 3000;   // tempo massimo tra una pressione e l'altra (ms)
         const MAX_LENGTH = 30;     // oltre questa lunghezza i superstiti pareggiano
 
         let seq = [], alive = [], eliminated = [], turn = 0, idx = 0, phase = "intro";   // intro | announce | repeat | add | between | over
         const cur = () => alive[turn];
         const dbg = (lvl, msg) => window.BPDebug?.log("partita", lvl, msg);
-        const colorName = id => ({P1: "rosso", P2: "blu", P3: "giallo", P4: "verde"})[id];
+        const colorName = id => ({P1: "rosso", P2: "blu", P3: "giallo", P4: "verde", P5: "arancione", P6: "viola", P7: "rosa", P8: "bianco"})[id];
 
         g.silentButtons = true;   // niente beep del tasto sopra la voce
 
         const SIMON_DIR = "assets/sounds/simon/";
-        const COLOR_RATE = {P1: 1, P2: 1.26, P3: 1.5, P4: 2};          // do · mi · sol · do' (velocità del file)
-        const COLOR_PITCH = {P1: .7, P2: .95, P3: 1.25, P4: 1.6};      // se manca il file: voce sintetica
+        const COLOR_RATE = {P1: 1, P2: 1.26, P3: 1.5, P4: 2, P5: 1.12, P6: 1.335, P7: 1.68, P8: 1.89};          // do · mi · sol · do' (velocità del file)
+        const COLOR_PITCH = {P1: .7, P2: .95, P3: 1.25, P4: 1.6, P5: .82, P6: 1.1, P7: 1.4, P8: 1.8};      // se manca il file: voce sintetica
 
         // Voce dei colori: una voce italiana DIVERSA da quella del narratore (se non c'è, stessa voce ma molto più acuta)
         const FEMALE_HINTS = /alice|elsa|federica|paola|isabella|google italiano|female|donna/i;
@@ -3875,7 +4373,7 @@
         const LATENCY_COMP = 0;       // 0 = nessuna compensazione della latenza audio (più severo), 1 = completa
         const MIN_VOL = 0.08;           // volume dei passi al primo passo
         const MAX_VOL = 1.0;            // volume dei passi al traguardo
-        const PITCH = {P1: 1.0, P2: 0.88, P3: 1.12, P4: 0.78}; // passi diversi per giocatore
+        const PITCH = {P1: 1.0, P2: 0.88, P3: 1.12, P4: 0.78, P5: 0.95, P6: 1.05, P7: 0.82, P8: 1.2}; // passi diversi per giocatore
 
         let phase = "intro";            // intro | run
         let frozen = false, freezeStart = 0, voicePhrase = false, phraseId = 0, current = null, current2 = null;
@@ -4168,10 +4666,14 @@
             P1: DIR + "patatine.mp3",
             P2: DIR + "lattina.mp3",
             P3: DIR + "cannuccia.mp3",
-            P4: DIR + "caramella.mp3"
+            P4: DIR + "caramella.mp3",
+            P5: DIR + "biscotto.mp3",
+            P6: DIR + "bottiglietta.mp3",
+            P7: DIR + "cerniera.mp3",
+            P8: DIR + "bustina.mp3"
         };
-        const SYNTH_FREQ = {P1: 4500, P2: 7000, P3: 2500, P4: 3500};   // timbro del suono sintetico di ripiego
-        const PAN = {P1: -.6, P2: -.2, P3: .2, P4: .6};
+        const SYNTH_FREQ = {P1: 4500, P2: 7000, P3: 2500, P4: 3500, P5: 3000, P6: 5500, P7: 6000, P8: 2000};   // timbro del suono sintetico di ripiego
+        const PAN = new Proxy({}, {get: (_, id) => panSpread(id, .6)});   // distribuita tra i giocatori attivi
 
         // === Voce del professore: voce Google inglese ===
         const TEACHER_VOICES = ["Google UK English Male", "Google UK English Female", "Google US English"];
@@ -5823,7 +6325,11 @@
             P1: DIR + "rosso.mp3",
             P2: DIR + "blu.mp3",
             P3: DIR + "giallo.mp3",
-            P4: DIR + "verde.mp3"
+            P4: DIR + "verde.mp3",
+            P5: DIR + "arancione.mp3",
+            P6: DIR + "viola.mp3",
+            P7: DIR + "rosa.mp3",
+            P8: DIR + "bianco.mp3"
         };
 
         // === Parametri ===
@@ -6274,6 +6780,7 @@
             const order = [...alive, ...[...outOrder].reverse()];
 
             if (alive.length) {
+                // announce = false: la voce parla dopo il suono dell'inciampo
                 finish("🪢 " + COLORS[alive[0]] + " è l'ultimo a saltare: vince!", order, false);
                 await sound;
                 if (game !== g) return;
@@ -6353,7 +6860,7 @@
         const GRACE = 0;              // chi ha appena colpito può ripremere senza essere punito (ms)
         const REST = 1500;              // pausa dopo una palla persa (ms)
         const SERVE_WAIT = 5000;        // se chi serve non preme, la palla parte da sola dopo questo tempo (ms)
-        const PAN = {P1: -.8, P2: -.3, P3: .3, P4: .8};   // posizione stereo di ogni giocatore
+        const PAN = new Proxy({}, {get: (_, id) => panSpread(id, .8)});   // posizione stereo distribuita tra i giocatori attivi
 
         let phase = "intro";            // intro | live | rest | over
         let clock = 0, lastTick = 0, lastRender = 0, interval = null;
@@ -7483,7 +7990,7 @@
         const WRONG_PEN_PER_SEC = 1.5;    // punti persi per ogni secondo di bip su un parlatore non tuo
         const EST_MARGIN = 150;           // margine (ms) quando i tempi sono stimati e non misurati
         const BEEP_VOLUME = .22;
-        const BEEP_FREQ = {P1: 1000, P2: 1250, P3: 800, P4: 1500};
+        const BEEP_FREQ = {P1: 1000, P2: 1250, P3: 800, P4: 1500, P5: 900, P6: 1100, P7: 700, P8: 1350};
         const WRONG_MIN = 150;            // ms di bip sopra un altro parlatore per prendere la penitenza
 
 
@@ -7494,10 +8001,10 @@
         // Tutte voci italiane (le voci straniere leggevano male l'italiano): si distinguono per voce, tono e velocità.
         // vi = indice della voce italiana da usare; se il dispositivo ne ha meno, si riparte da capo.
         const PERSONAS = [
-            {key: "grave", name: "la voce grave", pitch: .7, rate: .95, lang: null, vi: 0},
+            {key: "grave", name: "la voce grave", pitch: .6, rate: .95, lang: null, vi: 0},
             {key: "acuta", name: "la voce acuta", pitch: 1.5, rate: 1.05, lang: null, vi: 1},
-            {key: "veloce", name: "la voce veloce", pitch: 1, rate: 1.15, lang: null, vi: 2},
-            {key: "lenta", name: "la voce lenta", pitch: .85, rate: .87, lang: null, vi: 3},
+            {key: "veloce", name: "la voce veloce", pitch: 1, rate: 1.3, lang: null, vi: 2},
+            {key: "lenta", name: "la voce lenta", pitch: .85, rate: .78, lang: null, vi: 3},
         ];
 
         // === Vocabolario ===
@@ -8116,11 +8623,11 @@
             const phrases = shuffle(ASSIGN);
             for (let i = 0; i < speakers.length; i++) {
                 const sp = speakers[i];
-                const text = phrases[i % phrases.length].replace("{c}", COLORS[sp.id]);
+                const text = phrases[i % phrases.length].replace("{c}", teamLabel(sp.id));
                 await speak(text, sp.persona);
                 if (gone()) return;
                 // Nessun bip di prova: basta sentire la voce
-                setArena("🎙 " + COLORS[sp.id] + ", questo è il tuo parlatore", "Il tuo parlatore ti ha chiamato");
+                setArena("🎙 " + teamLabel(sp.id) + ", questo è il tuo parlatore", "Il tuo parlatore ti ha chiamato");
                 await wait(700);
                 if (gone()) return;
             }
@@ -8193,7 +8700,12 @@
         const sounds = {drink: null, burp: null};                 // AudioBuffer dei file, se presenti
         let interval = null, holdSource = null, holdGain = null, glugTimer = null;
         const dbg = (lvl, msg) => window.BPDebug?.log("assetato", lvl, msg);
-        const names = ids => ids.map(p => COLORS[p]).join(" e ");
+        const names = ids => ids.length < 3 ? ids.map(p => COLORS[p]).join(" e ") : ids.slice(0, -1).map(p => COLORS[p]).join(", ") + " e " + COLORS[ids.at(-1)];
+        const STEPS = ["stappa", "beve", "butta il bicchiere", "fa il rutto"];
+        // Con una squadra: i quattro passaggi (stappa, bevi, butta, rutto) si dividono tra i compagni in ordine
+        const STEP_OF_PHASE = {cap: 0, drink: 1, empty: 2, burp: 3};
+        const rolesText = actors => actors.map((p, i) =>
+            COLORS[p] + " " + STEPS.filter((_, j) => j % actors.length === i).join(" e ")).join(", ") + ".";
         const needFor = kind => sounds[kind]
             ? sounds[kind].duration * 1000
             : (kind === "drink" ? DRINK_FALLBACK_MS : BURP_FALLBACK_MS);
@@ -8202,7 +8714,7 @@
         const actor = (ph = phase) => {
             const t = cur();
             if (!t) return null;
-            if (t.actors.length === 2) return (ph === "cap" || ph === "empty") ? t.actors[0] : t.actors[1];
+            if (t.actors.length > 1) return t.actors[STEP_OF_PHASE[ph] % t.actors.length];
             return t.actors[0];
         };
 
@@ -8312,9 +8824,10 @@
             holdTotal = Object.fromEntries(ids.map(p => [p, 0]));
             scores = Object.fromEntries(ids.map(p => [p, 0]));
             teams = [];
-            if (n === 4) {
-                const sh = [...ids].sort(() => Math.random() - .5);      // squadre sorteggiate
-                teams = [[sh[0], sh[1]], [sh[2], sh[3]]];
+            if (n >= 4) {
+                const sh = [...ids].sort(() => Math.random() - .5);      // due squadre sorteggiate (con n dispari la prima ha uno in più)
+                const k = Math.ceil(n / 2);
+                teams = [sh.slice(0, k), sh.slice(k)];
                 turns = teams.map((actors, i) => ({actors, team: i}));
             } else if (n === 3) {
                 const pairs = [[ids[0], ids[1]], [ids[1], ids[2]], [ids[2], ids[0]]];
@@ -8337,7 +8850,7 @@
             refreshScores();
 
             window.BPDebug?.watch(() => ({
-                modalita: n === 4 ? "squadre" : n === 3 ? "tre sfide 1 contro 1" : "singolo",
+                modalita: n >= 4 ? "squadre" : n === 3 ? "tre sfide 1 contro 1" : "singolo",
                 squadre: teams.map(t => names(t)),
                 turno: cur() ? names(cur().actors) + " (" + (turn + 1) + "/" + turns.length + ")" : "—",
                 tocca: cur() ? COLORS[actor()] : "—",
@@ -8353,8 +8866,9 @@
             }));
 
             const secs = TURN_SECONDS[n] || 30;
-            const modeText = n === 4
-                ? "In quattro si gioca a squadre. Nel turno della squadra, uno stappa e butta il bicchiere, l'altro beve e fa il rutto. Le squadre sono " +
+            const modeText = n >= 4
+                ? "Da quattro giocatori in su si gioca a due squadre. Nel turno della squadra i passaggi si dividono tra i compagni: " +
+                "stappare, bere, buttare il bicchiere e fare il rutto. Le squadre sono " +
                 teams.map(t => names(t)).join(" contro ") + ". "
                 : n === 3
                     ? "In tre si fanno tre sfide uno contro uno: " + [[0, 1], [1, 2], [2, 0]].map(([x, y]) => COLORS[ids[x]] + " contro " + COLORS[ids[y]]).join(", ") +
@@ -8378,11 +8892,11 @@
             holding = false;
             $("#game-status").textContent = "TURNO: " + names(t.actors).toUpperCase();
             let text;
-            if (t.actors.length === 2) text = "Tocca alla squadra " + names(t.actors) + ". " + COLORS[t.actors[0]] + " stappa e butta il bicchiere, " + COLORS[t.actors[1]] + " beve e fa il rutto.";
+            if (t.actors.length > 1) text = "Tocca alla squadra " + names(t.actors) + ". " + rolesText(t.actors);
             else if (t.pair && turn % 2 === 0) text = "Sfida: " + names(t.pair).replace(" e ", " contro ") + ". Tocca a " + COLORS[t.actors[0]];
             else text = "Tocca a " + COLORS[t.actors[0]];
-            setArena("🍺 " + (t.actors.length === 2 ? "Squadra " : "Tocca a ") + names(t.actors), t.actors.length === 2
-                ? COLORS[t.actors[0]] + " stappa e butta · " + COLORS[t.actors[1]] + " beve e rutta" : "Preparati…");
+            setArena("🍺 " + (t.actors.length > 1 ? "Squadra " : "Tocca a ") + names(t.actors), t.actors.length > 1
+                ? rolesText(t.actors) : "Preparati…");
             refreshScores();
             dbg("info", "▶ " + text);
             if (turns.length > 1) {
@@ -8435,7 +8949,7 @@
                 beers++;
                 for (const p of cur().actors) {
                     totalBeers[p] = (totalBeers[p] || 0) + 1;
-                    scores[p] = playerIds().length === 4 ? beers : totalBeers[p];
+                    scores[p] = playerIds().length >= 4 ? beers : totalBeers[p];
                 }
                 refreshScores();
                 phase = "cap";
@@ -8484,7 +8998,7 @@
             phase = "over";
             const ids = playerIds();
             refreshScores();
-            if (ids.length === 4) {
+            if (ids.length >= 4) {
                 const tot = teams.map((t, i) => ({
                     t,
                     beers: turnBeers[i] || 0,
@@ -8601,6 +9115,7 @@
 
         let matches = [], mi = 0, phase = "intro";         // intro | announce | ready | fight | between | over
         let A = [], B = [], winsA = 0, winsB = 0, needWins = 1, round = 1;
+        let wA = 1, wB = 1, limit = LIMIT;   // pesi delle pressioni se le squadre hanno dimensioni diverse (es. 3 contro 2)
         let pressA = 0, pressB = 0, left = 0, lastTick = 0, lastShow = 0, interval = null;
         let points = {}, totalPresses = {};
         let effort = {A: null, B: null}, effortToken = 0, lastPress = {A: 0, B: 0}, halfDone = false;
@@ -8690,7 +9205,7 @@
             if (pressA === pressB) text = "Siamo ancora in parità!";
             else {
                 const lead = pressA > pressB ? A : B;
-                text = names(lead) + (lead.length === 2 ? " stanno vincendo!" : " sta vincendo!");
+                text = names(lead) + (lead.length > 1 ? " stanno vincendo!" : " sta vincendo!");
             }
             dbg("info", "📢 metà round: " + text + " (" + pressA + "–" + pressB + ")");
             duck(true);
@@ -8720,7 +9235,7 @@
         function rope() {
             lastShow = performance.now();
             const diff = pressA - pressB;
-            const pos = Math.max(-1, Math.min(1, diff / LIMIT));
+            const pos = Math.max(-1, Math.min(1, diff / limit));
             const at = Math.round((1 - pos) / 2 * (BAR - 1));
             const bar = Array.from({length: BAR}, (_, i) => i === at ? "●" : "─").join("");
             setArena("🤼 TIRA!", names(A) + " " + bar + " " + names(B) + " · " + pressA + "–" + pressB + " · " + Math.max(0, Math.ceil(left / 1000)) + "s", "signal");
@@ -8734,9 +9249,10 @@
             scores = Object.fromEntries(ids.map(p => [p, 0]));
             mi = 0;
             phase = "intro";
-            if (n === 4) {
-                const sh = [...ids].sort(() => Math.random() - .5);        // squadre sorteggiate
-                matches = [{a: [sh[0], sh[1]], b: [sh[2], sh[3]], need: 2}];
+            if (n >= 4) {
+                const sh = [...ids].sort(() => Math.random() - .5);        // squadre sorteggiate (con n dispari la prima ha un giocatore in più)
+                const k = Math.ceil(n / 2);
+                matches = [{a: sh.slice(0, k), b: sh.slice(k), need: 2}];
             } else if (n === 3) {
                 matches = [{a: [ids[0]], b: [ids[1]], need: 1}, {a: [ids[1]], b: [ids[2]], need: 1}, {
                     a: [ids[2]],
@@ -8763,8 +9279,9 @@
                 punti: {...points}
             }));
 
-            const modeText = n === 4
-                ? "In quattro si gioca a squadre da due: le pressioni dei compagni si sommano. Le squadre sono " + names(matches[0].a) + " contro " + names(matches[0].b) + ". Si gioca al meglio di tre round. "
+            const modeText = n >= 4
+                ? "Da quattro giocatori in su si gioca a squadre: le pressioni dei compagni si sommano" +
+                  (n % 2 ? ", e se le squadre sono di dimensioni diverse le pressioni vengono pesate per compensare" : "") + ". Le squadre sono " + names(matches[0].a) + " contro " + names(matches[0].b) + ". Si gioca al meglio di tre round. "
                 : n === 3
                     ? "In tre si fanno tre sfide uno contro uno, un round ciascuna: " + matches.map(m => names(m.a) + " contro " + names(m.b)).join(", ") + ". Chi vince una sfida prende due punti. "
                     : "Si gioca al meglio di tre round. ";
@@ -8784,16 +9301,23 @@
             needWins = m.need;
             winsA = winsB = 0;
             round = 1;
+            {   // squadre di dimensioni diverse: ogni pressione della squadra più piccola pesa di più
+                const gcd = (x, y) => y ? gcd(y, x % y) : x;
+                const d = gcd(A.length, B.length);
+                wA = B.length / d;
+                wB = A.length / d;
+                limit = LIMIT * Math.max(wA, wB);
+            }
             phase = "announce";
             refreshScores();
             const n = playerIds().length;
-            const text = A.length === 2
+            const text = A.length > 1
                 ? "Squadra " + names(A) + " contro squadra " + names(B)
                 : names(A) + " contro " + names(B);
             setArena("🤼 " + text, "Preparati…");
             $("#game-status").textContent = n === 3 ? "SFIDA " + (mi + 1) + " DI 3" : "ROUND " + round;
             dbg("info", "▶ " + text + (needWins > 1 ? " (al meglio di " + (needWins * 2 - 1) + ")" : ""));
-            if (matches.length > 1 || A.length === 2) {
+            if (matches.length > 1 || A.length > 1) {
                 sayAsync(text).then(() => {
                     if (game === g && !g.finished && phase === "announce") later(ready, 600);
                 });
@@ -8834,7 +9358,7 @@
                 halfDone = true;
                 announceHalf();
             }
-            if (Math.abs(pressA - pressB) >= LIMIT) {
+            if (Math.abs(pressA - pressB) >= limit) {
                 endRound();
                 return;
             }
@@ -8854,10 +9378,10 @@
             if (e.type !== "down" || g.finished || phase !== "fight") return;
             const id = e.button;
             if (A.includes(id)) {
-                pressA++;
+                pressA += wA;
                 lastPress.A = performance.now();
             } else if (B.includes(id)) {
-                pressB++;
+                pressB += wB;
                 lastPress.B = performance.now();
             } else return;
             updateEffort();
@@ -8880,8 +9404,8 @@
             refreshScores();
             dbg("ok", "🏁 round " + round + ": " + names(winners) + " vince " + Math.max(pressA, pressB) + "–" + Math.min(pressA, pressB) + " (round vinti " + winsA + "–" + winsB + ")");
             const matchOver = winsA >= needWins || winsB >= needWins;
-            setArena("🏁 " + names(winners) + (winners.length === 2 ? " vincono" : " vince") + " il round", pressA + "–" + pressB + " · round vinti " + winsA + "–" + winsB);
-            const roundText = names(winners) + (winners.length === 2 ? " vincono" : " vince") +
+            setArena("🏁 " + names(winners) + (winners.length > 1 ? " vincono" : " vince") + " il round", pressA + "–" + pressB + " · round vinti " + winsA + "–" + winsB);
+            const roundText = names(winners) + (winners.length > 1 ? " vincono" : " vince") +
                 " il round, " + pressA + " a " + pressB + ". Round vinti: " + winsA + " a " + winsB + ".";
             sayAsync(roundText).then(() => {
                 if (game !== g || g.finished || phase !== "between") return;
@@ -8916,7 +9440,7 @@
             }
             const aWon = winsA > winsB;
             const w = aWon ? A : B, l = aWon ? B : A;
-            if (w.length === 2) {
+            if (w.length > 1) {
                 finish("🤼 Vince la squadra " + names(w) + " " + Math.max(winsA, winsB) + "–" + Math.min(winsA, winsB) + "!", [...w, ...l], false);
                 say("Vince la squadra " + names(w));
             } else {
@@ -9152,6 +9676,9 @@
             P4: {name: "il battimani", type: "clap", file: DIR + "clap.mp3"}
         };
         const CLICK = DIR + "click.mp3";
+        // Lo strumento dipende dalla posizione nel gruppo in gioco (cassa, rullante, charleston, battimani), non dal tasto
+        const KIT_LIST = Object.values(KITS);
+        const kitOf = id => KIT_LIST[Math.max(0, playerIds().indexOf(id)) % KIT_LIST.length];
 
         // === PARAMETRI ===
         const BEATS = 8;
@@ -9187,7 +9714,7 @@
         const ids = () => playerIds();
         const dbg = (lvl, msg) => window.BPDebug?.log("ritmo", lvl, msg);
         const legend = () =>
-            ids().map(p => COLORS[p] + " " + KITS[p].name.replace(/^(il|la) /, "")).join(" · ");
+            ids().map(p => COLORS[p] + " " + kitOf(p).name.replace(/^(il|la) /, "")).join(" · ");
         const grid = (marks, current) =>
             marks.map((x, i) => (i === current ? "[" : "") + (x ? "●" : "○") + (i === current ? "]" : "")).join(" ");
 
@@ -9339,7 +9866,7 @@
                 playMetronome(beat);
                 // solo nel giro di ascolto suona il ritmo del creatore; durante la copia nessun aiuto
                 if (kind === "listen" && beat >= 0 && sequence[beat]) {
-                    playDrum(KITS[currentCreator].type, KITS[currentCreator].file);
+                    playDrum(kitOf(currentCreator).type, kitOf(currentCreator).file);
                     dbg("info", "   🔊 modello: colpo sulla battuta " + (beat + 1));
                 }
                 showBeat();
@@ -9502,9 +10029,9 @@
             if (gone()) return;
 
             for (const p of ids()) {
-                await sayAsync(COLORS[p] + ", " + KITS[p].name + ".");
+                await sayAsync(COLORS[p] + ", " + kitOf(p).name + ".");
                 if (gone()) return;
-                playDrum(KITS[p].type, KITS[p].file);
+                playDrum(kitOf(p).type, kitOf(p).file);
                 await wait(700);
                 if (gone()) return;
             }
@@ -9521,7 +10048,7 @@
                 const b = nearestBeat();
                 if (b < 0 || b >= BEATS) return;
                 sequence[b] = true;
-                playDrum(KITS[id].type, KITS[id].file);
+                playDrum(kitOf(id).type, kitOf(id).file);
                 return;
             }
 
@@ -9529,7 +10056,7 @@
                 const b = nearestBeat();
                 if (b < 0 || b >= BEATS) return;
                 hits[id][b] = true;
-                playDrum(KITS[id].type, KITS[id].file);
+                playDrum(kitOf(id).type, kitOf(id).file);
             }
         };
 
@@ -9861,6 +10388,9 @@
             P4: {name: "il battimani", type: "clap", file: DIR + "clap.mp3"}
         };
         const CLICK = DIR + "click.mp3";
+        // Lo strumento dipende dalla posizione nel gruppo in gioco (cassa, rullante, charleston, battimani), non dal tasto
+        const KIT_LIST = Object.values(KITS);
+        const kitOf = id => KIT_LIST[Math.max(0, playerIds().indexOf(id)) % KIT_LIST.length];
 
         // === PARAMETRI ===
         const BPM = 45;          // Ritmo più disteso e leggibile
@@ -9876,6 +10406,9 @@
 
         let phase = "intro";
         let pattern = {};
+        let patternEasy = {};    // pattern dei primi giri: mai due strumenti sullo stesso tic
+        const EASY_LOOPS = 2;    // giri iniziali (compreso quello di prova) con il pattern semplice
+        const patternFor = loop => (loop < EASY_LOOPS ? patternEasy : pattern);
         let events = {};
         let plan = [], pos = 0, nextTime = 0;
         let endPerf = 0, scoringStart = null;
@@ -9887,7 +10420,7 @@
         const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
         const legend = () =>
             playerIds().map(p =>
-                COLORS[p] + " " + KITS[p].name.replace(/^(il|la) /, "")
+                COLORS[p] + " " + kitOf(p).name.replace(/^(il|la) /, "")
             ).join(" · ");
 
         function shuffle(list) {
@@ -9932,7 +10465,17 @@
 
             pattern = {};
             playerIds().forEach(p => {
-                pattern[p] = rules[KITS[p].type]();
+                pattern[p] = rules[kitOf(p).type]();
+            });
+
+            // Pattern semplice: cassa su 0 e 4, rullante su 2 e 6, charleston e battimani solo sui tic dispari, senza sovrapporli
+            const odd = shuffle([1, 3, 5, 7]);
+            patternEasy = {};
+            playerIds().forEach(p => {
+                const type = kitOf(p).type;
+                if (type === "kick") patternEasy[p] = [0, 4];
+                else if (type === "snare") patternEasy[p] = [2, 6];
+                else patternEasy[p] = odd.splice(0, HITS).sort((x, y) => x - y);
             });
         }
 
@@ -10116,8 +10659,8 @@
                 }
 
                 playerIds().forEach(p => {
-                    if (pattern[p].includes(item.s)) {
-                        playDrum(KITS[p].type, KITS[p].file, when);
+                    if (patternFor(item.loop)[p].includes(item.s)) {
+                        playDrum(kitOf(p).type, kitOf(p).file, when);
                     }
                 });
 
@@ -10151,8 +10694,8 @@
             if (scoringStart === null) scoringStart = perf;
 
             playerIds().forEach(p => {
-                if (pattern[p].includes(item.s)) {
-                    playDrum(KITS[p].type, KITS[p].file, when);
+                if (patternFor(item.loop)[p].includes(item.s)) {
+                    playDrum(kitOf(p).type, kitOf(p).file, when);
                     events[p].push({t: perf, claimed: false});
                 }
             });
@@ -10244,7 +10787,7 @@
 
             await sayIntro(
                 "Tieni il tempo. Prima faremo un giro di prova senza punteggio. " +
-                "Poi inizierà la partita. Premi il tuo tasto quando senti " +
+                "Poi inizierà la partita: nei primi due giri gli strumenti suonano uno alla volta, poi si sovrappongono. Premi il tuo tasto quando senti " +
                 "la tua percussione."
             );
 
@@ -10253,15 +10796,15 @@
 
             // Presentazione dei suoni
             for (const p of playerIds()) {
-                await sayAsync(COLORS[p] + ", " + KITS[p].name + ".");
+                await sayAsync(COLORS[p] + ", " + kitOf(p).name + ".");
                 if (gone()) return;
 
                 const ctx = ensureAudio();
 
-                playDrum(KITS[p].type, KITS[p].file, ctx.currentTime + .05);
+                playDrum(kitOf(p).type, kitOf(p).file, ctx.currentTime + .05);
                 playDrum(
-                    KITS[p].type,
-                    KITS[p].file,
+                    kitOf(p).type,
+                    kitOf(p).file,
                     ctx.currentTime + .5
                 );
 
@@ -10296,8 +10839,8 @@
             // Durante la presentazione puoi provare il tuo suono
             if (phase === "intro") {
                 playDrum(
-                    KITS[id].type,
-                    KITS[id].file,
+                    kitOf(id).type,
+                    kitOf(id).file,
                     ensureAudio().currentTime
                 );
                 return;
@@ -10385,6 +10928,7 @@
             }
             return Object.fromEntries(available);
         },
+        limits: () => ({...GAME_LIMITS}),   // [min, max] di giocatori per gioco (default 2-8)
         colors: () => ({...COLORS}),
         speak: (text, maxMs) => sayAsync(text, maxMs),
         // Suono di una posizione della classifica finale (1 = applausi, altre = buu). Si può aspettare con await.
