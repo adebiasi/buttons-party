@@ -30,6 +30,10 @@
         spy: "Sei una spia e devi capire chi ha composto il numero dei servizi segreti nemici: quattro cifre, diverso a ogni partita. Ascolta il suono del telefono a disco: più la cifra è alta, più il disco fa strada e più il suono dura. Quando senti comporre il numero giusto, premi per primo e prendi un punto. Se premi su un numero sbagliato, ne perdi uno. I numeri diventano sempre più veloci.",
         standoff: "Hai dieci secondi. Puoi sparare un solo colpo, solo al giocatore alla tua sinistra, e ogni colpo costa un punto. Chi viene colpito è fuori. Puoi anche non sparare. Allo scadere i sopravvissuti si dividono i punti del round. Al secondo round si gira verso: si spara a destra.",
         roulette: "Un revolver con una sola pallottola in otto camere. A turno, in senso orario, il giocatore di turno può premere per tirare il grilletto: se va a vuoto prende due punti e passa il turno, se il colpo parte muore e prende una penitenza. Può anche aspettare senza premere, per non rischiare. Il rischio aumenta a ogni colpo a vuoto.",
+        zapping: "Ogni giocatore ha un canale preferito. Ad ogni cambio canale il fruscio parte forte e poi cala. Quando il canale in onda è il tuo prendi punti, sempre di più se resta in onda. Quando non è il tuo, premi per cambiare canale: ogni cambio costa un punto. L'audio è disturbato e ci sono canali che non sono di nessuno. Dura novanta secondi.",
+        defuse: "Una bomba sta per esplodere. Ti dico la sequenza dei fili da tagliare, in ordine, poi ogni giocatore taglia il filo del proprio colore premendo il suo tasto quando tocca a quel colore. Chi taglia il filo sbagliato o fuori turno fa esplodere la bomba e perde punti. Ogni filo giusto vale un punto.",
+        gas: "Un veicolo, trenta secondi: fai più strada che puoi. Tieni premuto per accelerare e sali di giri; rilascia e cambia marcia prima di andare fuori giri, altrimenti il motore si spegne e riparti dalla prima. Non si cambia marcia mentre si accelera, solo oltre una soglia di giri, e ogni cambio è più lento del precedente. In ultima marcia non c'è più il limite di giri. In coppia uno accelera e l'altro cambia marcia; da solo, tieni premuto per accelerare e dopo il rilascio un tocco cambia marcia.",
+        trip: "Siete bambini sul sedile dietro e non sapete quanto manca all'arrivo. Premendo il tuo tasto chiedi «siamo arrivati?», ma hai solo due occasioni. Il viaggio dura per finta un certo tempo, che scende in modo regolare, ma nella realtà dura molto meno. Vince chi chiede più vicino al momento in cui il contatore arriva a zero.",
         tug: "Premi il tuo tasto più veloce che puoi per tirare la corda dalla tua parte. In due: al meglio di tre round. In tre: tre sfide uno contro uno. Da quattro in su: due squadre sorteggiate, le pressioni dei compagni si sommano.",
         bounty: "Il narratore dice chi è il ricercato, poi dà il via, e alla fine di ogni round dice chi ha vinto. Tutti premono: se arrivi prima tu prendi un punto e il ricercato ne perde uno. Se il ricercato è più veloce, si salva e prende un punto. Se premi prima del via perdi un punto.",
         copyrhythm: "Un giocatore crea un ritmo di 8 battute premendo il suo tasto. Gli altri lo copiano tutti insieme seguendo la base. Poi cambia il creatore. Si fa un giro completo.",
@@ -76,6 +80,10 @@
         spy: "La spia",
         standoff: "Stallo messicano",
         roulette: "Roulette russa",
+        zapping: "Zapping",
+        defuse: "L'artificiere",
+        gas: "Dai di gas",
+        trip: "In viaggio",
         typewriter: "Macchina da scrivere",
         tapas: "Consegna tapas",
         rally: "Rally",
@@ -854,12 +862,31 @@
     }
 
     // Numero di giocatori (minimo, massimo) per ogni gioco; i giochi non elencati vanno da 2 a 8.
-    // Tapas e Rally usano ancora una geometria pensata per 4 (le direzioni sono relative alla croce dei tasti).
+    // Tapas e Rally funzionano da 2 a 8 giocatori (direzioni relative al posto: vedi currentRing e relativeButton).
     const GAME_LIMITS = {
-        tapas: [2, 4], rally: [2, 4],
         standoff: [3, 8]
     };
     const limitsFor = id => GAME_LIMITS[id] || [2, 8];
+
+    // Anello dei tasti, nell'ordine fisico attorno al controller (senso orario guardando dall'alto).
+    // Controller a 4 tasti: croce con rosso in alto, blu a destra, giallo in basso, verde a sinistra.
+    // Controller a 8 tasti: la stessa croce, con i nuovi tasti sulle diagonali: arancione tra rosso e blu, viola tra blu e giallo,
+    // rosa tra giallo e verde, bianco tra verde e rosso. Così i primi 4 colori restano dove sono e i due controller sono compatibili.
+    const RING_4 = ["P1", "P2", "P3", "P4"];
+    const RING_8 = ["P1", "P5", "P2", "P6", "P3", "P7", "P4", "P8"];
+    // Con giocatori dal 5 all'8 l'ordine "orario" è quello fisico dell'anello a 8, altrimenti quello naturale
+    const seatOrder = list => list.some(p => !RING_4.includes(p))
+        ? [...list].sort((a, b) => RING_8.indexOf(a) - RING_8.indexOf(b))
+        : [...list];
+    // Si usa l'anello a 8 solo se c'è almeno un giocatore dal 5 all'8; altrimenti quello a 4 (come il controller a 4 tasti)
+    const currentRing = () => playerIds().some(p => !RING_4.includes(p)) ? RING_8 : RING_4;
+    // Tasto da premere per una direzione, secondo il posto del giocatore: il suo tasto = indietro, di fronte = avanti,
+    // un quarto di giro in senso orario = sinistra, in senso antiorario = destra (con 8 tasti: 2 posti, con 4 tasti: 1)
+    function relativeButton(player, action) {
+        const ring = currentRing(), n = ring.length;
+        const offset = {indietro: 0, sinistra: n / 4, avanti: n / 2, destra: 3 * n / 4}[action];
+        return ring[(ring.indexOf(player) + offset) % n];
+    }
 
     // Posizione stereo di un giocatore, distribuita tra i giocatori attivi da -width a +width
     function panSpread(id, width) {
@@ -868,8 +895,10 @@
         return -width + 2 * width * i / (ids.length - 1);
     }
 
+    // Giocatori in gioco, nell'ordine in cui siedono attorno al controller (senso orario): turni, "sinistra" e posizioni stereo
+    // dei giochi seguono questo ordine
     function playerIds() {
-        return activeButtons ? [...activeButtons] : PLAYER_BUTTONS.slice(0, players);
+        return seatOrder(activeButtons ? [...activeButtons] : PLAYER_BUTTONS.slice(0, players));
     }
 
     function renderScores(extra = {}) {
@@ -1007,6 +1036,20 @@
     window.addEventListener("blur", () => {
         for (const id of [...held]) emit(id, "up", "keyboard");
     });
+    // I menu di gioco e giocatori si completano da soli: nuovi giochi e 5-8 giocatori compaiono anche se l'HTML non li elenca
+    function syncSetupOptions() {
+        const select = $("#game-select");
+        for (const [gid, name] of Object.entries(GAME_NAMES)) {
+            if (![...select.options].some(o => o.value === gid)) select.add(new Option(name, gid));
+        }
+        const count = $("#player-count");
+        let added = false;
+        for (let n = 2; n <= PLAYER_BUTTONS.length; n++) {
+            if (![...count.options].some(o => Number(o.value) === n)) { count.add(new Option(String(n), String(n))); added = true; }
+        }
+        if (added) [...count.options].sort((x, y) => Number(x.value) - Number(y.value)).forEach(o => count.add(o));
+    }
+    syncSetupOptions();
     $("#game-select").addEventListener("change", updateSetup);
     $("#player-count").addEventListener("change", e => {
         players = Number(e.target.value);
@@ -1450,6 +1493,10 @@
             spy: makeSpy,
             standoff: makeStandoff,
             roulette: makeRoulette,
+            zapping: makeZapping,
+            defuse: makeDefuse,
+            gas: makeGas,
+            trip: makeTrip,
             typewriter: makeTypewriter
         })[id];
         if (TEAM_GAMES.has(id) && playerIds().length > 4) return makeWithTeams(id, factory);
@@ -2994,7 +3041,7 @@
 
         function beginRound() {
             if (gone()) return;
-            ring = [...playerIds()].sort();
+            ring = [...playerIds()];                         // ordine fisico attorno al controller
             dir = round % 2 === 1 ? LEFT : RIGHT;
             fired = new Set(); dead = new Set(); shots = [];
             phase = "announce";
@@ -3140,7 +3187,7 @@
 
         function beginRound() {
             if (gone()) return;
-            ring = [...playerIds()].sort();
+            ring = [...playerIds()];                         // ordine fisico attorno al controller
             bulletAt = 1 + Math.floor(Math.random() * CHAMBERS);     // a quale colpo parte il proiettile
             pulls = 0; passesInRow = 0;
             turn = (round - 1) % ring.length;                        // a ogni round parte un giocatore diverso
@@ -3247,6 +3294,937 @@
             stopTicker();
         };
         g.resume = () => setArena("Roulette russa ripresa", "Continua a giocare");
+        return g;
+    }
+
+    function makeZapping() {
+        // "Zapping": ogni giocatore ha un canale preferito (un file audio che gira in loop da un punto casuale, disturbato).
+        // Quando è in onda il canale di un giocatore, lui prende punti (sempre di più se resta in onda). Chiunque può premere
+        // per cambiare canale a caso, ma ogni cambio costa un punto e subito dopo i tasti sono bloccati per un attimo.
+        const g = baseGame("zapping");
+
+        // === Parametri ===
+        const DURATION = 90;               // secondi di gioco
+        const CHANGE_COST = 1;             // punti persi da chi cambia canale
+        const LOCK_MS = 1200;              // dopo un cambio i tasti non fanno niente (e non costano)
+        const POINTS_STEPS = [[0, 1], [4, 2], [8, 3]];   // [secondi in onda, punti al secondo]
+        const PREVIEW_MS = 3000;           // ascolto pulito del canale di ogni giocatore all'inizio
+        const NOISE_START = .1, NOISE_END = .45;         // volume del fruscio (cresce con la partita)
+        const NOISE_BOOST = .75;                         // fruscio in più subito dopo un cambio canale
+        const NOISE_DECAY_S = 2.2;                       // in quanti secondi il fruscio in più si spegne (poi torna forte al prossimo cambio)
+        const DROPOUT_START = .04, DROPOUT_END = .16;    // probabilità di un calo di segnale ogni 100 ms (cresce con la partita)
+        const SIGNAL_VOLUME = .9;
+
+        // === Canali: un file ciascuno, da "assets/sounds/zapping/" (consigliati almeno 60-90 secondi) ===
+        const DIR = "assets/sounds/zapping/";
+        const CHANNELS = [
+            {name: "calcio", file: DIR + "calcio.mp3"},
+            {name: "tennis", file: DIR + "tennis.mp3"},
+            {name: "radio religiosa", file: DIR + "radio-religiosa.mp3"},
+            {name: "telegiornale", file: DIR + "telegiornale.mp3"},
+            {name: "cartoni animati", file: DIR + "cartoni-animati.mp3"},
+            {name: "televendite", file: DIR + "televendite.mp3"},
+            {name: "discoteca", file: DIR + "discoteca.mp3"},
+            {name: "previsioni del tempo", file: DIR + "previsioni-del-tempo.mp3"}
+        ];
+        const NOBODY = [                    // canali che non sono di nessuno
+            {name: "pubblicità", file: DIR + "pubblicita.mp3"},
+            {name: "telenovela", file: DIR + "telenovela.mp3"}
+        ];
+
+        const gone = () => game !== g || g.finished;
+        const pick = list => list[Math.floor(Math.random() * list.length)];
+        const shuffle = list => [...list].sort(() => Math.random() - .5);
+        const lerp = (a, b, p) => a + (b - a) * p;
+        const lower = id => COLORS[id].toLowerCase();
+
+        let ctx = null, noiseGain = null, noiseSrc = null;
+        const buffers = new Map();           // file -> buffer (o buffer sintetico di ripiego)
+        let current = null;                  // {ch, src, gain, owner}
+        let owners = {};                     // id giocatore -> canale
+        let allChannels = [];
+        let phase = "idle", elapsed = 0, streak = 0, lockUntil = 0, changedAt = 0, dropUntil = 0;
+        const boostNow = () => Math.exp(-((performance.now() - changedAt) / 1000) / NOISE_DECAY_S);   // 1 al cambio, poi scende verso 0
+        let tickTimer = null, fxTimer = null;
+
+        // Ripiego se il file manca: una melodia sintetica diversa per ogni canale, così il gioco funziona anche senza file
+        function fallbackBuffer(index) {
+            const rate = ctx.sampleRate, seconds = 8;
+            const buf = ctx.createBuffer(1, rate * seconds, rate);
+            const data = buf.getChannelData(0);
+            const base = 180 + index * 47, scale = [1, 1.125, 1.25, 1.5, 1.667];
+            for (let i = 0; i < data.length; i++) {
+                const t = i / rate, step = Math.floor(t * 4), f = base * scale[(step * (index + 2)) % scale.length];
+                const env = Math.max(0, 1 - ((t * 4) % 1) * (index % 2 ? .6 : 1));
+                data[i] = Math.sin(2 * Math.PI * f * t) * .25 * env;
+            }
+            return buf;
+        }
+
+        function noiseBuffer() {
+            const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+            const d = buf.getChannelData(0);
+            for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+            return buf;
+        }
+
+        function setupAudio() {
+            ctx = ensureAudio();
+            noiseGain = ctx.createGain();
+            noiseGain.gain.value = 0;
+            noiseSrc = ctx.createBufferSource();
+            noiseSrc.buffer = noiseBuffer();
+            noiseSrc.loop = true;
+            noiseSrc.connect(noiseGain);
+            noiseGain.connect(ctx.destination);
+            noiseSrc.start();
+        }
+
+        function stopCurrent() {
+            if (!current) return;
+            try { current.src.stop(); } catch (e) {}
+            try { current.src.disconnect(); current.gain.disconnect(); } catch (e) {}
+            current = null;
+        }
+
+        // Fa partire un canale da un punto casuale del file; `clean` = senza disturbo (anteprima)
+        function playChannel(ch, clean) {
+            stopCurrent();
+            if (!ctx) return;
+            const buffer = buffers.get(ch.file);
+            const src = ctx.createBufferSource();
+            src.buffer = buffer;
+            src.loop = true;
+            const gain = ctx.createGain();
+            gain.gain.value = soundEnabled ? SIGNAL_VOLUME : 0;
+            src.connect(gain);
+            gain.connect(ctx.destination);
+            src.start(0, Math.random() * buffer.duration);
+            current = {ch, src, gain, clean, owner: Object.keys(owners).find(id => owners[id] === ch) || null};
+            changedAt = performance.now();               // da qui il fruscio parte forte e poi cala
+            noiseGain.gain.value = clean || !soundEnabled ? 0 : lerp(NOISE_START, NOISE_END, Math.min(1, elapsed / DURATION)) + NOISE_BOOST;
+        }
+
+        // Disturbo continuo: fruscio, cali di segnale e leggera instabilità di tono, sempre più forti
+        function fxTick() {
+            if (!current || gone()) return;
+            const now = performance.now(), t = ctx.currentTime, p = Math.min(1, elapsed / DURATION);
+            if (current.clean) { noiseGain.gain.setTargetAtTime(0, t, .02); return; }
+            const boost = boostNow();
+            const noise = lerp(NOISE_START, NOISE_END, p) * (.7 + .6 * Math.random()) + NOISE_BOOST * boost;
+            noiseGain.gain.setTargetAtTime(soundEnabled ? noise : 0, t, .03);
+            if (now >= dropUntil && Math.random() < lerp(DROPOUT_START, DROPOUT_END, p)) dropUntil = now + 100 + Math.random() * 220;
+            const level = (now < dropUntil ? .1 : SIGNAL_VOLUME) * (1 - .45 * boost);       // con più fruscio il canale si sente meno
+            current.gain.gain.setTargetAtTime(soundEnabled ? level : 0, t, .01);
+            try { current.src.playbackRate.value = 1 + (Math.random() - .5) * .07 * (.3 + p); } catch (e) {}
+        }
+
+        function pointsFor(seconds) {
+            let pts = POINTS_STEPS[0][1];
+            for (const [from, value] of POINTS_STEPS) if (seconds >= from) pts = value;
+            return pts;
+        }
+
+        function changeChannel() {
+            const options = allChannels.filter(c => !current || c !== current.ch);
+            const next = pick(options);
+            streak = 0;
+            playChannel(next, false);
+            return next;
+        }
+
+        const ownerOf = ch => Object.keys(owners).find(id => owners[id] === ch) || null;
+
+        function showStatus() {
+            const ch = current && current.ch, owner = ch && ownerOf(ch);
+            setArena("📺 " + (owner ? "Canale di " + COLORS[owner] : "Canale di nessuno"),
+                (DURATION - elapsed) + " s" + (owner ? " · " + pointsFor(streak) + " punti al secondo" : ""));
+        }
+
+        g.start = async () => {
+            phase = "idle"; elapsed = 0; streak = 0; lockUntil = 0;
+            scores = Object.fromEntries(playerIds().map(p => [p, 0]));
+            renderScores();
+            $("#game-status").textContent = "ZAPPING";
+            setArena("📺 Zapping", "Ascolta i canali");
+            setupAudio();
+            const ids = playerIds();
+            const mine = shuffle(CHANNELS).slice(0, ids.length);
+            owners = Object.fromEntries(ids.map((id, i) => [id, mine[i]]));
+            allChannels = [...mine, ...NOBODY];
+            await Promise.all(allChannels.map(async (ch, i) => {
+                const b = await loadSample(ch.file);
+                buffers.set(ch.file, b || fallbackBuffer(i));
+            }));
+            if (!await narrate(g, "Zapping. Ogni giocatore ha un canale preferito. Quando il canale in onda è il tuo, prendi punti: " +
+                "uno al secondo, poi due, poi tre se resta in onda. Quando non è il tuo, premi per cambiare canale: ogni cambio costa un punto, " +
+                "e subito dopo i tasti sono bloccati per un attimo. L'audio è disturbato, e ci sono canali che non sono di nessuno. " +
+                "Dura " + DURATION + " secondi. Ora ascolta i canali.")) return;
+            for (const id of ids) {
+                if (gone()) return;
+                setArena("📺 " + COLORS[id], owners[id].name);
+                await sayAsync(COLORS[id] + ": " + owners[id].name + ".");
+                if (gone()) return;
+                playChannel(owners[id], true);
+                fxTimer = fxTimer || setInterval(fxTick, 100);
+                await wait(PREVIEW_MS);
+                stopCurrent();
+                await wait(250);
+            }
+            if (gone()) return;
+            await sayAsync("Si comincia!");
+            if (gone()) return;
+            startPlaying();
+        };
+
+        async function wait(ms) {
+            let left = ms;
+            while (left > 0 && !gone()) {
+                await new Promise(r => setTimeout(r, 100));
+                if (!paused) left -= 100;
+            }
+        }
+
+        function startPlaying() {
+            phase = "playing";
+            elapsed = 0;
+            fxTimer = fxTimer || setInterval(fxTick, 100);
+            changeChannel();
+            $("#game-status").textContent = "SU QUALE CANALE SIAMO?";
+            showStatus();
+            tickTimer = setInterval(() => {
+                if (gone()) return clearInterval(tickTimer);
+                if (paused || phase !== "playing") return;
+                elapsed++;
+                const owner = current && ownerOf(current.ch);
+                if (owner) {
+                    scores[owner] += pointsFor(streak);
+                    renderScores();
+                }
+                streak++;
+                showStatus();
+                if (elapsed === Math.floor(DURATION / 2)) remind();
+                if (elapsed >= DURATION) endGame();
+            }, 1000);
+        }
+
+        // A metà partita: ripasso dei canali (l'audio si ferma, poi riparte da un canale a caso)
+        async function remind() {
+            phase = "reminder";
+            stopCurrent();
+            await sayAsync("Ricordate i canali. " + playerIds().map(id => COLORS[id] + ": " + owners[id].name).join(". ") + ".", 20000);
+            if (gone()) return;
+            lockUntil = performance.now() + LOCK_MS;
+            changeChannel();
+            phase = "playing";
+            showStatus();
+        }
+
+        function endGame() {
+            phase = "done";
+            clearInterval(tickTimer);
+            stopCurrent();
+            const order = playerIds().sort((a, b) => scores[b] - scores[a]);
+            const tie = scores[order[0]] === scores[order[1]];
+            finish(tie ? "📺 Pareggio!" : "📺 Vince " + COLORS[order[0]], tie ? null : order);
+        }
+
+        g.onInput = e => {
+            if (e.type !== "down" || e.button === "C" || gone() || phase !== "playing") return;
+            const id = e.button;
+            if (!playerIds().includes(id)) return;
+            if (performance.now() < lockUntil) return;             // tasti bloccati subito dopo un cambio: non costa
+            lockUntil = performance.now() + LOCK_MS;
+            scores[id] -= CHANGE_COST;
+            renderScores();
+            changeChannel();
+            tone(700, .05, "square", .06);                         // clic del telecomando
+            showStatus();
+        };
+
+        g.dispose = () => {
+            phase = "idle";
+            clearInterval(tickTimer);
+            clearInterval(fxTimer);
+            fxTimer = null;
+            stopCurrent();
+            try { noiseSrc && noiseSrc.stop(); } catch (e) {}
+        };
+        return g;
+    }
+
+    function makeDefuse() {
+        // "L'artificiere": la voce dice la sequenza dei fili (colori) da tagliare, poi ogni giocatore taglia il filo del proprio
+        // colore premendo il suo tasto quando tocca a quel colore. Filo giusto: punto. Filo sbagliato o fuori turno: la bomba
+        // esplode e chi ha sbagliato perde punti. Se il tempo scade esplode e perde punti chi doveva tagliare.
+        const g = baseGame("defuse");
+
+        // === Parametri ===
+        const ROUNDS = 3;
+        const LENGTHS = [3, 4, 5];            // fili da tagliare in ciascun round
+        const BASE_SECONDS = 4;               // tempo per tagliare = BASE + SECONDI_PER_FILO x fili
+        const SECONDS_PER_WIRE = 2.5;
+        const CUT_POINTS = 1;                 // filo giusto
+        const DEFUSE_BONUS = 1;               // bomba disinnescata: a ogni giocatore che ha tagliato almeno un filo
+        const WRONG_PENALTY = 3;              // filo sbagliato o fuori turno
+        const TIMEOUT_PENALTY = 2;            // tempo scaduto: a chi doveva tagliare
+        const TICK_SLOW_MS = 900, TICK_FAST_MS = 260;   // intervallo del ticchettio (accelera con il passare del tempo)
+
+        const DIR = "assets/sounds/artificiere/";
+        const TICK_SOUND = DIR + "tic.mp3";             // un singolo "tic" (il gioco lo ripete)
+        const CUT_SOUND = DIR + "taglio.mp3";           // taglio del filo
+        const BOOM_SOUND = DIR + "esplosione.mp3";
+        const DEFUSED_SOUND = DIR + "disinnescata.mp3"; // facoltativo
+
+        const gone = () => game !== g || g.finished;
+        const lerp = (a, b, p) => a + (b - a) * p;
+        const lower = id => COLORS[id].toLowerCase();
+
+        let round = 1, phase = "idle", token = 0, seq = [], idx = 0, deadline = 0, total = 1, tickTimer = null, cutters = new Set();
+
+        const stopTick = () => { clearTimeout(tickTimer); tickTimer = null; };
+
+        async function wait(ms) {
+            let left = ms;
+            while (left > 0 && !gone()) {
+                await new Promise(r => setTimeout(r, 100));
+                if (!paused) left -= 100;
+            }
+        }
+
+        g.start = async () => {
+            round = 1; phase = "idle";
+            [TICK_SOUND, CUT_SOUND, BOOM_SOUND, DEFUSED_SOUND].forEach(loadSample);
+            scores = Object.fromEntries(playerIds().map(p => [p, 0]));
+            renderScores();
+            $("#game-status").textContent = "L'ARTIFICIERE";
+            setArena("💣 L'artificiere", "Ascolta le istruzioni");
+            if (!await narrate(g, "L'artificiere. Una bomba sta per esplodere e va disinnescata tagliando i fili giusti, nell'ordine giusto. " +
+                "Prima ti dico tutta la sequenza dei colori. Poi ognuno taglia il filo del proprio colore, premendo il suo tasto, quando tocca a quel colore. " +
+                "Ogni filo giusto vale un punto. Se tagli il filo sbagliato, o fuori turno, la bomba esplode e perdi " + WRONG_PENALTY + " punti. " +
+                "Se il tempo scade, la bomba esplode e perde punti chi doveva tagliare. Si giocano " + ROUNDS + " round.")) return;
+            beginRound();
+        };
+
+        function makeSequence(length) {
+            const ids = playerIds(), list = [];
+            for (let i = 0; i < length; i++) {
+                const options = ids.filter(p => p !== list[i - 1]);       // mai lo stesso colore due volte di fila
+                list.push(options[Math.floor(Math.random() * options.length)]);
+            }
+            return list;
+        }
+
+        async function beginRound() {
+            if (gone()) return;
+            const my = ++token;
+            phase = "reading";
+            seq = makeSequence(LENGTHS[Math.min(round, LENGTHS.length) - 1]);
+            idx = 0;
+            cutters = new Set();
+            $("#game-status").textContent = "ROUND " + round + " DI " + ROUNDS;
+            setArena("💣 Round " + round + " / " + ROUNDS, "Ascolta la sequenza dei fili");
+            renderScores();
+            await sayAsync("Round " + round + ". Ecco la sequenza dei fili.", 8000);
+            if (gone() || my !== token) return;
+            await wait(300);
+            await sayAsync(seq.map(lower).join(", ") + ".", 20000);
+            if (gone() || my !== token) return;
+            await wait(300);
+            await sayAsync("Tagliate!", 4000);
+            if (gone() || my !== token) return;
+            phase = "live";
+            total = (BASE_SECONDS + SECONDS_PER_WIRE * seq.length) * 1000;
+            deadline = performance.now() + total;
+            setArena("💣 Taglia i fili!", "Filo " + (idx + 1) + " di " + seq.length);
+            tick(my);
+        }
+
+        // Ticchettio di sottofondo: accelera man mano che il tempo scade
+        function tick(my) {
+            if (gone() || my !== token || phase !== "live") return;
+            if (!paused) {
+                const left = deadline - performance.now();
+                if (left <= 0) return explode(my, null, "timeout");
+                playSample(TICK_SOUND, () => tone(1500, .02, "square", .05));
+                const p = Math.min(1, Math.max(0, 1 - left / total));
+                tickTimer = setTimeout(() => tick(my), lerp(TICK_SLOW_MS, TICK_FAST_MS, p));
+            } else {
+                tickTimer = setTimeout(() => tick(my), 200);
+            }
+        }
+
+        async function endRound(my, text) {
+            await sayAsync(text, 12000);
+            if (gone() || my !== token) return;
+            round++;
+            if (round <= ROUNDS) {
+                await wait(900);
+                beginRound();
+            } else {
+                const order = playerIds().sort((a, b) => scores[b] - scores[a]);
+                const tie = scores[order[0]] === scores[order[1]];
+                finish(tie ? "💣 Pareggio!" : "💣 Vince " + COLORS[order[0]], tie ? null : order);
+            }
+        }
+
+        function explode(my, culprit, reason) {
+            if (phase !== "live" || my !== token) return;
+            phase = "over";
+            stopTick();
+            playSample(BOOM_SOUND, () => { tone(70, .6, "sawtooth", .25); tone(45, .8, "square", .2, .1); });
+            let text;
+            if (reason === "wrong") {
+                scores[culprit] -= WRONG_PENALTY;
+                text = "Bum! " + COLORS[culprit] + " ha tagliato il filo sbagliato. Meno " + WRONG_PENALTY + ".";
+                setArena("💥 Esplosione!", COLORS[culprit] + " −" + WRONG_PENALTY, "danger");
+            } else {
+                const late = seq[idx];
+                scores[late] -= TIMEOUT_PENALTY;
+                text = "Bum! Tempo scaduto: " + COLORS[late] + " non ha tagliato in tempo. Meno " + TIMEOUT_PENALTY + ".";
+                setArena("💥 Tempo scaduto!", COLORS[late] + " −" + TIMEOUT_PENALTY, "danger");
+            }
+            renderScores();
+            setTimeout(() => endRound(my, text), 1400);
+        }
+
+        function defused(my) {
+            phase = "over";
+            stopTick();
+            [...cutters].forEach(p => { scores[p] += DEFUSE_BONUS; });
+            renderScores();
+            playSample(DEFUSED_SOUND, () => { tone(660, .12, "triangle", .1); tone(880, .12, "triangle", .1, .12); tone(1175, .25, "triangle", .1, .24); });
+            setArena("✅ Bomba disinnescata!", "Bonus +" + DEFUSE_BONUS + " a chi ha tagliato");
+            setTimeout(() => endRound(my, "Bomba disinnescata! Un punto in più a chi ha tagliato."), 900);
+        }
+
+        g.onInput = e => {
+            if (e.type !== "down" || e.button === "C" || gone() || phase !== "live") return;
+            const id = e.button;
+            if (!playerIds().includes(id)) return;
+            const my = token;
+            if (id !== seq[idx]) {                         // filo sbagliato o fuori turno
+                explode(my, id, "wrong");
+                return;
+            }
+            scores[id] += CUT_POINTS;                       // filo giusto
+            cutters.add(id);
+            idx++;
+            renderScores();
+            playSample(CUT_SOUND, () => tone(2200, .05, "square", .1));
+            if (idx >= seq.length) {
+                defused(my);
+            } else {
+                setArena("💣 Taglia i fili!", "Filo " + (idx + 1) + " di " + seq.length);
+            }
+        };
+
+        g.dispose = () => {
+            token++;
+            phase = "idle";
+            stopTick();
+        };
+        return g;
+    }
+
+    function makeGas() {
+        // "Dai di gas": un veicolo, RUN_SECONDS secondi, vince chi fa più strada. Tieni premuto per accelerare (i giri salgono),
+        // rilascia e cambia marcia prima del limitatore, altrimenti il motore si spegne per un po'. Non si cambia marcia mentre
+        // si accelera. Con 4, 6 o 8 giocatori si gioca in coppia (uno accelera, l'altro cambia marcia), una coppia alla volta;
+        // altrimenti ogni giocatore fa tutto da solo con un solo tasto: tieni premuto = accelera; dopo il rilascio un tocco = cambio.
+        const g = baseGame("gas");
+
+        // === Parametri ===
+        const RUN_SECONDS = 30;           // durata della corsa di ogni coppia o giocatore
+        const STALL_MS = 2000;            // motore spento dopo un fuorigiri
+        const SHIFT_MIN_RPM = .5;         // soglia di giri sotto cui non si può cambiare marcia (giri da 0 a 1 = limitatore)
+        const STEP_MS = 50;               // passo della simulazione
+        const COAST_GRIP = .8;            // a gas rilasciato la velocità cala in fretta: ogni secondo perso al cambio costa strada
+        const FALL_FACTOR = 1.3;          // moltiplicatore della discesa dei giri a gas rilasciato
+        // rise = quanto salgono i giri al secondo (marcia bassa), fall = quanto scendono a gas rilasciato,
+        // grip = quanto in fretta la velocità segue i giri, top = velocità (m/s) al limitatore in ultima marcia,
+        // base = tono del motore, shiftBase/shiftStep = durata del cambio in ms (cresce a ogni marcia: base + step x (marcia - 1)),
+        // durante il cambio il gas è staccato. Loop del motore facoltativo (se manca si usa un motore sintetizzato)
+        const VEHICLES = [
+            {key: "trial", name: "moto da trial", gears: 8, rise: .95, fall: .55, grip: 2.2, top: 30, base: 110, wave: "sawtooth", shiftBase: 90, shiftStep: 70},
+            {key: "corsa", name: "moto da corsa", gears: 6, rise: .7, fall: .5, grip: 1.8, top: 58, base: 150, wave: "sawtooth", shiftBase: 110, shiftStep: 90},
+            {key: "rally", name: "auto da rally", gears: 5, rise: .6, fall: .45, grip: 1.4, top: 46, base: 95, wave: "sawtooth", shiftBase: 140, shiftStep: 110},
+            {key: "camion", name: "camion", gears: 4, rise: .35, fall: .28, grip: .6, top: 27, base: 62, wave: "square", shiftBase: 250, shiftStep: 160}
+        ];
+        const DIR = "assets/sounds/dai-di-gas/";
+        const SHIFT_SOUND = DIR + "cambio.mp3";        // cambio marcia
+        const GRIND_SOUND = DIR + "grattata.mp3";      // cambio provato mentre si accelera
+        const STALL_SOUND = DIR + "spento.mp3";        // motore spento per i fuorigiri
+        const engineFile = v => DIR + "motore-" + v.key + ".mp3";   // es. motore-camion.mp3 (loop)
+
+        const gone = () => game !== g || g.finished;
+        const shuffle = list => [...list].sort(() => Math.random() - .5);
+        const names = list => list.length < 3 ? list.map(p => COLORS[p]).join(" e ") : list.slice(0, -1).map(p => COLORS[p]).join(", ") + " e " + COLORS[list.at(-1)];
+
+        let vehicle = null, runs = [], runIndex = 0, results = [];
+        let state = null, timer = null, ctx = null, engine = null, engineBuffer = null;
+
+        async function wait(ms) {
+            let left = ms;
+            while (left > 0 && !gone()) {
+                await new Promise(r => setTimeout(r, 100));
+                if (!paused) left -= 100;
+            }
+        }
+
+        // --- Motore: file in loop (se c'è) oppure oscillatori sintetizzati; il tono segue i giri ---
+        function startEngine() {
+            stopEngine();
+            ctx = ensureAudio();
+            const gain = ctx.createGain();
+            gain.gain.value = 0;
+            let nodes;
+            if (engineBuffer) {
+                const src = ctx.createBufferSource();
+                src.buffer = engineBuffer;
+                src.loop = true;
+                src.connect(gain);
+                src.start(0, Math.random() * engineBuffer.duration);
+                nodes = {src};
+            } else {
+                const filter = ctx.createBiquadFilter();
+                filter.type = "lowpass";
+                const o1 = ctx.createOscillator(), o2 = ctx.createOscillator();
+                o1.type = vehicle.wave;
+                o2.type = "square";
+                o1.connect(filter);
+                o2.connect(filter);
+                filter.connect(gain);
+                o1.start();
+                o2.start();
+                nodes = {o1, o2, filter};
+            }
+            gain.connect(ctx.destination);
+            engine = {gain, ...nodes};
+        }
+
+        function stopEngine() {
+            if (!engine) return;
+            for (const k of ["src", "o1", "o2"]) { try { engine[k] && engine[k].stop(); } catch (e) {} }
+            try { engine.gain.disconnect(); } catch (e) {}
+            engine = null;
+        }
+
+        function updateEngine() {
+            if (!engine || !ctx) return;
+            const t = ctx.currentTime, st = state;
+            const on = soundEnabled && !paused && st && !st.stalled && st.phase === "run";
+            const rpm = st ? Math.min(1.1, st.rpm) : 0;
+            engine.gain.gain.setTargetAtTime(on ? (st.throttle ? .22 : .12) : 0, t, .03);
+            if (engine.src) engine.src.playbackRate.setTargetAtTime(.5 + 1.6 * rpm, t, .04);
+            else if (engine.o1) {
+                const f = vehicle.base * (.6 + 1.9 * rpm);
+                engine.o1.frequency.setTargetAtTime(f, t, .03);
+                engine.o2.frequency.setTargetAtTime(f * .5, t, .03);
+                engine.filter.frequency.setTargetAtTime(350 + 2600 * rpm, t, .03);
+            }
+        }
+
+        // --- Fisica semplice: i giri salgono con il gas, scendono a gas rilasciato; la velocità segue i giri della marcia ---
+        function step(dt) {
+            const st = state, v = vehicle;
+            if (st.shiftLeft > 0) {                                   // cambio in corso: gas staccato
+                st.shiftLeft -= dt * 1000;
+                st.throttle = false;
+                if (st.shiftLeft <= 0) {
+                    st.shiftLeft = 0;
+                    if (st.pilotHeld && !st.stalled) st.throttle = true;   // se il tasto è ancora premuto il gas riparte
+                }
+            }
+            if (st.stalled) {
+                st.rpm = Math.max(0, st.rpm - 1.2 * dt);
+                st.stallLeft -= dt * 1000;
+                if (st.stallLeft <= 0) {
+                    st.stalled = false;
+                    if (st.pilotHeld && st.shiftLeft <= 0) st.throttle = true;
+                }
+            } else if (st.throttle) {
+                st.rpm += v.rise * (1 - .08 * (st.gear - 1)) * dt;     // nelle marce alte i giri salgono più piano
+                if (st.gear >= v.gears) st.rpm = Math.min(1, st.rpm);   // ultima marcia: niente limitatore, si resta al massimo dei giri
+                else if (st.rpm > 1) {                                  // fuorigiri: il motore si spegne
+                    st.stalled = true;
+                    st.stallLeft = STALL_MS;
+                    st.throttle = false;
+                    st.gear = 1;                                        // fuorigiri: si riparte dalla prima marcia
+                    st.mode = "throttle";
+                    st.shiftLeft = 0;
+                    playSample(STALL_SOUND, () => { tone(90, .4, "sawtooth", .15); tone(60, .5, "square", .12, .1); });
+                    setArena("💥 Fuorigiri!", "Motore spento: si riparte dalla prima");
+                }
+            } else {
+                st.rpm = Math.max(0, st.rpm - v.fall * FALL_FACTOR * dt);
+            }
+            const target = v.top * (st.gear / v.gears) * Math.min(1, st.rpm);
+            const gain = (target >= st.speed ? v.grip : v.grip * COAST_GRIP) * dt;
+            st.speed += (target - st.speed) * Math.min(1, gain);
+            st.distance += st.speed * dt;
+        }
+
+        function show() {
+            const st = state;
+            if (!st || st.phase !== "run") return;
+            const bar = "█".repeat(Math.round(Math.min(1, st.rpm) * 10)).padEnd(10, "░");
+            setArena("🏍 Marcia " + st.gear + " di " + vehicle.gears + (st.stalled ? " · MOTORE SPENTO" : st.shiftLeft > 0 ? " · cambio…" : st.gear < vehicle.gears && st.rpm >= SHIFT_MIN_RPM ? " · puoi cambiare" : ""),
+                "Giri " + bar + " · " + Math.round(st.distance) + " m · " + Math.max(0, Math.ceil(st.timeLeft)) + " s");
+            for (const p of st.members) scores[p] = Math.round(st.distance);
+            renderScores();
+        }
+
+        function loop() {
+            if (gone() || !state || state.phase !== "run") return;
+            const now = performance.now();
+            const dt = Math.min(.1, (now - state.last) / 1000);
+            state.last = now;
+            if (paused) { updateEngine(); return; }
+            state.timeLeft -= dt;
+            step(dt);
+            updateEngine();
+            show();
+            if (state.timeLeft <= 0) endRun();
+        }
+
+        // --- Corse ---
+        g.start = async () => {
+            vehicle = VEHICLES[Math.floor(Math.random() * VEHICLES.length)];       // stesso veicolo per tutti
+            const ids = shuffle(playerIds());
+            const pairs = ids.length >= 4 && ids.length % 2 === 0;                  // 4, 6, 8: coppie; altrimenti ognuno da solo
+            runs = pairs
+                ? Array.from({length: ids.length / 2}, (_, i) => ({members: [ids[2 * i], ids[2 * i + 1]], pilot: ids[2 * i], mechanic: ids[2 * i + 1]}))
+                : ids.map(p => ({members: [p], pilot: p, mechanic: null}));
+            runIndex = 0; results = []; state = null;
+            scores = Object.fromEntries(playerIds().map(p => [p, 0]));
+            renderScores();
+            $("#game-status").textContent = "DAI DI GAS";
+            setArena("🏍 Dai di gas", "Ascolta le istruzioni");
+            [SHIFT_SOUND, GRIND_SOUND, STALL_SOUND].forEach(loadSample);
+            engineBuffer = await loadSample(engineFile(vehicle));
+            const intro = "Dai di gas. Hai un veicolo e " + RUN_SECONDS + " secondi per fare più strada che puoi. " +
+                "Tieni premuto per accelerare: i giri del motore salgono. Rilascia e cambia marcia prima di andare fuori giri, altrimenti il motore si spegne e riparti dalla prima marcia. " +
+                "Non puoi cambiare marcia mentre accelera, puoi farlo solo oltre una certa soglia di giri, e ogni cambio è più lento del precedente. " +
+                "Nell'ultima marcia non c'è più il limite di giri: resti al massimo. " +
+                (pairs ? "Giocate in coppia, una coppia alla volta: uno accelera tenendo premuto, l'altro cambia marcia con un tocco. "
+                       : "Giochi da solo con un solo tasto: tieni premuto per accelerare; dopo averlo rilasciato, un tocco cambia marcia. ") +
+                "Il veicolo di oggi è: " + vehicle.name + ", con " + vehicle.gears + " marce.";
+            if (!await narrate(g, intro)) return;
+            nextRun();
+        }
+
+        async function nextRun() {
+            if (gone()) return;
+            if (runIndex >= runs.length) return conclude();
+            const run = runs[runIndex];
+            $("#game-status").textContent = "CORSA " + (runIndex + 1) + " DI " + runs.length;
+            setArena("🏍 Tocca a " + names(run.members), vehicle.name);
+            await sayAsync(run.mechanic
+                ? "Tocca a " + names(run.members) + ". " + COLORS[run.pilot] + " accelera, " + COLORS[run.mechanic] + " cambia marcia."
+                : "Tocca a " + COLORS[run.pilot] + ".", 10000);
+            if (gone()) return;
+            for (const word of ["Tre", "due", "uno"]) {
+                if (gone()) return;
+                tone(660, .08, "square", .08);
+                await sayAsync(word, 2000);
+            }
+            if (gone()) return;
+            tone(1175, .25, "square", .1);
+            state = {phase: "run", members: run.members, pilot: run.pilot, mechanic: run.mechanic, gear: 1, rpm: 0, speed: 0, distance: 0,
+                throttle: false, stalled: false, stallLeft: 0, timeLeft: RUN_SECONDS, last: performance.now(),
+                mode: "throttle", shiftDown: false, pilotHeld: false, shiftLeft: 0};
+            startEngine();
+            clearInterval(timer);
+            timer = setInterval(loop, STEP_MS);
+        }
+
+        async function endRun() {
+            const st = state;
+            clearInterval(timer);
+            timer = null;
+            st.phase = "done";
+            st.throttle = false;
+            stopEngine();
+            const meters = Math.round(st.distance);
+            results.push({members: st.members, meters});
+            for (const p of st.members) scores[p] = meters;
+            renderScores();
+            tone(440, .4, "triangle", .12);
+            setArena("🏁 Traguardo!", names(st.members) + ": " + meters + " metri");
+            await sayAsync(names(st.members) + (st.members.length > 1 ? " hanno fatto " : " ha fatto ") + meters + " metri.", 8000);
+            if (gone()) return;
+            runIndex++;
+            await wait(700);
+            nextRun();
+        }
+
+        function conclude() {
+            const order = [...results].sort((a, b) => b.meters - a.meters);
+            const ranking = order.flatMap(r => r.members);
+            const tie = order.length > 1 && order[0].meters === order[1].meters;
+            finish(tie ? "🏍 Pareggio!" : "🏍 Vince " + names(order[0].members) + " con " + order[0].meters + " metri",
+                tie ? null : ranking);
+        }
+
+        // --- Comandi ---
+        function shift(st) {
+            if (st.gear >= vehicle.gears) return false;
+            if (st.rpm < SHIFT_MIN_RPM) { grind(); return false; }   // giri troppo bassi: il cambio non entra
+            st.rpm *= st.gear / (st.gear + 1);        // a pari velocità i giri scendono con la marcia più lunga
+            st.shiftLeft = vehicle.shiftBase + vehicle.shiftStep * (st.gear - 1);   // ogni cambio è più lento del precedente
+            st.throttle = false;
+            st.gear++;
+            playSample(SHIFT_SOUND, () => tone(260, .05, "square", .1));
+            return true;
+        }
+
+        function grind() {
+            playSample(GRIND_SOUND, () => { tone(150, .12, "sawtooth", .1); tone(95, .12, "square", .08, .05); });
+        }
+
+        g.onInput = e => {
+            const st = state;
+            if (gone() || !st || st.phase !== "run" || e.button === "C" || paused) return;
+            const id = e.button, down = e.type === "down";
+            if (!st.members.includes(id)) return;
+            if (st.mechanic) {                                     // coppia: pilota = gas, meccanico = cambio
+                if (id === st.pilot) {
+                    if (down) {
+                        st.pilotHeld = true;
+                        if (!st.stalled && st.shiftLeft <= 0) st.throttle = true;
+                    } else {
+                        st.pilotHeld = false;
+                        st.throttle = false;
+                    }
+                } else if (down) {
+                    if (st.throttle) grind();                      // non si cambia marcia mentre si accelera
+                    else if (st.shiftLeft <= 0 && !st.stalled) shift(st);
+                }
+                return;
+            }
+            // da solo: tieni premuto = gas; dopo il rilascio il tocco successivo = cambio marcia
+            if (down) {
+                if (st.mode === "shift") {
+                    if (st.rpm >= SHIFT_MIN_RPM) {
+                        st.shiftDown = true;
+                        shift(st);
+                        st.mode = "throttle";
+                    } else {                                        // giri troppo bassi per cambiare: il tocco vale come gas
+                        grind();
+                        st.mode = "throttle";
+                        st.pilotHeld = true;
+                        if (!st.stalled && st.shiftLeft <= 0) st.throttle = true;
+                    }
+                } else {
+                    st.pilotHeld = true;
+                    if (!st.stalled && st.shiftLeft <= 0) st.throttle = true;
+                }
+            } else {
+                if (st.shiftDown) { st.shiftDown = false; return; }     // rilascio del tocco di cambio
+                st.pilotHeld = false;
+                if (st.throttle) {
+                    st.throttle = false;
+                    if (st.gear < vehicle.gears) st.mode = "shift";    // il prossimo tocco cambia marcia
+                }
+            }
+        };
+
+        g.dispose = () => {
+            clearInterval(timer);
+            timer = null;
+            if (state) state.phase = "idle";
+            stopEngine();
+        };
+        return g;
+    }
+
+    function makeTrip() {
+        // "In viaggio": ogni giocatore è un bambino sul sedile dietro. Il narratore dice quanto dura (per finta) il viaggio;
+        // il contatore scende in modo regolare ma la durata vera è molto più breve. Ognuno può chiedere "siamo arrivati?" solo
+        // ASKS volte, premendo il suo tasto: la voce risponde "siamo arrivati!" (contatore a zero) o "no, mancano X ore e Y minuti".
+        // Vince chi chiede più vicino al momento in cui il contatore arriva a zero.
+        const g = baseGame("trip");
+
+        // === Parametri ===
+        const ASKS = 2;                                     // occasioni per giocatore
+        const TRIP_MINUTES = [100, 130, 150, 180, 200, 260];   // durate (finte) possibili del viaggio, in minuti
+        const REAL_SECONDS = [100, 140];                    // durata vera (min, max): non viene mai detta
+        const GRACE_SECONDS = 8;                            // dopo l'arrivo si può ancora chiedere per qualche secondo
+        const POINTS_MAX = 100, POINTS_PER_SECOND = 10;     // punti = 100 - 10 x secondi di scarto (minimo 0)
+
+        const AMBIENCE = "assets/sounds/viaggio/auto.mp3";  // facoltativo: rumore dell'auto in loop (se manca: ronzio sintetico)
+
+        const gone = () => game !== g || g.finished;
+        const lower = id => COLORS[id].toLowerCase();
+
+        let tripMin = 0, realSec = 0, rate = 0, elapsed = 0;       // rate = minuti finti al secondo
+        let asks = {}, left = {}, phase = "idle", timer = null, queue = Promise.resolve(), ambience = null;
+
+        // Durata in parole: "un'ora e 35 minuti", "2 ore", "45 minuti"
+        function words(minutes) {
+            const m = Math.max(0, Math.round(minutes));
+            const h = Math.floor(m / 60), r = m % 60;
+            const hours = h === 0 ? "" : h === 1 ? "un'ora" : h + " ore";
+            const mins = r === 0 ? "" : r === 1 ? "un minuto" : r === 30 ? (hours ? "mezza" : "mezz'ora") : r === 15 ? (hours ? "un quarto" : "un quarto d'ora") : r + " minuti";
+            if (!hours && !mins) return "meno di un minuto";
+            return hours && mins ? hours + " e " + mins : hours || mins;
+        }
+
+        // Una voce alla volta: domande dei bambini (voce acuta, diversa per giocatore) e risposte del narratore
+        function speak(text, pitch = 1, rate = 1) {
+            return new Promise(resolve => {
+                if (!("speechSynthesis" in window)) return resolve();
+                const u = new SpeechSynthesisUtterance(text);
+                u.lang = "it-IT";
+                u.pitch = pitch;
+                u.rate = rate;
+                u.volume = soundEnabled ? 1 : 0;
+                const done = () => { clearTimeout(safety); resolve(); };
+                const safety = setTimeout(done, 12000);
+                u.onend = done;
+                u.onerror = done;
+                window.__tripKeep = (window.__tripKeep || []).slice(-4).concat(u);   // evita che il browser elimini la frase
+                speechSynthesis.speak(u);
+            });
+        }
+        const enqueue = fn => { queue = queue.then(() => (gone() ? null : fn())); return queue; };
+
+        function startAmbience() {
+            const ctx = ensureAudio();
+            const gain = ctx.createGain();
+            gain.gain.value = soundEnabled ? .18 : 0;
+            gain.connect(ctx.destination);
+            const nodes = [];
+            loadSample(AMBIENCE).then(buffer => {
+                if (gone()) return;
+                if (buffer) {
+                    const src = ctx.createBufferSource();
+                    src.buffer = buffer;
+                    src.loop = true;
+                    src.connect(gain);
+                    src.start(0, Math.random() * buffer.duration);
+                    nodes.push(src);
+                } else {                                            // ronzio sintetico: rumore filtrato + motore grave
+                    const noise = ctx.createBufferSource();
+                    const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+                    const d = buf.getChannelData(0);
+                    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+                    noise.buffer = buf;
+                    noise.loop = true;
+                    const filter = ctx.createBiquadFilter();
+                    filter.type = "lowpass";
+                    filter.frequency.value = 220;
+                    noise.connect(filter);
+                    filter.connect(gain);
+                    noise.start();
+                    const osc = ctx.createOscillator();
+                    osc.type = "sawtooth";
+                    osc.frequency.value = 48;
+                    const og = ctx.createGain();
+                    og.gain.value = .25;
+                    osc.connect(og);
+                    og.connect(gain);
+                    osc.start();
+                    nodes.push(noise, osc);
+                }
+            });
+            ambience = {gain, nodes};
+        }
+
+        function stopAmbience() {
+            if (!ambience) return;
+            for (const n of ambience.nodes) { try { n.stop(); } catch (e) {} }
+            try { ambience.gain.disconnect(); } catch (e) {}
+            ambience = null;
+        }
+
+        g.start = async () => {
+            const ids = playerIds();
+            tripMin = TRIP_MINUTES[Math.floor(Math.random() * TRIP_MINUTES.length)];
+            realSec = REAL_SECONDS[0] + Math.random() * (REAL_SECONDS[1] - REAL_SECONDS[0]);
+            rate = tripMin / realSec;
+            elapsed = 0;
+            asks = Object.fromEntries(ids.map(p => [p, []]));
+            left = Object.fromEntries(ids.map(p => [p, ASKS]));
+            scores = Object.fromEntries(ids.map(p => [p, 0]));
+            renderScores();
+            phase = "idle";
+            $("#game-status").textContent = "IN VIAGGIO";
+            setArena("🚗 In viaggio", "Siete sul sedile dietro");
+            if (!await narrate(g, "In viaggio. Siete bambini sul sedile dietro e non sapete quanto manca all'arrivo. " +
+                "Puoi chiedere «siamo arrivati?» premendo il tuo tasto, ma solo " + (ASKS === 2 ? "due volte" : ASKS + " volte") + ". " +
+                "Il viaggio dura, per finta, " + words(tripMin) + ". Il tempo scenderà in modo regolare, ma nella realtà durerà molto meno. " +
+                "Vince chi chiede «siamo arrivati?» più vicino al momento in cui il contatore arriva a zero. " +
+                "Se chiedi troppo presto ti dico quanto manca, e lo sentono tutti. Si parte!")) return;
+            phase = "running";
+            startAmbience();
+            setArena("🚗 Si viaggia…", "Quando arriveremo?");
+            timer = setInterval(tick, 100);
+        };
+
+        function tick() {
+            if (gone() || phase !== "running") return;
+            if (paused) return;
+            elapsed += .1;
+            if (elapsed >= realSec + GRACE_SECONDS) endTrip();
+        }
+
+        g.onInput = e => {
+            if (e.type !== "down" || e.button === "C" || gone() || phase !== "running") return;
+            const id = e.button;
+            if (!(id in left) || left[id] <= 0) return;
+            left[id]--;
+            const remainingMin = tripMin - rate * elapsed;             // minuti finti che mancano in questo istante
+            const errorSec = Math.abs(realSec - elapsed);              // scarto in secondi veri
+            asks[id].push({t: elapsed, errorSec});
+            const arrived = remainingMin <= 0;
+            const idx = playerIds().indexOf(id);
+            const answer = arrived ? "Siamo arrivati!" : "No, mancano " + words(remainingMin) + ".";
+            setArena(arrived ? "🏁 Siamo arrivati!" : "🚗 " + COLORS[id] + " ha chiesto", arrived ? COLORS[id] + " ci è andato vicino" : "Non ancora…");
+            enqueue(() => speak("Siamo arrivati?", 1.35 + .07 * idx, 1.05));
+            enqueue(() => speak(answer, .9, 1));
+            if (playerIds().every(p => left[p] <= 0)) {                // tutti hanno finito le domande
+                phase = "closing";
+                clearInterval(timer);
+                enqueue(() => wait(500)).then(() => endTrip(true));
+            }
+        };
+
+        async function wait(ms) { await new Promise(r => setTimeout(r, ms)); }
+
+        async function endTrip(already = false) {
+            if (!already && phase !== "running") return;
+            phase = "done";
+            clearInterval(timer);
+            const ids = playerIds();
+            // scarto migliore di ogni giocatore (nessuna domanda = ultimo)
+            const best = Object.fromEntries(ids.map(p => [p, asks[p].length ? Math.min(...asks[p].map(a => a.errorSec)) : Infinity]));
+            for (const p of ids) scores[p] = Number.isFinite(best[p]) ? Math.max(0, Math.round(POINTS_MAX - POINTS_PER_SECOND * best[p])) : 0;
+            renderScores();
+            const order = [...ids].sort((a, b) => best[a] - best[b]);
+            const tie = Number.isFinite(best[order[0]]) && order.length > 1 && best[order[0]] === best[order[1]];
+            await queue;
+            if (gone()) return;
+            stopAmbience();
+            let text = already ? "" : "Siamo arrivati! ";
+            if (!Number.isFinite(best[order[0]])) text += "Nessuno ha chiesto: si perde tutti.";
+            else {
+                text += "Il più vicino è " + lower(order[0]) + ", con " + best[order[0]].toFixed(1).replace(".", ",") + " secondi di scarto.";
+                const rest = order.slice(1).filter(p => Number.isFinite(best[p])).slice(0, 3);
+                if (rest.length) text += " Poi " + rest.map(p => lower(p) + " con " + best[p].toFixed(0) + " secondi").join(", ") + ".";
+            }
+            setArena("🏁 Siamo arrivati!", Number.isFinite(best[order[0]]) ? COLORS[order[0]] + ": " + best[order[0]].toFixed(1) + " s di scarto" : "Nessuno ha chiesto");
+            await sayAsync(text, 20000);
+            if (gone()) return;
+            finish(tie ? "🚗 Pareggio!" : (Number.isFinite(best[order[0]]) ? "🚗 Vince " + COLORS[order[0]] : "Nessun vincitore"), tie || !Number.isFinite(best[order[0]]) ? null : order);
+        }
+
+        g.dispose = () => {
+            phase = "idle";
+            clearInterval(timer);
+            stopAmbience();
+        };
         return g;
     }
 
@@ -6617,6 +7595,8 @@
         const buffers = new Map();
 
         const lerp = (a, b, t) => a + (b - a) * t;
+        const gone = () => game !== g || g.finished;
+        const show = (msg, info = "", style = "") => setArena(msg, info, style);
         const progress = () => Math.min(1, Math.max(0, beatNo - WARMUP) / RAMP_BEATS);
         const minAlive = () => (playerIds().length > 1 ? 1 : 0);
 
@@ -7173,20 +8153,8 @@
             sinistra: {text: "a sinistra", file: DIR + "sinistra.mp3", arrow: "←"}
         };
 
-        // Tasti in senso orario attorno al tavolo
-        const ORDER = ["P1", "P2", "P3", "P4"];
-
-        // Posizioni rispetto al giocatore seduto dietro il proprio tasto
-        const OFFSET = {
-            indietro: 0,
-            sinistra: 1,
-            avanti: 2,
-            destra: 3
-        };
-
-        // Quale tasto corrisponde a una direzione, per quel giocatore
-        const buttonFor = (player, dir) =>
-            ORDER[(ORDER.indexOf(player) + OFFSET[dir]) % ORDER.length];
+        // Quale tasto corrisponde a una direzione, per quel giocatore (posizioni dei tasti: vedi currentRing)
+        const buttonFor = (player, dir) => relativeButton(player, dir);
 
         // Legenda personalizzata per il giocatore di turno
         const legendFor = player =>
@@ -7689,7 +8657,7 @@
             ) return;
 
             // Il tasto Centro non è una direzione
-            if (!ORDER.includes(e.button)) return;
+            if (!currentRing().includes(e.button)) return;
 
             if (e.button === expected[index]) {
                 index++;
@@ -7754,9 +8722,7 @@
             avanti: {text: "avanti", arrow: "↑"},
             indietro: {text: "indietro", arrow: "↓"},
         };
-        const ORDER = ["P1", "P2", "P3", "P4"];
-        const OFFSET = {indietro: 0, sinistra: 1, avanti: 2, destra: 3};
-        const buttonFor = (player, action) => ORDER[(ORDER.indexOf(player) + OFFSET[action]) % ORDER.length];
+        const buttonFor = (player, action) => relativeButton(player, action);      // direzioni relative al posto (vedi currentRing)
         const legendFor = player => Object.entries(ACTIONS)
             .map(([key, a]) => a.arrow + " " + COLORS[buttonFor(player, key)]).join(" · ");
 
@@ -7944,7 +8910,7 @@
 
         g.onInput = e => {
             if (e.type !== "down" || g.finished || phase !== "drive") return;
-            if (!ORDER.includes(e.button)) return;
+            if (!currentRing().includes(e.button)) return;
 
             const exp = queue[0];
             if (!exp) { crash("ha premuto senza comando"); return; }
@@ -8029,7 +8995,8 @@
             // I titoli sono programmi veri; i conduttori sono inventati e non si insultano mai persone reali.
             show: ["Il Grande Fratello", "L'Isola dei Famosi", "Uomini e Donne", "Temptation Island",
                 "Ballando con le Stelle", "Pomeriggio Cinque", "Forum", "Striscia la notizia",
-                "Affari Tuoi", "La Corrida", "Carramba che sorpresa", "Il pranzo è servito"],
+                "Affari Tuoi", "La Corrida", "Carramba che sorpresa", "Il pranzo è servito",
+                "Mattino Cinque", "MasterChef Italia", "Amici", "Chi vuol essere milionario", "Domenica In", "Blob"],
             host: ["Lori Del Santo", "Giucas Casella", "Valeria Marini", "Cristiano Malgioglio", "Barbara D’Urso", "Paolo Brosio"],
             great: ["geniale", "storico", "indimenticabile", "un capolavoro", "pura poesia", "un cult"],
             prize: ["una lavatrice usata", "un criceto", "dieci minuti di gloria", "un abbonamento al dentista",
@@ -8063,7 +9030,17 @@
             "il premio finale di {show} è {prize}",
             "ho visto {host} {where} con {food}",
             "non c'è niente di meglio di {show} la domenica pomeriggio",
-            "ci tengo a precisare che {show} ha cambiato la televisione"
+            "ci tengo a precisare che {show} ha cambiato la televisione",
+            "ieri sera ho guardato {show} fino alle due",
+            "{show} mi ha cambiato la vita",
+            "{day} faccio una maratona di {show}",
+            "per guardare {show} mi preparo sempre {food}",
+            "nessuno batte {show} come programma del sabato sera",
+            "{show} è meglio di qualsiasi film",
+            "{name} dice che {show} è {great}",
+            "{show} merita un premio, anzi {prize}",
+            "il mio programma preferito è {show}, e non ne parliamo più",
+            "{day} {where} parlo solo di {show}"
         ];
         const ONE = [
             "sei {b}",
@@ -8076,7 +9053,17 @@
             "{show} lo guardano solo i {B}",
             "chi non guarda {show} è {ub}",
             "{day} dirò a {host} che è {ub}",
-            "dire che {show} è brutto è da {b}"
+            "dire che {show} è brutto è da {b}",
+            "{name} è {ub}",
+            "sappi che {name} ti ritiene {ub}",
+            "guardare {show} fa di te {ub}",
+            "chi mi parla di {show} è {ub}",
+            "{day} dirò a tutti che sei {ub}",
+            "lo sanno anche i bambini che sei {ub}",
+            "senza offesa, ma sei {ub}",
+            "{show} sarà brutto, ma tu sei {ub}",
+            "chi sceglie {show} è {ub}",
+            "sei {ub}, e {name} lo sa"
         ];
         const TWO = [
             "sei {b} e pure {b}",
@@ -8085,11 +9072,20 @@
             "chi non guarda {show} è {ub} e pure {ub}",
             "siete {B} e soprattutto {B}",
             "sei {ub} e anche {ub}",
-            "non sei solo {b}, sei anche {b}"
+            "non sei solo {b}, sei anche {b}",
+            "{name} è {ub} e tu sei {ub}",
+            "{show} è per {B} e per {B}",
+            "siete {B} {where} e {B} {day}",
+            "sei {b} per {show} e {b} per il resto",
+            "non so se sei più {b} o {b}",
+            "{day} ti chiamo {b} e poi {b}"
         ];
         const THREE = [
             "{B}, {B} e ancora {B}",
-            "sei {b}, {b} e pure {b}"
+            "sei {b}, {b} e pure {b}",
+            "sei {b}, {b} e {b}: ecco cosa sei",
+            "sei {ub}, {ub} e pure {ub}",
+            "{B} {where}, {B} {day} e {B} sempre"
         ];
         const TEMPLATES = [
             ...ONE.map(tpl => ({tpl, w: 5})),
@@ -10914,12 +11910,14 @@
                 ? PLAYER_BUTTONS.filter(b => who.includes(b))
                 : null;
             const count = activeButtons ? activeButtons.length : Number(who);
+            syncSetupOptions();
             $("#player-count").value = String(count);
             $("#game-select").value = id;
             updateSetup();
             startGame();
         },
         end: endGame,
+        allGames: () => ({...GAME_NAMES}),     // tutti i giochi, anche quelli già giocati (i nomi per le liste)
         games: () => {
             let available = Object.entries(GAME_NAMES).filter(([id]) => !playedGames.has(id));
             if (!available.length) {
